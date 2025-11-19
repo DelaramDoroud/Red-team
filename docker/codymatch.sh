@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+USERID=$(id -u)
+GROUPID=$(id -g)
+export USERID GROUPID
+
+if [[ "$1" == "test" ]]; then
+  source  "../backend/tests/.env.test"
+else
+  source ".env"
+fi
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+WHITE='\033[0;37m'
+
+error_message () {
+          echo -e "${RED}Command not found ..."
+          echo -e ""
+          echo -e "${WHITE}List of commands:"
+          echo -e ""
+          echo -e "${GREEN}up                         ${WHITE}Create and start containers"
+          echo -e "${GREEN}stop                       ${WHITE}Stop running containers"
+          echo -e "${GREEN}down                       ${WHITE}Stop and remove containers & networks"
+          echo -e "${GREEN}build                      ${WHITE}Stop and remove containers & networks + build or rebuild services"
+          echo -e "${GREEN}logs                       ${WHITE}View output from containers"
+          echo -e "${GREEN}build-prod-nc              ${WHITE}Build services for production without cache and push to registry"
+          echo -e "${GREEN}build-prod                 ${WHITE}Build services for production and push to registry"
+          echo -e "${GREEN}test [test_file] [--stop]     ${WHITE}Run tests in backend service. Optionally specify a test file to run only that file. Use --stop to stop the test DB after tests complete."
+          echo -e "${GREEN}deploy                     ${WHITE}Deploy services"
+          echo -e ""
+          echo -e "${GREEN}backend restart            ${WHITE}Restart backend service container"
+          echo -e "${GREEN}backend logs               ${WHITE}View output from backend container"
+          echo -e "${GREEN}backend bash               ${WHITE}Execute /bin/sh command in backend container"
+          echo -e "${GREEN}backend npm                ${WHITE}Execute npm command in backend container"
+          echo -e "${GREEN}backend npx                ${WHITE}Execute npx command in backend container"
+          echo -e ""
+          echo -e "${GREEN}frontend restart           ${WHITE}Restart frontend service container"
+          echo -e "${GREEN}frontend logs              ${WHITE}View output from frontend container"
+          echo -e "${GREEN}frontend bash              ${WHITE}Execute /bin/sh command in frontend container"
+          echo -e "${GREEN}frontend npm               ${WHITE}Execute npm command in frontend container"
+          echo -e "${GREEN}frontend npx               ${WHITE}Execute npx command in frontend container"
+          echo -e ""
+          echo -e "${GREEN}bul                        ${WHITE}Build, up and log all services"
+          echo -e "${GREEN}dul                        ${WHITE}Down, up and log all services"
+          echo -e "${GREEN}ul                         ${WHITE}Up and log all services"
+          echo -e "${GREEN}brl                        ${WHITE}Restart backend and log all services"
+          echo -e ""
+}
+
+if [[ "$ENVIRONMENT" == "development" ]]; then
+  COMPOSE_ENV_FILE="docker-compose-development.yml"
+fi
+if [[ "$ENVIRONMENT" == "test" ]]; then
+  COMPOSE_ENV_FILE="docker-compose-test.yml"
+fi
+if [[ "$ENVIRONMENT" == "production" ]]; then
+  COMPOSE_ENV_FILE="docker-compose-production.yml"
+fi
+
+DOCKER_COMPOSE=(docker compose --project-name "${PROJECT_NAME}" -f docker-compose.yml -f "${COMPOSE_ENV_FILE}")
+
+case $1 in
+up)
+  "${DOCKER_COMPOSE[@]}" up -d
+  ;;
+
+stop)
+  "${DOCKER_COMPOSE[@]}" stop
+  ;;
+
+down)
+  "${DOCKER_COMPOSE[@]}" down
+  ;;
+
+build)
+  "${DOCKER_COMPOSE[@]}" down
+  "${DOCKER_COMPOSE[@]}" build
+  ;;
+
+logs)
+  "${DOCKER_COMPOSE[@]}" logs -f
+  ;;
+
+build-prod-nc)
+    docker build \
+      --no-cache \
+      --build-arg BRANCH="$BRANCH" \
+      -t "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}" \
+      -f "${BACKEND_FOLDER}/Dockerfile" \
+      "${BACKEND_FOLDER}"
+
+    docker build \
+      --no-cache \
+      --build-arg BRANCH="$BRANCH" \
+      -t "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}" \
+      -f "${FRONTEND_FOLDER}/Dockerfile" \
+      "${FRONTEND_FOLDER}"
+
+    docker login -u "${REGISTRY_USER}" -p "${REGISTRY_TOKEN}" "${REGISTRY_URL}"
+    docker push "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}"
+    docker push "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}"
+    ;;
+
+test)
+  TEST_FILE="${2:-}"
+
+  echo "Stopping old test DB if it exists..."
+  docker rm -f test-db >/dev/null 2>&1 || true
+
+  echo "Starting test-db container from db service..."
+  "${DOCKER_COMPOSE[@]}" run -d \
+    --name test-db \
+    -p "${DB_PORT}:5432" \
+    db
+
+  echo "Waiting for test DB to become ready..."
+  for _ in {1..10}; do
+    if docker exec test-db pg_isready > /dev/null 2>&1; then
+      echo "test-db is ready"
+      break
+    fi
+    sleep 1
+  done
+
+  if ! docker exec test-db pg_isready > /dev/null 2>&1; then
+    echo "test-db failed to become ready in time." >&2
+    docker rm -f test-db >/dev/null 2>&1 || true
+    exit 1
+  fi
+
+  echo "Running tests..."
+
+  STOP_AFTER=false
+
+  if [[ "$2" == "--stop" ]]; then
+    echo "Tests will stop after completion."
+    STOP_AFTER=true
+  fi
+
+  if [[ -n "$TEST_FILE" && "$STOP_AFTER" == false ]]; then
+    echo "Running test file: $TEST_FILE"
+    "${DOCKER_COMPOSE[@]}" run --rm --no-deps \
+      backend sh -c "npm run test -- tests/$TEST_FILE"
+    TEST_EXIT_CODE=$?
+  else
+    echo "Running all tests"
+    if [[ "$STOP_AFTER" == true ]]; then
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
+        "npx vitest run --no-file-parallelism"
+      TEST_EXIT_CODE=$?
+    else
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
+        "npm run test -- --no-file-parallelism"
+      TEST_EXIT_CODE=$?
+    fi
+  fi
+
+  echo "Cleaning up test DB..."
+  docker rm -f test-db > /dev/null 2>&1
+
+  if [[ $TEST_EXIT_CODE -ne 0 ]]; then
+    echo "Some tests failed."
+    exit 1
+  else
+    echo "All tests passed."
+    exit 0
+  fi
+  ;;
+
+build-prod)
+    docker build \
+      --build-arg BRANCH="$BRANCH" \
+      -t "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}" \
+      -f "${BACKEND_FOLDER}/Dockerfile" \
+      "${BACKEND_FOLDER}"
+
+    docker build \
+      --build-arg BRANCH="$BRANCH" \
+      -t "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}" \
+      -f "${FRONTEND_FOLDER}/Dockerfile" \
+      "${FRONTEND_FOLDER}"
+
+    docker login -u "${REGISTRY_USER}" -p "${REGISTRY_TOKEN}" "${REGISTRY_URL}"
+    docker push "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}"
+    docker push "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}"
+    ;;
+
+deploy)
+  echo "Stopping current containers..."
+  "${DOCKER_COMPOSE[@]}" down
+
+  echo "Pulling latest code from git..."
+  git pull || { echo "Git pull failed, aborting."; exit 1; }
+
+  echo "Running deploy script..."
+  chmod +x ./deploy.sh
+  ./deploy.sh
+  ;;
+
+
+backend|frontend)
+    case $2 in
+      restart)
+        "${DOCKER_COMPOSE[@]}" restart "$1"
+        ;;
+
+      logs)
+        "${DOCKER_COMPOSE[@]}" logs -f "$1"
+        ;;
+
+      bash)
+        "${DOCKER_COMPOSE[@]}" exec "$1" /bin/sh
+        ;;
+
+      npm)
+        "${DOCKER_COMPOSE[@]}" exec "$1" npm "${@:3}"
+        ;;
+
+      npx)
+        "${DOCKER_COMPOSE[@]}" exec "$1" npx "${@:3}"
+        ;;
+
+      *)
+        error_message
+        ;;
+      esac
+      ;;
+bul)
+    "${DOCKER_COMPOSE[@]}" down
+    "${DOCKER_COMPOSE[@]}" build
+    "${DOCKER_COMPOSE[@]}" up -d
+    "${DOCKER_COMPOSE[@]}" logs -f
+    ;;
+dul)
+    "${DOCKER_COMPOSE[@]}" down
+    "${DOCKER_COMPOSE[@]}" up -d
+    "${DOCKER_COMPOSE[@]}" logs -f
+    ;;
+ul)
+    "${DOCKER_COMPOSE[@]}" up -d
+    "${DOCKER_COMPOSE[@]}" logs -f
+    ;;
+brl)
+    "${DOCKER_COMPOSE[@]}" restart backend
+    "${DOCKER_COMPOSE[@]}" logs -f
+    ;;
+*)
+  error_message
+  ;;
+esac

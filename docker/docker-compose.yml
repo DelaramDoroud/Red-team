@@ -1,0 +1,39 @@
+services:
+  frontend:
+    restart: always
+    hostname: frontend
+    env_file:
+      - .env
+  backend:
+    restart: always
+    env_file:
+      - .env
+    environment:
+      WORKDIR: /usr/app
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: codymatch
+      DB_USER: codymatch
+    networks:
+#      - traefik
+      - default
+    depends_on:
+      - db
+      - frontend
+  db:
+    image: postgres:16-alpine
+    shm_size: "2gb"
+    restart: always
+    ports:
+      - ${DB_PORT}:5432
+    environment:
+      POSTGRES_DB: codymatch
+      POSTGRES_USER: codymatch
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+volumes:
+  db_data:
+
+#networks:
+#  traefik:
+#    external: true
