@@ -1,0 +1,77 @@
+{
+  "$id": "challenge",
+  "type": "object",
+  "oneOf": [
+    {
+      "title": "Published",
+      "properties": {
+        "status": {
+          "const": "published"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "title": {
+          "$ref": "sharedDefinitions#/definitions/notEmptyString"
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Duration in minutes"
+        },
+        "startDatetime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 datetime string"
+        }
+      },
+      "required": [
+        "status",
+        "title",
+        "duration",
+        "startDatetime"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "title": "Draft",
+      "properties": {
+        "status": {
+          "const": "draft"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "duration": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "startDatetime": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
