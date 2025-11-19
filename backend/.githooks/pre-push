@@ -1,0 +1,24 @@
+#!/bin/sh
+echo "Running backend tests before push..."
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SCRIPT_PATH="$REPO_ROOT/../docker/codymatch.sh"
+
+echo "Resolved script path: $SCRIPT_PATH"
+
+if [ ! -f "$SCRIPT_PATH" ]; then
+  echo "Error: $SCRIPT_PATH not found"
+  exit 1
+fi
+
+cd "$(dirname "$SCRIPT_PATH")"
+
+bash ./codymatch.sh test --stop
+
+if [ $? -ne 0 ]; then
+  echo "Tests failed. Push aborted."
+  exit 1
+fi
+
+echo "All tests passed. Proceeding with push."
+exit 0
