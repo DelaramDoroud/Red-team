@@ -1,0 +1,26 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.hero {
+  max-width: 48rem;
+}
+
+.hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2.25rem;
+}
+
+.hero p {
+  margin: 0;
+  opacity: 0.85;
+}
+
+.hero code {
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background-color: rgb(15 23 42 / 80%);
+  font-size: 0.9em;
+}

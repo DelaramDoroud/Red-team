@@ -1,0 +1,50 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.refresh {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(148 163 184 / 60%);
+  background: transparent;
+  color: inherit;
+}
+
+.refresh:hover {
+  background-color: rgb(15 23 42 / 90%);
+}
+
+.error {
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
+
+.empty {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}

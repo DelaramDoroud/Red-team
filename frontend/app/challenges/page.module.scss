@@ -1,0 +1,22 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.header p {
+  margin: 0;
+  opacity: 0.85;
+  font-size: 0.95rem;
+}

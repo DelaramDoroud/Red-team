@@ -1,0 +1,49 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgb(148 163 184 / 25%);
+  background: radial-gradient(
+    circle at top left,
+    rgb(56 189 248 / 15%),
+    transparent 55%
+  );
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.logo-mark {
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(248 113 113 / 90%);
+  color: rgb(248 113 113 / 90%);
+}
+
+.logo-text {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.nav {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.nav-link {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  border-color: rgb(148 163 184 / 60%);
+  background-color: rgb(15 23 42 / 90%);
+}
