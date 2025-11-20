@@ -63,6 +63,7 @@ export async function up({ context: queryInterface }) {
       },
       challengeId: {
         type: DataTypes.INTEGER,
+        field: 'challenge_id',
         references: {
           model: 'challenge',
           key: 'id',
@@ -73,6 +74,7 @@ export async function up({ context: queryInterface }) {
       },
       matchSettingId: {
         type: DataTypes.INTEGER,
+        field: 'match_setting_id',
         references: {
           model: 'match_setting',
           key: 'id',

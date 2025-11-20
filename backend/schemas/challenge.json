@@ -1,77 +1,57 @@
 {
   "$id": "challenge",
   "type": "object",
-  "oneOf": [
-    {
-      "title": "Published",
-      "properties": {
-        "status": {
-          "const": "published"
-        },
-        "id": {
-          "type": "integer"
-        },
-        "title": {
-          "$ref": "sharedDefinitions#/definitions/notEmptyString"
-        },
-        "duration": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Duration in minutes"
-        },
-        "startDatetime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "ISO 8601 datetime string"
-        }
-      },
-      "required": [
-        "status",
-        "title",
-        "duration",
-        "startDatetime"
-      ],
-      "additionalProperties": false
+  "properties": {
+    "status": {
+      "enum": ["public", "private"],
+      "default": "private"
     },
-    {
-      "title": "Draft",
-      "properties": {
-        "status": {
-          "const": "draft"
-        },
-        "id": {
-          "type": "integer"
-        },
-        "title": {
-          "type": "string"
-        },
-        "duration": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "type": "integer",
-              "minimum": 1
-            }
-          ]
-        },
-        "startDatetime": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "type": "string",
-              "format": "date-time"
-            }
-          ]
-        }
+    "id": {
+      "type": "integer"
+    },
+    "title": {
+      "$ref": "shared-definitions#/definitions/notEmptyString"
+    },
+    "duration": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Duration in minutes"
+    },
+    "startDatetime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "endDatetime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "peerReviewStartDate": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "peerReviewEndDate": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "allowedNumberOfReview": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "matchSettingIds": {
+      "type": "array",
+      "items": {
+        "type": "integer"
       },
-      "required": [
-        "status"
-      ],
-      "additionalProperties": false
+      "uniqueItems": true
     }
-  ]
+  },
+  "required": [
+    "title",
+    "duration",
+    "startDatetime",
+    "endDatetime",
+    "peerReviewStartDate",
+    "peerReviewEndDate"
+  ],
+  "additionalProperties": false
 }

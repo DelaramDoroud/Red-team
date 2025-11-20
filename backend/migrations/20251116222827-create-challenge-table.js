@@ -40,6 +40,7 @@ export async function up({ context: queryInterface }) {
     },
     allowedNumberOfReview: {
       type: Sequelize.INTEGER,
+      field: 'allowed_number_of_review',
       allowNull: false,
       defaultValue: 0,
     },
