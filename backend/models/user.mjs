@@ -64,9 +64,9 @@ User.seed = async function () {
 
     await User.create({
       username: 'teacher1',
-      password: 'password123', // This will be hashed by the hook
+      password: 'password123', 
       role: 'teacher',
-      settings: { theme: 'dark' },
+      settings: { theme: 'light' },
     });
     console.log('User (Teacher) seeded successfully.');
   } catch (error) {
