@@ -66,9 +66,16 @@ router.post('/challenge', async (req, res) => {
       });
 
       if (settings.length !== matchSettingIds.length) {
-        // You might want to throw a 400 error here, or just ignore missing IDs
-        // For now, we'll just proceed with found settings
-        
+        await transaction.rollback();
+        const foundIds = settings.map((s) => s.id);
+        const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'One or more match settings not found.',
+            missingIds,
+          },
+        });
       }
 
       await challenge.addMatchSettings(settings, { transaction });
