@@ -14,7 +14,7 @@
     "migrate": "node migrator.js db:migrate",
     "migrate-undo": "node migrator.js db:migrate:undo",
     "migrate-undo-all": "node migrator.js db:migrate:undo:all",
-    "migration:create": "node migrator.js migration:create",
+    
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage"
