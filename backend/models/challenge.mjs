@@ -62,6 +62,21 @@ const Challenge = sequelize.define(
       field: 'end_datetime',
       allowNull: false,
     },
+    peerReviewStartDate: {
+      type: DataTypes.DATE,
+      field: 'peer_review_start_date',
+      allowNull: false,
+    },
+    peerReviewEndDate: {
+      type: DataTypes.DATE,
+      field: 'peer_review_end_date',
+      allowNull: false,
+    },
+    numberOfPeers: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
     status: {
       type: DataTypes.ENUM('public', 'private'),
       allowNull: false,
@@ -98,7 +113,7 @@ Challenge.initializeRelations = function (models) {
   // 2. Challenge B -> [Setting 2, Setting 3]
   Challenge.belongsToMany(models.MatchSetting, {
     through: 'ChallengeMatchSetting', // The junction table
-    as: 'matchSettings',              // Accessor: challenge.matchSettings
+    as: 'matchSettings', // Accessor: challenge.matchSettings
     foreignKey: 'challengeId',
     otherKey: 'matchSettingId',
   });
