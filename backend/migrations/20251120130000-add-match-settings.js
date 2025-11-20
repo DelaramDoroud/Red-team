@@ -14,6 +14,7 @@ export async function up({ context: queryInterface }) {
       problem_title: {
         type: DataTypes.STRING(255),
         allowNull: false,
+        
       },
       problem_description: {
         type: DataTypes.TEXT,

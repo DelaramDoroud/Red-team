@@ -21,6 +21,33 @@ export async function up({ context: queryInterface }) {
       field: 'start_datetime',
       allowNull: false,
     },
+    // New fields from model
+    endDatetime: {
+      type: Sequelize.DATE,
+      field: 'end_datetime',
+      allowNull: false,
+    },
+    peerReviewStartDate: {
+      type: Sequelize.DATE,
+      field: 'peer_review_start_date',
+      allowNull: false,
+    },
+    peerReviewEndDate: {
+      type: Sequelize.DATE,
+      field: 'peer_review_end_date',
+      allowNull: false,
+    },
+    allowedNumberOfReview: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    status: {
+      type: Sequelize.ENUM('public', 'private'),
+      allowNull: false,
+      defaultValue: 'private',
+    },
+    // Standard timestamps
     createdAt: {
       type: Sequelize.DATE,
       field: 'created_at',

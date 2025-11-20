@@ -72,7 +72,7 @@ const Challenge = sequelize.define(
       field: 'peer_review_end_date',
       allowNull: false,
     },
-    numberOfPeers: {
+    allowedNumberOfReview: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
