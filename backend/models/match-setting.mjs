@@ -48,6 +48,16 @@ const MatchSetting = sequelize.define(
       },
     ],
   }
+  
 );
+
+MatchSetting.initializeRelations = (models) => {
+  MatchSetting.belongsToMany(models.Challenge, {
+    through: 'ChallengeMatchSetting',
+    as: 'challenges',
+    foreignKey: 'matchSettingId',
+    otherKey: 'challengeId',
+  });
+};
 
 export default MatchSetting;

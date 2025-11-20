@@ -57,6 +57,16 @@ const Challenge = sequelize.define(
       field: 'start_datetime',
       allowNull: false,
     },
+    endDatetime: {
+      type: DataTypes.DATE,
+      field: 'end_datetime',
+      allowNull: false,
+    },
+    status: {
+      type: DataTypes.ENUM('public', 'private'),
+      allowNull: false,
+      defaultValue: 'private',
+    },
   },
   {
     tableName: 'challenge',
@@ -81,35 +91,17 @@ const Challenge = sequelize.define(
  * Define all the associations for Challenge.
  * We "pretend" related models (MatchSetting, User, Match, ChallengeParticipant) exist.
  */
-Challenge.initializeRelations = function (/*models*/) {
-  // One challenge can have many match settings (configurations for different match modes)
-  // Challenge.hasMany(models.MatchSetting, {
-  //   as: 'matchSettings',
-  //   foreignKey: 'challengeId',
-  // });
-  // One challenge can have many matches (individual games/rounds played under this challenge)
-  // Challenge.hasMany(models.Match, {
-  //   as: 'matches',
-  //   foreignKey: 'challengeId',
-  // });
-  // A challenge is usually created by a specific user
-  // Challenge.belongsTo(models.Teacher, {
-  //   as: 'creator',
-  //   foreignKey: 'creatorUserId',
-  // });
-  // Many users can participate in many challenges through a join table
-  // Challenge.belongsToMany(models.Student, {
-  //   through: models.ChallengeParticipant,
-  //   as: 'participants',
-  //   foreignKey: 'challengeId',
-  //   otherKey: 'userId',
-  // });
-  //
-  // // Example: one challenge might be linked to a "default" match setting
-  // Challenge.belongsTo(models.MatchSetting, {
-  //   as: 'defaultMatchSetting',
-  //   foreignKey: 'defaultMatchSettingId',
-  // });
+Challenge.initializeRelations = function (models) {
+  // This creates the Many-to-Many link.
+  // It allows:
+  // 1. Challenge A -> [Setting 1, Setting 2]
+  // 2. Challenge B -> [Setting 2, Setting 3]
+  Challenge.belongsToMany(models.MatchSetting, {
+    through: 'ChallengeMatchSetting', // The junction table
+    as: 'matchSettings',              // Accessor: challenge.matchSettings
+    foreignKey: 'challengeId',
+    otherKey: 'matchSettingId',
+  });
 };
 
 /**
