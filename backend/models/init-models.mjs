@@ -16,8 +16,13 @@ export function initRelations() {
 }
 
 export async function seedModels() {
-  for (const model of Object.values(models))
-    if (typeof model.seed === 'function') await model.seed();
+  for (const model of Object.values(models)) {
+    console.log(`Checking seed for model: ${model.name}`);
+    if (typeof model.seed === 'function') {
+      console.log(`Seeding ${model.name}...`);
+      await model.seed();
+    }
+  }
 }
 export default {
   init: async function init() {

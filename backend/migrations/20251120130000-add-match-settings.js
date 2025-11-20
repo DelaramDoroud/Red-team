@@ -14,7 +14,7 @@ export async function up({ context: queryInterface }) {
       problem_title: {
         type: DataTypes.STRING(255),
         allowNull: false,
-        
+        unique: true,
       },
       problem_description: {
         type: DataTypes.TEXT,
@@ -83,17 +83,9 @@ export async function up({ context: queryInterface }) {
       },
     }, { transaction });
     
-    // 3. Add start_time and end_time columns to challenge
-    await queryInterface.addColumn('challenge', 'start_time', {
-         type: DataTypes.DATE,
-         allowNull: true, // Allow null initially or default
-    }, { transaction });
+    // Note: We do NOT add columns to 'challenge' here anymore, 
+    // because you updated the initial create-challenge migration file to include them.
     
-    await queryInterface.addColumn('challenge', 'end_time', {
-         type: DataTypes.DATE,
-         allowNull: true,
-    }, { transaction });
-
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();
@@ -106,8 +98,6 @@ export async function down({ context: queryInterface }) {
   try {
     await queryInterface.dropTable('ChallengeMatchSetting', { transaction });
     await queryInterface.dropTable('match_setting', { transaction });
-    await queryInterface.removeColumn('challenge', 'start_time', { transaction });
-    await queryInterface.removeColumn('challenge', 'end_time', { transaction });
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();

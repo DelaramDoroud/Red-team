@@ -11,6 +11,7 @@ export async function up({ context: queryInterface }) {
     title: {
       type: Sequelize.STRING(255),
       allowNull: false,
+      unique: true,
     },
     duration: {
       type: Sequelize.INTEGER,
