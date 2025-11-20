@@ -41,21 +41,24 @@ router.post('/challenge', async (req, res) => {
 
   const matchSettingIds = req.body.matchSettingIds || [];
 
+  if (matchSettingIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'At least one match setting is required.' },
+    });
+  }
+
   let transaction;
 
   try {
-    // 1) Validate payload
     await validateChallengeData(payload, {
-      validatorKey: 'challenge_create',
+      validatorKey: 'challenge',
     });
 
-    // 2) Start transaction
     transaction = await sequelize.transaction();
 
-    // 3) Create Challenge
     const challenge = await Challenge.create(payload, { transaction });
 
-    // 4) Associate MatchSettings
     if (matchSettingIds.length > 0) {
       const settings = await MatchSetting.findAll({
         where: { id: matchSettingIds },
@@ -65,6 +68,7 @@ router.post('/challenge', async (req, res) => {
       if (settings.length !== matchSettingIds.length) {
         // You might want to throw a 400 error here, or just ignore missing IDs
         // For now, we'll just proceed with found settings
+        
       }
 
       await challenge.addMatchSettings(settings, { transaction });
@@ -73,7 +77,6 @@ router.post('/challenge', async (req, res) => {
     // 5) Commit
     await transaction.commit();
 
-    // 6) Reload to return full object with associations
     const createdChallenge = await Challenge.findByPk(challenge.id, {
       include: [
         {
@@ -89,6 +92,7 @@ router.post('/challenge', async (req, res) => {
       challenge: createdChallenge,
     });
   } catch (error) {
+    console.error('Create Challenge Error:', error); // <--- Added log
     if (transaction) await transaction.rollback();
     handleException(res, error);
   }
