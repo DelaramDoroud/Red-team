@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import useMatchSettings from '#js/useMatchSetting.js';
+import styles from './page.module.scss';
 
 export default function NewChallengePage() {
 
@@ -101,10 +102,11 @@ export default function NewChallengePage() {
                 </tbody>
                 </table>
 
-                <button type="submit" style={{padding: '0.75rem 1.5rem', backgroundColor: '#2563eb',
-                color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer'}} >
-                    Create
-                </button>
+                <div className={styles.submitWrapper}>
+                    <button type="submit" className={styles.submitButton}>
+                        Create
+                    </button>
+                </div>
             </form>
         </main>
     );
