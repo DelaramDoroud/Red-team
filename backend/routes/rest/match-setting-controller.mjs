@@ -4,7 +4,6 @@ import { handleException } from '#root/services/error.mjs';
 
 const router = Router();
 
-
 router.get('/match-settings', async (_req, res) => {
   try {
     const matchSettings = await MatchSetting.findAll();
