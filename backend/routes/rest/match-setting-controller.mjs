@@ -4,12 +4,12 @@ import { handleException } from '#root/services/error.mjs';
 
 const router = Router();
 
-router.get('/match-settings', async (_req, res) => {
+router.get('/matchSettings', async (_req, res) => {
   try {
     const matchSettings = await MatchSetting.findAll();
     res.json({
       success: true,
-      matchSettings,
+      data: matchSettings,
     });
   } catch (error) {
     handleException(res, error);

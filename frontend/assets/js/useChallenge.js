@@ -2,14 +2,10 @@
 
 import { useCallback } from 'react';
 import useFetchData from '#js/useFetchData';
+import * as Constants from '../constants/Constants';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = Constants.API_BACKEND;
 
-/**
- * Small wrapper around useFetchData that knows about the Challenge API.
- * This is the only domain-specific hook we expose from #js in this demo.
- */
 export default function useChallenge() {
   const { fetchData, loading } = useFetchData();
 

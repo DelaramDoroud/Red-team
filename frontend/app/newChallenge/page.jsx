@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import useMatchSetting from '#js/useMatchSetting.js';
+import useMatchSettings from '#js/useMatchSetting.js';
 
 export default function NewChallengePage() {
 
-    const { loading, getMatchSettings } = useMatchSetting();
+    const { loading, getMatchSettings } = useMatchSettings();
     const [matchSettings, setMatchSettings] = useState([]);
     const [challengeName, setChallengeName] = useState('');
     const [startDateTime, setStartDateTime] = useState('');
@@ -24,6 +24,7 @@ export default function NewChallengePage() {
     const load = useCallback(async () => {
         setError(null);
         const result = await getMatchSettings();
+        console.log("Match setting result ", result)
         if (result?.success === false) {
             setError(result.message || 'Unable to load challenges');
             setMatchSettings([]);
@@ -31,7 +32,6 @@ export default function NewChallengePage() {
         }
         if (Array.isArray(result)) {
             setMatchSettings(result.matchSettings);
-            console.log(result)
         } else if (Array.isArray(result?.data)) {
             setMatchSettings(result.data);
         } else {
