@@ -3,9 +3,10 @@ import sequelize from '#root/services/sequelize.mjs';
 import Challenge, { validateChallengeData } from '#root/models/challenge.mjs';
 import MatchSetting from '#root/models/match-setting.mjs';
 import { handleException } from '#root/services/error.mjs';
+import getValidator from '#root/services/validator.mjs';
+import * as matchService from '#root/services/match.mjs';
 
 const router = Router();
-
 
 router.get('/challenges', async (_req, res) => {
   try {
@@ -14,7 +15,7 @@ router.get('/challenges', async (_req, res) => {
         {
           model: MatchSetting,
           as: 'matchSettings',
-          through: { attributes: [] }, 
+          through: { attributes: [] },
         },
       ],
       order: Challenge.getDefaultOrder(),
@@ -25,7 +26,6 @@ router.get('/challenges', async (_req, res) => {
     handleException(res, error);
   }
 });
-
 
 router.post('/challenge', async (req, res) => {
   const payload = {
@@ -68,7 +68,9 @@ router.post('/challenge', async (req, res) => {
       if (settings.length !== matchSettingIds.length) {
         await transaction.rollback();
         const foundIds = settings.map((s) => s.id);
-        const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+        const missingIds = matchSettingIds.filter(
+          (id) => !foundIds.includes(id)
+        );
         return res.status(400).json({
           success: false,
           error: {
@@ -101,6 +103,62 @@ router.post('/challenge', async (req, res) => {
   } catch (error) {
     console.error('Create Challenge Error:', error); // <--- Added log
     if (transaction) await transaction.rollback();
+    handleException(res, error);
+  }
+});
+const validateJoinChallenge = getValidator('join-challenge');
+
+router.post('/challenge/join', async (req, res) => {
+  try {
+    if (!validateJoinChallenge) {
+      return res.status(500).json({
+        success: false,
+        error: 'Join-challenge validator not found',
+      });
+    }
+
+    const valid = validateJoinChallenge(req.body);
+    if (!valid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid join payload',
+        details: validateJoinChallenge.errors,
+      });
+    }
+
+    const { studentId, challengeId } = req.body;
+
+    const { status, participation } = await matchService.joinChallenge({
+      studentId: Number(studentId),
+      challengeId: Number(challengeId),
+    });
+
+    if (status === 'challenge_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (status === 'student_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Student not found',
+      });
+    }
+
+    if (status === 'already_joined') {
+      return res.status(400).json({
+        success: false,
+        error: 'Student already joined this challenge',
+      });
+    }
+
+    return res.json({
+      success: true,
+      result: participation,
+    });
+  } catch (error) {
     handleException(res, error);
   }
 });

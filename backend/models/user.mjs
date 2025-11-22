@@ -56,7 +56,19 @@ const User = sequelize.define(
     },
   }
 );
+User.initializeRelations = function (models) {
+  User.hasMany(models.Match, {
+    as: 'challengeJoins',
+    foreignKey: 'studentId',
+  });
 
+  User.belongsToMany(models.Challenge, {
+    through: models.Match,
+    as: 'joinedChallenges',
+    foreignKey: 'studentId',
+    otherKey: 'challengeId',
+  });
+};
 User.seed = async function () {
   try {
     const count = await User.count();
@@ -64,7 +76,7 @@ User.seed = async function () {
 
     await User.create({
       username: 'teacher1',
-      password: 'password123', 
+      password: 'password123',
       role: 'teacher',
       settings: { theme: 'light' },
     });
@@ -75,4 +87,3 @@ User.seed = async function () {
 };
 
 export default User;
-

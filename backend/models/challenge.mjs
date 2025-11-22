@@ -117,6 +117,18 @@ Challenge.initializeRelations = function (models) {
     foreignKey: 'challengeId',
     otherKey: 'matchSettingId',
   });
+
+  Challenge.hasMany(models.Match, {
+    as: 'matches',
+    foreignKey: 'challengeId',
+  });
+
+  Challenge.belongsToMany(models.User, {
+    through: models.Match,
+    as: 'participants',
+    foreignKey: 'challengeId',
+    otherKey: 'studentId',
+  });
 };
 
 /**
