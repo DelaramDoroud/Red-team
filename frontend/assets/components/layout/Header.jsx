@@ -20,6 +20,9 @@ export default function Header() {
         <Link href='/students' className={styles['nav-link']}>
           Students
         </Link>
+        <Link href='/newChallenge' className={styles['nav-link']}>
+          New Challenge
+        </Link>
       </nav>
     </header>
   );

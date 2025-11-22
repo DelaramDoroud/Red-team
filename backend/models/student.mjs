@@ -50,15 +50,19 @@ const Student = sequelize.define(
  * Define all the associations for Student.
  * We assume Challenge and StudentChallenge models exist in the same folder.
  */
-Student.initializeRelations = function (/*models*/) {
+Student.initializeRelations = function (models) {
   // Many-to-many: one student can participate in many challenges,
   // and one challenge can have many students.
-  // Student.belongsToMany(models.Challenge, {
-  //   through: models.StudentChallenge, // join table (assumed to exist)
-  //   as: 'challenges',
-  //   foreignKey: 'studentId',
-  //   otherKey: 'challengeId',
-  // });
+  Student.hasMany(models.Match, {
+    as: 'matches',
+    foreignKey: 'studentId',
+  });
+  Student.belongsToMany(models.Challenge, {
+    through: models.Match,
+    as: 'challenges',
+    foreignKey: 'studentId',
+    otherKey: 'challengeId',
+  });
 };
 
 /**

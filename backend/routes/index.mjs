@@ -2,6 +2,7 @@ import { Router } from 'express';
 import userRouter from '#root/routes/api/user-controller.mjs';
 import configRouter from '#root/routes/api/config-controller.mjs';
 import researchItemRouter from '#root/routes/rest/challenge-controller.mjs';
+import matchSettingRouter from '#root/routes/rest/match-setting-controller.mjs';
 import schemaRouter from '#root/routes/rest/schema-controller.mjs';
 
 const router = Router();
@@ -11,6 +12,7 @@ router.use('/api', configRouter);
 
 const restApiPrefix = '/api/rest';
 router.use(restApiPrefix, researchItemRouter);
+router.use(restApiPrefix, matchSettingRouter);
 router.use(restApiPrefix, schemaRouter);
 
 router.all(/\/api\/(.*)/, (_req, res) => {
