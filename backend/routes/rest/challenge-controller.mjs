@@ -4,7 +4,7 @@ import Challenge, { validateChallengeData } from '#root/models/challenge.mjs';
 import MatchSetting from '#root/models/match-setting.mjs';
 import { handleException } from '#root/services/error.mjs';
 import getValidator from '#root/services/validator.mjs';
-import * as matchService from '#root/services/match.mjs';
+import joinChallenge from '#root/services/challenge_participant.mjs';
 
 const router = Router();
 
@@ -106,9 +106,9 @@ router.post('/challenge', async (req, res) => {
     handleException(res, error);
   }
 });
-const validateJoinChallenge = getValidator('join-challenge');
 
-router.post('/challenge/join', async (req, res) => {
+const validateJoinChallenge = getValidator('join-challenge');
+router.post('/challenge/:challengeId/join', async (req, res) => {
   try {
     if (!validateJoinChallenge) {
       return res.status(500).json({
@@ -116,7 +116,6 @@ router.post('/challenge/join', async (req, res) => {
         error: 'Join-challenge validator not found',
       });
     }
-
     const valid = validateJoinChallenge(req.body);
     if (!valid) {
       return res.status(400).json({
@@ -126,9 +125,10 @@ router.post('/challenge/join', async (req, res) => {
       });
     }
 
-    const { studentId, challengeId } = req.body;
+    const { studentId } = req.body;
+    const { challengeId } = req.params;
 
-    const { status, participation } = await matchService.joinChallenge({
+    const { status, participation } = await joinChallenge({
       studentId: Number(studentId),
       challengeId: Number(challengeId),
     });

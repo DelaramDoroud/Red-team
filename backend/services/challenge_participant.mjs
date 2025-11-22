@@ -1,8 +1,8 @@
-import Match from '#root/models/match.mjs';
+import ChallengeParticipant from '#root/models/challenge-participant.mjs';
 import Challenge from '#root/models/challenge.mjs';
 import User from '#root/models/user.mjs';
 
-export async function joinChallenge({ studentId, challengeId }) {
+export default async function joinChallenge({ studentId, challengeId }) {
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) {
     return { status: 'challenge_not_found' };
@@ -13,7 +13,7 @@ export async function joinChallenge({ studentId, challengeId }) {
     return { status: 'student_not_found' };
   }
 
-  const existing = await Match.findOne({
+  const existing = await ChallengeParticipant.findOne({
     where: { studentId, challengeId },
   });
 
@@ -21,10 +21,11 @@ export async function joinChallenge({ studentId, challengeId }) {
     return { status: 'already_joined' };
   }
 
-  const participation = await Match.create({
+  const participation = await ChallengeParticipant.create({
     studentId,
     challengeId,
   });
 
   return { status: 'ok', participation };
 }
+

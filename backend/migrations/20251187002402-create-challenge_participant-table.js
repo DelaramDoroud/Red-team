@@ -1,7 +1,9 @@
 import { Sequelize } from 'sequelize';
 
+const TABLE_NAME = 'challenge_participant';
+
 export async function up({ context: queryInterface }) {
-  await queryInterface.createTable('match', {
+  await queryInterface.createTable(TABLE_NAME, {
     id: {
       type: Sequelize.INTEGER,
       autoIncrement: true,
@@ -25,7 +27,6 @@ export async function up({ context: queryInterface }) {
       type: Sequelize.INTEGER,
       field: 'student_id',
       allowNull: false,
-
       references: {
         model: 'users',
         key: 'id',
@@ -38,24 +39,24 @@ export async function up({ context: queryInterface }) {
       type: Sequelize.DATE,
       field: 'created_at',
       allowNull: false,
-      defaultValue: new Date(),
+      defaultValue: Sequelize.NOW,
     },
 
     updatedAt: {
       type: Sequelize.DATE,
       field: 'updated_at',
       allowNull: false,
-      defaultValue: new Date(),
+      defaultValue: Sequelize.NOW,
     },
   });
 
-  await queryInterface.addConstraint('match', {
+  await queryInterface.addConstraint(TABLE_NAME, {
     fields: ['challenge_id', 'student_id'],
     type: 'unique',
-    name: 'match_challenge_student_unique',
+    name: 'uq_student_challenge_ids',
   });
 }
 
 export async function down({ context: queryInterface }) {
-  await queryInterface.dropTable('match');
+  await queryInterface.dropTable(TABLE_NAME);
 }

@@ -118,13 +118,13 @@ Challenge.initializeRelations = function (models) {
     otherKey: 'matchSettingId',
   });
 
-  Challenge.hasMany(models.Match, {
-    as: 'matches',
+  Challenge.hasMany(models.ChallengeParticipant, {
+    as: 'challengeParticipants',
     foreignKey: 'challengeId',
   });
 
   Challenge.belongsToMany(models.User, {
-    through: models.Match,
+    through: models.ChallengeParticipant,
     as: 'participants',
     foreignKey: 'challengeId',
     otherKey: 'studentId',

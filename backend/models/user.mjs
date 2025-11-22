@@ -57,13 +57,13 @@ const User = sequelize.define(
   }
 );
 User.initializeRelations = function (models) {
-  User.hasMany(models.Match, {
+  User.hasMany(models.ChallengeParticipant, {
     as: 'challengeJoins',
     foreignKey: 'studentId',
   });
 
   User.belongsToMany(models.Challenge, {
-    through: models.Match,
+    through: models.ChallengeParticipant,
     as: 'joinedChallenges',
     foreignKey: 'studentId',
     otherKey: 'challengeId',

@@ -1,8 +1,8 @@
 import sequelize from '#root/services/sequelize.mjs';
 import { DataTypes } from 'sequelize';
 
-const Match = sequelize.define(
-  'Match',
+const ChallengeParticipant = sequelize.define(
+  'ChallengeParticipant',
   {
     id: {
       type: DataTypes.INTEGER,
@@ -21,7 +21,7 @@ const Match = sequelize.define(
     },
   },
   {
-    tableName: 'match',
+    tableName: 'challenge_participant',
     schema: 'public',
     underscored: true,
     timestamps: true,
@@ -34,15 +34,19 @@ const Match = sequelize.define(
   }
 );
 
-Match.initializeRelations = (models) => {
-  Match.belongsTo(models.Challenge, {
+ChallengeParticipant.initializeRelations = (models) => {
+  ChallengeParticipant.belongsTo(models.Challenge, {
     foreignKey: 'challengeId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
   });
 
-  Match.belongsTo(models.User, {
+  ChallengeParticipant.belongsTo(models.User, {
     as: 'student',
     foreignKey: 'studentId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
   });
 };
 
-export default Match;
+export default ChallengeParticipant;

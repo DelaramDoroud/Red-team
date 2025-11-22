@@ -11,7 +11,7 @@
   "additionalProperties": false,
   "errorMessage": {
     "required": {
-      "studentId": "StudentId is required"
+      "studentId": "StudentId is required."
     }
   }
 }
