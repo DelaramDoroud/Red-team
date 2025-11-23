@@ -1,0 +1,6 @@
+.vscode/
+*.log
+**/node_modules/
+frontend/package-lock.json
+backend/package-lock.json
+/tmp

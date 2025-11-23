@@ -5,7 +5,7 @@
 red team's capstone project!
 
 **product owner**: @
-**scrum master**: @DelaramDoroud Delaram Doroudgarian 
+**scrum master**: @DelaramDoroud Delaram Doroudgarian
 **development team**:
 
 - @member1 Member One
@@ -66,7 +66,7 @@ Problem ->
 
 ## todos
 
-- [ ] ... 
+- [ ] ...
 
 ## Contribution guidelines
 

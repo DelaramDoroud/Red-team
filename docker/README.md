@@ -4,124 +4,124 @@
 
 Create and start containers:
 
-```
-> ./codymatch.sh up
+```bash
+./codymatch.sh up
 ```
 
 Stop running containers:
 
-```
-> ./codymatch.sh stop
+```bash
+./codymatch.sh stop
 ```
 
 Stop and remove containers & networks:
 
-```
-> ./codymatch.sh down
+```bash
+./codymatch.sh down
 ```
 
 Stop and remove containers & networks + build or rebuild services:
 
-```
-> ./codymatch.sh build
+```bash
+./codymatch.sh build
 ```
 
 View output from containers:
 
-```
-> ./codymatch.sh logs
+```bash
+./codymatch.sh logs
 ```
 
 Stop, remove, build, create, start containers & networks and view output:
 
-```
-> ./codymatch.sh bul
+```bash
+./codymatch.sh bul
 ```
 
 Create, start containers & networks and view output:
 
-```
-> ./codymatch.sh ul
+```bash
+./codymatch.sh ul
 ```
 
 Stop, remove, create, start containers & networks and view output:
 
-```
-> ./codymatch.sh dul
+```bash
+./codymatch.sh dul
 ```
 
 Start local testing environment:
 
-```
-> ./codymatch.sh test
+```bash
+./codymatch.sh test
 ```
 
 Pull latest version from git and deploy
 
-```
-> ./codymatch.sh deploy
+```bash
+./codymatch.sh deploy
 ```
 
 ### Backend container only
 
 Restart backend service container:
 
-```
-> ./codymatch.sh backend restart
+```bash
+./codymatch.sh backend restart
 ```
 
 View output from backend container:
 
-```
-> ./codymatch.sh backend logs
+```bash
+./codymatch.sh backend logs
 ```
 
 Restart backend service container and view output:
 
-```
-> ./codymatch.sh brl
+```bash
+./codymatch.sh brl
 ```
 
 Execute /bin/sh command in backend container:
 
-```
-> ./codymatch.sh backend bash
+```bash
+./codymatch.sh backend bash
 ```
 
 Execute npm command in backend container:
 
-```
-> ./codymatch.sh backend npm
+```bash
+./codymatch.sh backend npm
 ```
 
 Execute npx command in backend container:
 
-```
-> ./codymatch.sh backend npx
+```bash
+./codymatch.sh backend npx
 ```
 
 ### Frontend container only
 
 Restart frontend service container:
 
-```
-> ./codymatch.sh frontend restart
+```bash
+./codymatch.sh frontend restart
 ```
 
 View output from frontend container:
 
-```
-> ./codymatch.sh frontend logs
+```bash
+./codymatch.sh frontend logs
 ```
 
 Execute /bin/sh command in frontend container:
 
-```
-> ./codymatch.sh frontend bash
+```bash
+./codymatch.sh frontend bash
 ```
 
 Execute npm command in frontend container:
 
-```
-> ./codymatch.sh frontend npm
+```bash
+./codymatch.sh frontend npm
 ```
