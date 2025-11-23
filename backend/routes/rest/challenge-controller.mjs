@@ -126,11 +126,19 @@ router.post('/challenge/:challengeId/join', async (req, res) => {
     }
 
     const { studentId } = req.body;
-    const { challengeId } = req.params;
 
+    const { challengeId: rawChallengeId } = req.params;
+
+    const challengeId = Number(rawChallengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
     const { status, participation } = await joinChallenge({
       studentId: Number(studentId),
-      challengeId: Number(challengeId),
+      challengeId,
     });
 
     if (status === 'challenge_not_found') {
@@ -148,7 +156,7 @@ router.post('/challenge/:challengeId/join', async (req, res) => {
     }
 
     if (status === 'already_joined') {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         error: 'Student already joined this challenge',
       });

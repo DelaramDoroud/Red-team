@@ -21,11 +21,17 @@ export default async function joinChallenge({ studentId, challengeId }) {
     return { status: 'already_joined' };
   }
 
-  const participation = await ChallengeParticipant.create({
-    studentId,
-    challengeId,
-  });
+  try {
+    const participation = await ChallengeParticipant.create({
+      studentId,
+      challengeId,
+    });
 
-  return { status: 'ok', participation };
+    return { status: 'ok', participation };
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return { status: 'already_joined' };
+    }
+    throw error;
+  }
 }
-
