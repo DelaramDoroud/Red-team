@@ -22,7 +22,6 @@ export async function up({ context: queryInterface }) {
       field: 'start_datetime',
       allowNull: false,
     },
-    // New fields from model
     endDatetime: {
       type: Sequelize.DATE,
       field: 'end_datetime',
@@ -49,7 +48,6 @@ export async function up({ context: queryInterface }) {
       allowNull: false,
       defaultValue: 'private',
     },
-    // Standard timestamps
     createdAt: {
       type: Sequelize.DATE,
       field: 'created_at',
