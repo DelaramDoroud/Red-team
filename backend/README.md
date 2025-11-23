@@ -1,6 +1,4 @@
-
-#DEVELOPMENT TIPS:
-## Project Setup
+# Project Setup
 
 After cloning the repository, run the setup script to configure Git hooks:
 
@@ -8,15 +6,6 @@ After cloning the repository, run the setup script to configure Git hooks:
 ./setup.sh
 ```
 
-#### If you have problems committing while using nvm do:
-sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/node" "/usr/local/bin/node"
-sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npm" "/usr/local/bin/npm"
-sudo ln -s "$NVM_DIR/versions/node/$(nvm version)/bin/npx" "/usr/local/bin/npx"
+## To create a new migration file
 
-
-
-
-## To create a new migration file:
-```
-> npm run migration:create -- <migration-name>
-```
+Use the same pattern as existing migration files in the `migrations` folder remembering to increment the number at the start of the filename accordingly (it should show the timestamp when the file was created, e.g., `20231010120000_add_new_table.sql`).
