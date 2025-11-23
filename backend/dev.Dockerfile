@@ -32,4 +32,4 @@ RUN chown ${USERID}:${GROUPID} /usr/app
 COPY --chown=${USERID}:${GROUPID} . /usr/app
 
 USER ${USERID}:${GROUPID}
-CMD ["/usr/app/startup.sh"]
+CMD ["sh", "/usr/app/startup.sh"]
