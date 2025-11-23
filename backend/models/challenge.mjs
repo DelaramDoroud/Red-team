@@ -57,6 +57,11 @@ const Challenge = sequelize.define(
       field: 'start_datetime',
       allowNull: false,
     },
+    status: {
+      type: DataTypes.ENUM('draft', 'published'),
+      allowNull: false,
+      defaultValue: 'draft',
+    },
   },
   {
     tableName: 'challenge',

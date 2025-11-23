@@ -7,18 +7,31 @@ const router = Router();
 
 /**
  * GET /challenges
+ * Retrieve all challenges with optional filtering
  */
-router.get('/challenges', async (_req, res) => {
+router.get('/challenges', async (req, res) => {
   try {
-    // const id = Number(req.params.id);
+    const { status, limit = 100, offset = 0 } = req.query;
 
-    // const response = await Blueprint.get(Challenge, id, {
-    //   include: Challenge.getDefaultIncludes
-    //     ? Challenge.getDefaultIncludes()
-    //     : [],
-    // });
+    const whereClause = {};
+    if (status) {
+      whereClause.status = status;
+    }
 
-    res.json({ success: true });
+    const challenges = await Challenge.findAll({
+      where: whereClause,
+      order: Challenge.getDefaultOrder
+        ? Challenge.getDefaultOrder()
+        : [['id', 'DESC']],
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+    });
+
+    res.json({
+      success: true,
+      data: challenges,
+      count: challenges.length,
+    });
   } catch (error) {
     handleException(res, error);
   }
