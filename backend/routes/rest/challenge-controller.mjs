@@ -19,7 +19,7 @@ router.get('/challenges', async (_req, res) => {
       ],
       order: Challenge.getDefaultOrder(),
     });
-    res.json({ success: true, challenges });
+    res.json({ success: true, data: challenges });
   } catch (error) {
     handleException(res, error);
   }
