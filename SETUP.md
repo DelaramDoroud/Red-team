@@ -66,6 +66,9 @@ The script will:
         - `frontend/.githooks`
     - into `.git/hooks` and makes them executable.
 
+4. **Create `.env` files**
+    - If not already present, creates `.env` files for docker and for backend/test environment variables from the provided templates.
+
 If any step fails, fix your local environment according to the error message and run `./setup.sh` again.
 
 ---
