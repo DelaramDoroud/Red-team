@@ -6,8 +6,10 @@ import useChallenge from '#js/useChallenge';
 import styles from './page.module.scss';
 import ToggleSwitch from '#components/common/ToggleSwitch.jsx';
 import Pagination from '#components/common/Pagination.jsx';
+import { useRouter } from 'next/navigation';
 
 export default function NewChallengePage() {
+    const router = useRouter();
     const { loading, getMatchSettings } = useMatchSettings();
     const { createChallenge, loadingChallenge } = useChallenge();
 
@@ -17,6 +19,7 @@ export default function NewChallengePage() {
     });
     const [matchSettings, setMatchSettings] = useState([]);
     const [error, setError] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
     
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 5;
@@ -42,7 +45,6 @@ export default function NewChallengePage() {
         const dt = new Date(localDateTime);
         return dt.toISOString();
     };
-
 
     const load = useCallback(async () => {
         setError(null);
@@ -79,29 +81,46 @@ export default function NewChallengePage() {
         if (challenge.matchSettingIds.length === 0) {
             setError("Select at least one match setting.");
         }else{
-            const payload = {
-                ...challenge,
-                startDatetime: toISODateTime(challenge.startDatetime),
-                endDatetime: toISODateTime(challenge.endDatetime),
-                peerReviewStartDate: toISODateTime(challenge.peerReviewStartDate),
-                peerReviewEndDate: toISODateTime(challenge.peerReviewEndDate),
-            };
-            try {
-                const result = await createChallenge(payload);
-                if (result?.success) {
-                    console.log("Challenge:", result);
-                } else {
-                    setError(result?.error?.message || "Error during the creation.");
+            const start = new Date(challenge.startDatetime);
+            const end = new Date(challenge.endDatetime);
+            const peerStart = new Date(challenge.peerReviewStartDate);
+            const peerEnd = new Date(challenge.peerReviewEndDate);
+            if (start > end) {
+                setError("End date/time cannot be before start date/time.");
+            }else if (end > peerStart) {
+                setError("Peer review start cannot be before challenge end.");
+            }else if (peerStart > peerEnd) {
+                setError("Peer review end cannot be before peer review start.");
+            }else{
+                const payload = {
+                    ...challenge,
+                    startDatetime: toISODateTime(challenge.startDatetime),
+                    endDatetime: toISODateTime(challenge.endDatetime),
+                    peerReviewStartDate: toISODateTime(challenge.peerReviewStartDate),
+                    peerReviewEndDate: toISODateTime(challenge.peerReviewEndDate),
+                };
+                try {
+                    const result = await createChallenge(payload);
+                    if (result?.success) {
+                        setSuccessMessage("Challenge created successfully! Redirecting...");
+                        console.log("Challenge:", result);
+                        setTimeout(() => {
+                            router.push('/challenges');
+                        }, 3000);
+                    } else {
+                        setError(result?.error?.message || "Error during the creation.");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    setError("Error: " + err.message);
                 }
-            } catch (err) {
-                console.error(err);
-                setError("Error: " + err.message);
             }
         }
     };
 
     return <>
         {error && <div className={styles.errorBox}>{error}</div>}
+        {successMessage && <div className={styles.successBox}>{successMessage}</div>}
         <main style={{ padding: '2rem', maxWidth: 700, margin: '0 auto' }}>
             <h1>Create New Challenge</h1>
             <form onSubmit={handleSubmit}>
