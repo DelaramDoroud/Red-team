@@ -19,7 +19,6 @@ router.get('/challenges', async (_req, res) => {
       ],
       order: Challenge.getDefaultOrder(),
     });
-
     res.json({ success: true, challenges });
   } catch (error) {
     handleException(res, error);
@@ -38,33 +37,25 @@ router.post('/challenge', async (req, res) => {
     allowedNumberOfReview: req.body.allowedNumberOfReview || 0,
     status: req.body.status || 'private',
   };
-
   const matchSettingIds = req.body.matchSettingIds || [];
-
   if (matchSettingIds.length === 0) {
     return res.status(400).json({
       success: false,
       error: { message: 'At least one match setting is required.' },
     });
   }
-
   let transaction;
-
   try {
     await validateChallengeData(payload, {
       validatorKey: 'challenge',
     });
-
     transaction = await sequelize.transaction();
-
     const challenge = await Challenge.create(payload, { transaction });
-
     if (matchSettingIds.length > 0) {
       const settings = await MatchSetting.findAll({
         where: { id: matchSettingIds },
         transaction,
       });
-
       if (settings.length !== matchSettingIds.length) {
         await transaction.rollback();
         const foundIds = settings.map((s) => s.id);
@@ -77,13 +68,9 @@ router.post('/challenge', async (req, res) => {
           },
         });
       }
-
       await challenge.addMatchSettings(settings, { transaction });
     }
-
-    // 5) Commit
     await transaction.commit();
-
     const createdChallenge = await Challenge.findByPk(challenge.id, {
       include: [
         {
@@ -93,13 +80,12 @@ router.post('/challenge', async (req, res) => {
         },
       ],
     });
-
     res.status(201).json({
       success: true,
       challenge: createdChallenge,
     });
   } catch (error) {
-    console.error('Create Challenge Error:', error); // <--- Added log
+    console.error('Create Challenge Error:', error);
     if (transaction) await transaction.rollback();
     handleException(res, error);
   }

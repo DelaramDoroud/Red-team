@@ -12,11 +12,8 @@ export default function NewChallengePage() {
     const { createChallenge, loadingChallenge } = useChallenge();
 
     const [challenge, setChallenge] = useState({
-        title: "",
-        startDateTime: "",
-        duration: 30,
-        matchSettingIds: [],
-        status: "public"
+        title: "", startDatetime: "", endDatetime: "", duration: 30, matchSettingIds: [],
+        status: "public", peerReviewStartDate: "", peerReviewEndDate: ""
     });
     const [matchSettings, setMatchSettings] = useState([]);
     const [error, setError] = useState(null);
@@ -29,11 +26,9 @@ export default function NewChallengePage() {
     const currentItems = matchSettings.slice(startIndex, endIndex);
 
     const toggleSetting = (id) => {
-        setChallenge(prev => {
-            const selected = prev.matchSettingIds;
-            const newSelected = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
-            return { ...prev, matchSettingIds: newSelected };
-        });
+        setChallenge(prev => ({...prev,  matchSettingIds: prev.matchSettingIds.includes(id) ? 
+            prev.matchSettingIds.filter(s => s !== id) : [...prev.matchSettingIds, id]
+        }));
     };
 
     const handleDataField = (event) => {
@@ -41,6 +36,13 @@ export default function NewChallengePage() {
         newChallenge[event.target.name] = event.target.value;
         setChallenge(newChallenge);
     };
+
+    const toISODateTime = (localDateTime) => {
+        if (!localDateTime) return null;
+        const dt = new Date(localDateTime);
+        return dt.toISOString();
+    };
+
 
     const load = useCallback(async () => {
         setError(null);
@@ -63,6 +65,13 @@ export default function NewChallengePage() {
         load();
     }, [load]);
 
+    const getMinDateTime = () => {
+        const now = new Date();
+        now.setSeconds(0, 0);
+        return now.toISOString().slice(0,16);
+    };
+
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         console.log("Challenge to save: ", challenge);
@@ -70,8 +79,15 @@ export default function NewChallengePage() {
         if (challenge.matchSettingIds.length === 0) {
             setError("Select at least one match setting.");
         }else{
+            const payload = {
+                ...challenge,
+                startDatetime: toISODateTime(challenge.startDatetime),
+                endDatetime: toISODateTime(challenge.endDatetime),
+                peerReviewStartDate: toISODateTime(challenge.peerReviewStartDate),
+                peerReviewEndDate: toISODateTime(challenge.peerReviewEndDate),
+            };
             try {
-                const result = await createChallenge(challenge);
+                const result = await createChallenge(payload);
                 if (result?.success) {
                     console.log("Challenge:", result);
                 } else {
@@ -98,8 +114,8 @@ export default function NewChallengePage() {
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                     <div style={{ flex: 1 }}>
                         <label>Start Date/Time</label>
-                        <input type="datetime-local" value={challenge.startDateTime} onChange={handleDataField} name="startDateTime"
-                        style={{ display: 'block', width: '100%', padding: '0.5rem' }} required/>
+                        <input type="datetime-local" value={challenge.startDatetime} onChange={handleDataField} name="startDatetime"
+                        style={{ display: 'block', width: '100%', padding: '0.5rem' }} min={getMinDateTime()} required/>
                     </div>
                     <div style={{ width: 120 }}>
                         <label>Duration (min)</label>
@@ -107,13 +123,28 @@ export default function NewChallengePage() {
                         style={{ display: 'block', width: '100%', padding: '0.5rem' }} min={1} required/>
                     </div>
                 </div>
+                <div style={{ marginBottom: '1rem' }}>
+                    <label>End Date/Time</label>
+                    <input type="datetime-local" value={challenge.endDatetime} name="endDatetime" min={getMinDateTime()}
+                    onChange={handleDataField} style={{ display: 'block', width: '100%', padding: '0.5rem' }} required/>
+                </div>
+                <div style={{ marginBottom: '1rem' }}>
+                    <label>Peer Review Start</label>
+                    <input type="datetime-local" value={challenge.peerReviewStartDate} name="peerReviewStartDate" min={getMinDateTime()}
+                    onChange={handleDataField} style={{ display: 'block', width: '100%', padding: '0.5rem' }} required/>
+                </div>
+                <div style={{ marginBottom: '1rem' }}>
+                    <label>Peer Review End</label>
+                    <input type="datetime-local" value={challenge.peerReviewEndDate} name="peerReviewEndDate" min={getMinDateTime()}
+                    onChange={handleDataField} style={{ display: 'block', width: '100%', padding: '0.5rem' }} required/>
+                </div>
                 <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <span>Status</span>
                     <ToggleSwitch checked={challenge.status === 'public'} label={challenge.status === 'public' ? 'Public' : 'Private'}
                     onChange={() => setChallenge(prev => ({...prev, status: prev.status === "public" ? "private" : "public"}))}/>
                 </div>
                 <div style={{ marginBottom: '1rem' }}>
-                    <strong>Selected Match Settings: {challenge.matchSettingIds.length}</strong>
+                    <strong>Selected Match Settings: {challenge?.matchSettingIds?.length}</strong>
                 </div>
 
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
