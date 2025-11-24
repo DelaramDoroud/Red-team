@@ -1,11 +1,9 @@
 # Project Setup
 
-After cloning the repository, run the setup script to configure Git hooks:
+This project uses a PostgreSQL database and manages database schema changes using raw SQL migration files.
 
-```sh
-./setup.sh
-```
+## To create a new migration file (work in progress 24-nov-2025)
 
-## To create a new migration file
-
-Use the same pattern as existing migration files in the `migrations` folder remembering to increment the number at the start of the filename accordingly (it should show the timestamp when the file was created, e.g., `20231010120000_add_new_table.sql`).
+Use the same pattern as existing migration files in the `migrations` folder
+remembering to increment the number at the start of the filename accordingly
+(it should show the timestamp when the file was created, e.g., `20231010120000_add_new_table.mjs`).

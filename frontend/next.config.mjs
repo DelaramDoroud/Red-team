@@ -9,25 +9,27 @@ const nextConfig = {
   output: 'standalone',
   pageExtensions: ['jsx', 'js'],
   images: {
-    domains: ['fakeimg.pl'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'fakeimg.pl',
+        port: '',
+        pathname: '/**',
+      },
+    ],
   },
   compiler: {
     styledComponents: true,
   },
-  webpack(config) {
-    const conf = config;
-    conf.module.rules.push({
-      test: /\.custom\.scss$/,
-      use: ['style-loader', 'css-loader', 'sass-loader'],
-    });
-    conf.resolve.alias['#components'] = path.join(dirname, 'assets/components');
-    conf.resolve.alias['#img'] = path.join(dirname, 'assets/img');
-    conf.resolve.alias['#js'] = path.join(dirname, 'assets/js');
-    conf.resolve.alias['#modules'] = path.join(dirname, 'assets/modules');
-    conf.resolve.alias['#scss'] = path.join(dirname, 'assets/scss');
-    conf.resolve.alias['#config'] = path.join(dirname, 'config');
-
-    return conf;
+  turbopack: {
+    resolveAlias: {
+      '#components': path.join(dirname, 'assets/components'),
+      '#img': path.join(dirname, 'assets/img'),
+      '#js': path.join(dirname, 'assets/js'),
+      '#modules': path.join(dirname, 'assets/modules'),
+      '#scss': path.join(dirname, 'assets/scss'),
+      '#config': path.join(dirname, 'config'),
+    },
   },
 };
 

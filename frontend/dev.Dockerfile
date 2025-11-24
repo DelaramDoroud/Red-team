@@ -1,12 +1,11 @@
-# syntax=docker/dockerfile:1.7-labs
-FROM node:23-alpine
+FROM node:25-alpine
 
 ARG USERID=1000
 ARG GROUPID=1000
 
 RUN set -eux; \
-    npm install -g npm@11.6; \
-    apk add --no-cache git inotify-tools rsync; \
+    npm install -g npm@11; \
+    apk add --no-cache git; \
     git config --global --add safe.directory /usr/app
 
 RUN set -eux; \

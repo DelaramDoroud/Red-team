@@ -18,9 +18,6 @@ export default [
     rules: {
       'prettier/prettier': 'error',
       'no-console': 'off',
-      // 'import/prefer-default-export': 'off',
-      // 'class-methods-use-this': 'off',
-      // 'consistent-return': 'off',
       'no-unused-vars': ['error', { args: 'all', argsIgnorePattern: '^_' }],
       'no-param-reassign': ['error', { props: false }],
     },
