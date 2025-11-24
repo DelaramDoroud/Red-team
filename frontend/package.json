@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "imports": {
+    "#constants/*": "./assets/constants/*",
     "#components/*": "./assets/components/*",
     "#img/*": "./assets/img/*",
     "#js/*": "./assets/js/*",

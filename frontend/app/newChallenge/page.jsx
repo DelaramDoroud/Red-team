@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import useMatchSettings from '#js/useMatchSetting.js';
 import useChallenge from '#js/useChallenge';
 import styles from './page.module.scss';
+import * as Constans from '#constants/Constants.js';
 import ToggleSwitch from '#components/common/ToggleSwitch.jsx';
 import Pagination from '#components/common/Pagination.jsx';
 import { useRouter } from 'next/navigation';
@@ -110,7 +111,7 @@ export default function NewChallengePage() {
                         }, 3000);
                     } else {
                         let errorMsg = "An unknown error occurred";
-                        let message = result?.message.slice("Network response was not ok: ".length);
+                        let message = result?.message.slice(Constans.NETWORK_RESPONSE_NOT_OK.length);
                         let jsonError = JSON.parse(message);
                         if (jsonError.error?.errors?.length > 0) {
                                 errorMsg = jsonError.error.errors[0].message;
