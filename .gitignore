@@ -14,7 +14,7 @@
 backend/log/
 backend/tests/.env.test
 
-# Frontend - build / cache / tooling
+# Frontend
 frontend/.next/
 frontend/out/
 frontend/build/
@@ -24,14 +24,15 @@ frontend/.pnp.js
 frontend/.yarn/install-state.gz
 frontend/.vercel
 frontend/*/custom
+frontend/.env*.local
+
+# Docker
+docker/.env
 
 # Logs (frontend & backend)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Env files (frontend local env)
-frontend/.env*.local
 
 # Misc
 *.pem

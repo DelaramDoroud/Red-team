@@ -18,7 +18,7 @@
     "lint:scss": "stylelint '**/*.scss' --fix",
     "format": "prettier --write .",
     "test": "vitest",
-    "test:watch": "vitest --watch",
+    "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
