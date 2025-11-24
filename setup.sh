@@ -21,14 +21,46 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 # ------------------------------------------------------------------------------
-# Helpers
+# Colors & logging helpers
 # ------------------------------------------------------------------------------
+
+if [ -t 1 ]; then
+  COLOR_RESET="\033[0m"
+  COLOR_BOLD="\033[1m"
+  COLOR_RED="\033[31m"
+  COLOR_GREEN="\033[32m"
+  COLOR_YELLOW="\033[33m"
+  COLOR_BLUE="\033[34m"
+else
+  COLOR_RESET=""
+  COLOR_BOLD=""
+  COLOR_RED=""
+  COLOR_GREEN=""
+  COLOR_YELLOW=""
+  COLOR_BLUE=""
+fi
+
+log_info() {
+  echo -e "${COLOR_BLUE}[INFO]${COLOR_RESET} $*"
+}
+
+log_ok() {
+  echo -e "${COLOR_GREEN}[OK] ${COLOR_RESET} $*"
+}
+
+log_warn() {
+  echo -e "${COLOR_YELLOW}[WARN]${COLOR_RESET} $*"
+}
+
+log_error() {
+  echo -e "${COLOR_RED}[ERROR]${COLOR_RESET} $*"
+}
 
 print_section() {
   echo
-  echo "============================================================"
-  echo "$1"
-  echo "============================================================"
+  echo -e "${COLOR_BOLD}============================================================${COLOR_RESET}"
+  echo -e "${COLOR_BOLD}$1${COLOR_RESET}"
+  echo -e "${COLOR_BOLD}============================================================${COLOR_RESET}"
 }
 
 # ------------------------------------------------------------------------------
@@ -39,14 +71,14 @@ check_node_and_npm() {
   print_section "Step 1: Checking Node & npm versions"
 
   if ! command -v node >/dev/null 2>&1; then
-    echo "❌ Node is not installed or not in PATH."
-    echo "   Please install Node ${REQUIRED_NODE_MAJOR}.x and re-run ./setup.sh."
+    log_error "Node is not installed or not in PATH."
+    echo "       Please install Node ${REQUIRED_NODE_MAJOR}.x and re-run ./setup.sh."
     exit 1
   fi
 
   if ! command -v npm >/dev/null 2>&1; then
-    echo "❌ npm is not installed or not in PATH."
-    echo "   Please install npm ${REQUIRED_NPM_MAJOR}.x (or compatible) and re-run ./setup.sh."
+    log_error "npm is not installed or not in PATH."
+    echo "       Please install npm ${REQUIRED_NPM_MAJOR}.x (or compatible) and re-run ./setup.sh."
     exit 1
   fi
 
@@ -58,27 +90,27 @@ check_node_and_npm() {
   node_major="${node_major%%.*}"
   npm_major="${npm_version%%.*}"
 
-  echo "   Detected node: $node_version"
-  echo "   Detected npm:  $npm_version"
+  log_info "Detected node: $node_version"
+  log_info "Detected npm:  $npm_version"
 
   local ok=true
 
   if [ "$node_major" -ne "$REQUIRED_NODE_MAJOR" ]; then
-    echo "❌ Node major version must be ${REQUIRED_NODE_MAJOR}.x, found $node_version"
+    log_error "Node major version must be ${REQUIRED_NODE_MAJOR}.x, found $node_version"
     ok=false
   fi
 
   if [ "$npm_major" -ne "$REQUIRED_NPM_MAJOR" ]; then
-    echo "❌ npm major version must be ${REQUIRED_NPM_MAJOR}.x, found $npm_version"
+    log_error "npm major version must be ${REQUIRED_NPM_MAJOR}.x, found $npm_version"
     ok=false
   fi
 
   if [ "$ok" = false ]; then
-    echo "   Please align your Node/npm versions and re-run ./setup.sh."
+    echo "       Please align your Node/npm versions and re-run ./setup.sh."
     exit 1
   fi
 
-  echo "✅ Node & npm versions are OK"
+  log_ok "Node & npm versions are OK"
 }
 
 # ------------------------------------------------------------------------------
@@ -89,25 +121,25 @@ check_docker_and_compose() {
   print_section "Step 2: Checking Docker & Docker Compose"
 
   if ! command -v docker >/dev/null 2>&1; then
-    echo "❌ docker command not found."
-    echo "   Please install Docker (Engine / Desktop) and re-run ./setup.sh."
+    log_error "docker command not found."
+    echo "       Please install Docker (Engine / Desktop) and re-run ./setup.sh."
     exit 1
   fi
 
   # Get server (Engine) version
   local docker_server_version docker_server_major
   docker_server_version="$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")"
-  echo "   Docker server (Engine) version: $docker_server_version"
+  log_info "Docker server (Engine) version: $docker_server_version"
 
   docker_server_major="${docker_server_version%%.*}"
 
   if [ "$docker_server_version" = "unknown" ] || [ -z "$docker_server_major" ]; then
-    echo "⚠️  Could not detect Docker server version correctly."
-    echo "   Please ensure Docker Engine is properly installed and running."
+    log_warn "Could not detect Docker server version correctly."
+    echo "       Please ensure Docker Engine is properly installed and running."
   else
     if [ "$docker_server_major" -lt "$MIN_DOCKER_MAJOR" ]; then
-      echo "❌ Docker Engine is too old. Need >= ${MIN_DOCKER_MAJOR}.x (found $docker_server_version)"
-      echo "   Please update Docker Engine and re-run ./setup.sh."
+      log_error "Docker Engine is too old. Need >= ${MIN_DOCKER_MAJOR}.x (found $docker_server_version)"
+      echo "       Please update Docker Engine and re-run ./setup.sh."
       exit 1
     fi
   fi
@@ -122,14 +154,14 @@ check_docker_and_compose() {
   fi
 
   if [ -z "$compose_cmd" ]; then
-    echo "❌ Docker Compose (v2) is not available."
-    echo "   Please install Docker Compose v2 (docker compose) and re-run ./setup.sh."
+    log_error "Docker Compose (v2) is not available."
+    echo "       Please install Docker Compose v2 (docker compose) and re-run ./setup.sh."
     exit 1
   fi
 
-  echo "   Docker Compose command: $compose_cmd"
-  echo "   Docker Compose version: $compose_version"
-  echo "✅ Docker & Docker Compose are available"
+  log_info "Docker Compose command: $compose_cmd"
+  log_info "Docker Compose version: $compose_version"
+  log_ok "Docker & Docker Compose are available"
 }
 
 # ------------------------------------------------------------------------------
@@ -140,8 +172,8 @@ setup_git_hooks() {
   print_section "Step 3: Installing Git hooks (backend & frontend)"
 
   if [ ! -d ".git" ]; then
-    echo "❌ This directory is not a Git repository (no .git folder)."
-    echo "   Please run ./setup.sh from the root of the Codymatch repository."
+    log_error "This directory is not a Git repository (no .git folder)."
+    echo "       Please run ./setup.sh from the root of the Codymatch repository."
     exit 1
   fi
 
@@ -152,7 +184,7 @@ setup_git_hooks() {
 
   for hook_dir in "backend/.githooks" "frontend/.githooks"; do
     if [ -d "$hook_dir" ]; then
-      echo "   Installing hooks from $hook_dir"
+      log_info "Installing hooks from $hook_dir"
       for hook in "$hook_dir"/*; do
         [ -f "$hook" ] || continue
         local hook_name
@@ -165,9 +197,9 @@ setup_git_hooks() {
   done
 
   if [ "$any_hooks" = true ]; then
-    echo "✅ Git hooks installed into .git/hooks"
+    log_ok "Git hooks installed into .git/hooks"
   else
-    echo "ℹ️  No .githooks found in backend/ or frontend/, skipping."
+    log_warn "No .githooks found in backend/ or frontend/, skipping."
   fi
 }
 
@@ -176,7 +208,7 @@ setup_git_hooks() {
 # ------------------------------------------------------------------------------
 
 main() {
-  echo "Codymatch unified setup"
+  echo -e "${COLOR_BOLD}Codymatch unified setup${COLOR_RESET}"
   echo "Root directory: $ROOT_DIR"
   echo "Note: this script is intended to run in a POSIX shell"
   echo "      (Linux, macOS, WSL2, or Git Bash on Windows)."
@@ -186,7 +218,7 @@ main() {
   setup_git_hooks
 
   print_section "All checks completed"
-  echo "✅ Your local environment looks good."
+  log_ok "Your local environment looks good."
   echo "Next steps:"
   echo "  1. Go to the docker folder:   cd docker"
   echo "  2. Start the dev environment: ./codymatch.sh bul"

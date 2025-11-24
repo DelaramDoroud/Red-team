@@ -1,6 +1,6 @@
-FROM node:23-alpine AS builder
+FROM node:25-alpine AS builder
 
-RUN npm install -g npm@11.4.0
+RUN npm install -g npm@11
 RUN apk add --no-cache git
 
 ARG BRANCH
@@ -15,7 +15,7 @@ COPY . .
 
 RUN npm run build
 
-FROM node:23-alpine
+FROM node:25-alpine
 
 WORKDIR /usr/app
 
