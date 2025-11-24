@@ -101,6 +101,7 @@ export default function NewChallengePage() {
                 };
                 try {
                     const result = await createChallenge(payload);
+                    console.log("Result: ", result)
                     if (result?.success) {
                         setSuccessMessage("Challenge created successfully! Redirecting...");
                         console.log("Challenge:", result);
@@ -108,7 +109,15 @@ export default function NewChallengePage() {
                             router.push('/challenges');
                         }, 3000);
                     } else {
-                        setError(result?.error?.message || "Error during the creation.");
+                        let errorMsg = "An unknown error occurred";
+                        let message = result?.message.slice("Network response was not ok: ".length);
+                        let jsonError = JSON.parse(message);
+                        if (jsonError.error?.errors?.length > 0) {
+                                errorMsg = jsonError.error.errors[0].message;
+                        } else if (jsonError?.message) {
+                            errorMsg = jsonError.message;
+                        }
+                        setError(errorMsg);
                     }
                 } catch (err) {
                     console.error(err);
