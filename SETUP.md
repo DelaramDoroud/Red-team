@@ -7,6 +7,7 @@ The goals are:
 - Same **Node / npm** versions for everyone
 - Same **Docker / Docker Compose** baseline
 - Git hooks automatically installed
+- .env files created from templates
 - Avoid running random `npm install` on the host machine
 
 ---
@@ -65,6 +66,10 @@ The script will:
         - `backend/.githooks`
         - `frontend/.githooks`
     - into `.git/hooks` and makes them executable.
+
+4. **Create `.env` files**
+    - If not already present, creates `.env` files for docker and for backend/test environment variables from the provided templates. 
+    - **If you need to customize any values in the .env files, do so after this step.**
 
 If any step fails, fix your local environment according to the error message and run `./setup.sh` again.
 

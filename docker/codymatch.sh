@@ -102,7 +102,7 @@ test)
   docker rm -f test-db >/dev/null 2>&1 || true
 
   echo "Starting test-db container from db service..."
-  "${DOCKER_COMPOSE[@]}" run -d \
+  "${DOCKER_COMPOSE[@]}" run -d -T \
     --name test-db \
     -p "${DB_PORT}:5432" \
     db
@@ -129,14 +129,14 @@ test)
 
   if [[ -n "$TEST_FILE" && "$STOP_AFTER" == false ]]; then
     echo "Running backend test file: $TEST_FILE"
-    "${DOCKER_COMPOSE[@]}" run --rm --no-deps \
+    "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
       backend sh -c "npm run test -- tests/$TEST_FILE"
     BACKEND_TEST_EXIT_CODE=$?
   else
     echo "Running all backend tests"
     if [[ "$STOP_AFTER" == true ]]; then
       # Non-watch mode, used e.g. in pre-push
-      "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend sh -c \
         "npm run test:run -- --no-file-parallelism"
       BACKEND_TEST_EXIT_CODE=$?
     else
@@ -153,12 +153,12 @@ test)
 
     if [[ "$STOP_AFTER" == true ]]; then
       # Non-watch mode for frontend (single run)
-      "${DOCKER_COMPOSE[@]}" run --rm --no-deps frontend sh -c \
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
         "npm run test:run"
       FRONTEND_TEST_EXIT_CODE=$?
     else
       # Default frontend test script
-      "${DOCKER_COMPOSE[@]}" run --rm --no-deps frontend sh -c \
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
         "npm run test"
       FRONTEND_TEST_EXIT_CODE=$?
     fi

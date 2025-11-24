@@ -4,9 +4,11 @@ set -e
 # ------------------------------------------------------------------------------
 # Codymatch unified setup script
 #
+# - Normalizes shell script line endings
 # - Checks Node & npm versions
 # - Checks Docker & Docker Compose
-# - Installs Git hooks from backend/.githooks and frontend/.githooks
+# - Creates local env files from examples (if missing)
+# - Configures Git hooks via core.hooksPath
 #
 # Works on Linux, macOS, and Windows via WSL2 / Git Bash.
 # This script must be executed from the root of the repository.
@@ -169,7 +171,7 @@ check_docker_and_compose() {
 # ------------------------------------------------------------------------------
 
 setup_git_hooks() {
-  print_section "Step 3: Configuring Git hooks"
+  print_section "Step 4: Configuring Git hooks"
 
   if [ ! -d ".git" ]; then
     log_error "This directory is not a Git repository (no .git folder)."
@@ -193,6 +195,70 @@ setup_git_hooks() {
 }
 
 # ------------------------------------------------------------------------------
+# Normalize line endings for shell scripts
+# ------------------------------------------------------------------------------
+
+normalize_shell_line_endings() {
+  print_section "Step 0: Normalizing line endings for shell scripts"
+
+  # List of scripts we care about (add/remove as needed)
+  SCRIPTS=(
+    "./setup.sh"
+    "./docker/codymatch.sh"
+    "./backend/startup.sh"
+    "./frontend/startup.sh"
+  )
+
+  # Include versioned hooks if you use .githooks
+  if [ -d ".githooks" ]; then
+    for hook in .githooks/*; do
+      [ -f "$hook" ] && SCRIPTS+=("$hook")
+    done
+  fi
+
+  for f in "${SCRIPTS[@]}"; do
+    [ -f "$f" ] || continue
+    if grep -q $'\r' "$f"; then
+      log_warn "Found CRLF line endings in $f – normalizing to LF"
+      tmp="$f.tmp.$$"
+      # Portable way: remove '\r' from each line
+      tr -d '\r' < "$f" > "$tmp" && mv "$tmp" "$f"
+      chmod +x "$f"
+    fi
+  done
+
+  log_ok "Shell script line endings normalized (if needed)"
+}
+
+# ------------------------------------------------------------------------------
+# Env files setup (docker/.env, backend/tests/.env.test)
+# ------------------------------------------------------------------------------
+
+ensure_env_files() {
+  print_section "Step 3: Ensuring local env files"
+
+  # docker/.env from docker/example.env
+  if [ -f "docker/.env" ]; then
+    log_info "docker/.env already exists, skipping creation."
+  elif [ -f "docker/example.env" ]; then
+    cp "docker/example.env" "docker/.env"
+    log_ok "Created docker/.env from docker/example.env"
+  else
+    log_warn "docker/example.env not found. Cannot create docker/.env automatically."
+  fi
+
+  # backend/tests/.env.test from backend/tests/example.env.test
+  if [ -f "backend/tests/.env.test" ]; then
+    log_info "backend/tests/.env.test already exists, skipping creation."
+  elif [ -f "backend/tests/example.env.test" ]; then
+    cp "backend/tests/example.env.test" "backend/tests/.env.test"
+    log_ok "Created backend/tests/.env.test from backend/tests/example.env.test"
+  else
+    log_warn "backend/tests/example.env.test not found. Cannot create backend/tests/.env.test automatically."
+  fi
+}
+
+# ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
 
@@ -202,8 +268,10 @@ main() {
   echo "Note: this script is intended to run in a POSIX shell"
   echo "      (Linux, macOS, WSL2, or Git Bash on Windows)."
 
+  normalize_shell_line_endings
   check_node_and_npm
   check_docker_and_compose
+  ensure_env_files
   setup_git_hooks
 
   print_section "All checks completed"
