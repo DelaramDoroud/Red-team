@@ -169,7 +169,7 @@ check_docker_and_compose() {
 # ------------------------------------------------------------------------------
 
 setup_git_hooks() {
-  print_section "Step 3: Installing Git hooks (backend & frontend)"
+  print_section "Step 3: Configuring Git hooks"
 
   if [ ! -d ".git" ]; then
     log_error "This directory is not a Git repository (no .git folder)."
@@ -177,30 +177,19 @@ setup_git_hooks() {
     exit 1
   fi
 
-  local dst_dir=".git/hooks"
-  mkdir -p "$dst_dir"
-
-  local any_hooks=false
-
-  for hook_dir in "backend/.githooks" "frontend/.githooks"; do
-    if [ -d "$hook_dir" ]; then
-      log_info "Installing hooks from $hook_dir"
-      for hook in "$hook_dir"/*; do
-        [ -f "$hook" ] || continue
-        local hook_name
-        hook_name="$(basename "$hook")"
-        cp "$hook" "$dst_dir/$hook_name"
-        chmod +x "$dst_dir/$hook_name"
-        any_hooks=true
-      done
-    fi
-  done
-
-  if [ "$any_hooks" = true ]; then
-    log_ok "Git hooks installed into .git/hooks"
-  else
-    log_warn "No .githooks found in backend/ or frontend/, skipping."
+  if [ ! -d ".githooks" ]; then
+    log_warn ".githooks directory not found. No hooks will be configured."
+    return
   fi
+
+  # Ensure all hook scripts are executable
+  chmod +x .githooks/* 2>/dev/null || true
+
+  # Point Git to the versioned hooks directory
+  git config core.hooksPath .githooks
+
+  log_ok "Git hooks path configured to .githooks"
+  log_info "Git will now use hooks from: .githooks/"
 }
 
 # ------------------------------------------------------------------------------
