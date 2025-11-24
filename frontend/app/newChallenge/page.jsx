@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 export default function NewChallengePage() {
     const router = useRouter();
-    const { loading, getMatchSettings } = useMatchSettings();
+    const { loading, getMatchSettingsReady } = useMatchSettings();
     const { createChallenge, loadingChallenge } = useChallenge();
 
     const [challenge, setChallenge] = useState({
@@ -49,7 +49,7 @@ export default function NewChallengePage() {
 
     const load = useCallback(async () => {
         setError(null);
-        const result = await getMatchSettings();
+        const result = await getMatchSettingsReady();
         if (result?.success === false) {
             setError(result.message || 'Unable to load challenges');
             setMatchSettings([]);
@@ -62,7 +62,7 @@ export default function NewChallengePage() {
         } else {
             setMatchSettings([]);
         }
-    }, [getMatchSettings]);
+    }, [getMatchSettingsReady]);
 
     useEffect(() => {
         load();

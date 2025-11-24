@@ -9,13 +9,13 @@ const API_BASE = Constants.API_BACKEND;
 export default function useMatchSettings() {
     const { fetchData, loading } = useFetchData();
 
-    const getMatchSettings = useCallback(async () => {
-        const url = `${API_BASE}/matchSettings`;
+    const getMatchSettingsReady = useCallback(async () => {
+        const url = `${API_BASE}/matchSettingsReady`;
         return fetchData(url);
     }, [fetchData]);
 
     return {
         loading,
-        getMatchSettings,
+        getMatchSettingsReady,
     };
 }

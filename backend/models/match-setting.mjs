@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '#root/services/sequelize.mjs';
+import { MatchSettingStatus } from './enum/enums.js';
 
 const MatchSetting = sequelize.define(
   'MatchSetting',
@@ -30,7 +31,7 @@ const MatchSetting = sequelize.define(
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM('draft', 'ready'),
+      type: DataTypes.ENUM(...Object.values(MatchSettingStatus)),
       allowNull: false,
       defaultValue: 'draft',
     },
@@ -68,45 +69,43 @@ MatchSetting.seed = async function () {
     await MatchSetting.bulkCreate([
       {
         problemTitle: 'Two Sum',
-        problemDescription:
-          'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+        problemDescription: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
         referenceSolution: `
-function twoSum(nums, target) {
-  const map = new Map();
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (map.has(complement)) {
-      return [map.get(complement), i];
-    }
-    map.set(nums[i], i);
-  }
-  return [];
-}
+          function twoSum(nums, target) {
+            const map = new Map();
+            for (let i = 0; i < nums.length; i++) {
+              const complement = target - nums[i];
+              if (map.has(complement)) {
+                return [map.get(complement), i];
+              }
+              map.set(nums[i], i);
+            }
+            return [];
+          }
       `,
         publicTests: [
           { input: [[2, 7, 11, 15], 9], output: [0, 1] },
           { input: [[3, 2, 4], 6], output: [1, 2] },
         ],
         privateTests: [{ input: [[3, 3], 6], output: [0, 1] }],
-        status: 'ready',
+        status: MatchSettingStatus.READY,
       },
       {
         problemTitle: 'Palindrome Number',
-        problemDescription:
-          'Given an integer x, return true if x is a palindrome, and false otherwise.',
+        problemDescription: 'Given an integer x, return true if x is a palindrome, and false otherwise.',
         referenceSolution: `
-function isPalindrome(x) {
-  if (x < 0) return false;
-  const s = String(x);
-  return s === s.split('').reverse().join('');
-}
-      `,
+          function isPalindrome(x) {
+            if (x < 0) return false;
+            const s = String(x);
+            return s === s.split('').reverse().join('');
+          }
+        `,
         publicTests: [
           { input: [121], output: true },
           { input: [-121], output: false },
         ],
         privateTests: [{ input: [10], output: false }],
-        status: 'ready',
+        status: MatchSettingStatus.READY,
       },
     ]);
     console.log('MatchSettings seeded successfully.');
