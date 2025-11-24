@@ -7,6 +7,7 @@ The goals are:
 - Same **Node / npm** versions for everyone
 - Same **Docker / Docker Compose** baseline
 - Git hooks automatically installed
+- .env files created from templates
 - Avoid running random `npm install` on the host machine
 
 ---
