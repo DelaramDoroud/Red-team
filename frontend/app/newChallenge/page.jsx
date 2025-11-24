@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import useMatchSettings from '#js/useMatchSetting.js';
 import useChallenge from '#js/useChallenge';
 import styles from './page.module.scss';
-import * as Constans from '#constants/Constants.js';
+import * as Constants from '#constants/Constants.js';
 import ToggleSwitch from '#components/common/ToggleSwitch.jsx';
 import Pagination from '#components/common/Pagination.jsx';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,7 @@ export default function NewChallengePage() {
 
     const [challenge, setChallenge] = useState({
         title: "", startDatetime: "", endDatetime: "", duration: 30, matchSettingIds: [],
-        status: "public", peerReviewStartDate: "", peerReviewEndDate: ""
+        status: Constants.ChallengeStatus.PUBLIC, peerReviewStartDate: "", peerReviewEndDate: ""
     });
     const [matchSettings, setMatchSettings] = useState([]);
     const [error, setError] = useState(null);
@@ -111,7 +111,7 @@ export default function NewChallengePage() {
                         }, 3000);
                     } else {
                         let errorMsg = "An unknown error occurred";
-                        let message = result?.message.slice(Constans.NETWORK_RESPONSE_NOT_OK.length);
+                        let message = result?.message.slice(Constants.NETWORK_RESPONSE_NOT_OK.length);
                         let jsonError = JSON.parse(message);
                         if (jsonError.error?.errors?.length > 0) {
                                 errorMsg = jsonError.error.errors[0].message;
@@ -169,8 +169,10 @@ export default function NewChallengePage() {
                 </div>
                 <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <span>Status</span>
-                    <ToggleSwitch checked={challenge.status === 'public'} label={challenge.status === 'public' ? 'Public' : 'Private'}
-                    onChange={() => setChallenge(prev => ({...prev, status: prev.status === "public" ? "private" : "public"}))}/>
+                    <ToggleSwitch checked={challenge.status === Constants.ChallengeStatus.PUBLIC} 
+                    label={challenge.status === Constants.ChallengeStatus.PUBLIC ? 'Public' : 'Private'}
+                    onChange={() => setChallenge(prev => ({...prev, status: prev.status === Constants.ChallengeStatus.PUBLIC ? 
+                    Constants.ChallengeStatus.PRIVATE : Constants.ChallengeStatus.PUBLIC}))}/>
                 </div>
                 <div style={{ marginBottom: '1rem' }}>
                     <strong>Selected Match Settings: {challenge?.matchSettingIds?.length}</strong>

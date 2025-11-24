@@ -3,10 +3,6 @@
 import ChallengeList from '#modules/challenge/list';
 import styles from './page.module.scss';
 
-// export const metadata = {
-//   title: 'Challenges · CodyMatch',
-// };
-
 export default function ChallengesPage() {
   return (
     <section className={styles.container}>

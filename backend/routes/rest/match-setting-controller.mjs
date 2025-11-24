@@ -17,7 +17,7 @@ router.get('/matchSettings', async (_req, res) => {
   }
 });
 
-outer.get('/matchSettingsReady', async (_req, res) => {
+router.get('/matchSettingsReady', async (_req, res) => {
   try {
     const matchSettings = await MatchSetting.findAll({
       where: { status: MatchSettingStatus.READY }
