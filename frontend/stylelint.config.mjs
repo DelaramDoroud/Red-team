@@ -1,4 +1,4 @@
 export default {
-  extends: 'stylelint-config-standard-scss',
+  extends: 'stylelint-config-recommended',
   plugins: 'stylelint-scss',
 };

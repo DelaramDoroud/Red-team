@@ -26,11 +26,6 @@ services:
       - ${BACKEND_FOLDER}:/usr/app
     environment:
       NODE_ENV: development
-#    labels:
-#      - "traefik.enable=true"
-#      - "traefik.http.routers.${PROJECT_NAME}.tls=true"
-#      - "traefik.http.routers.${PROJECT_NAME}.rule=Host(`${URL}`)"
-#      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=3000"
   db:
     volumes:
       - db_data:/var/lib/postgresql/data

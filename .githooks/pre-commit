@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Backend lint-staged
+if [ -f "backend/package.json" ]; then
+  echo "[pre-commit] Backend: lint-staged"
+  (
+    cd backend
+    npx lint-staged
+  )
+fi
+
+# Frontend lint-staged
+if [ -f "frontend/package.json" ]; then
+  echo "[pre-commit] Frontend: lint-staged"
+  (
+    cd frontend
+    npx lint-staged
+  )
+fi

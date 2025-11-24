@@ -5,7 +5,7 @@
 red team's capstone project!
 
 **product owner**: @
-**scrum master**: @DelaramDoroud Delaram Doroudgarian 
+**scrum master**: @DelaramDoroud Delaram Doroudgarian
 **development team**:
 
 - @member1 Member One
@@ -66,8 +66,16 @@ Problem ->
 
 ## todos
 
-- [ ] ... 
+- [ ] ...
 
 ## Contribution guidelines
 
 If you want to contribute to SPy, be sure to review the [contribution guidelines](CONTRIBUTING.md)
+
+## Development setup
+To set up your development environment, follow these steps:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/DelaramDoroud/Red-team
+   ```
+2. Follow the installation instructions in the [SETUP.md](SETUP.md) file to configure your environment.
