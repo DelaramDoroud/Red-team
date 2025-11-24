@@ -117,6 +117,8 @@ export default function NewChallengePage() {
                                 errorMsg = jsonError.error.errors[0].message;
                         } else if (jsonError?.message) {
                             errorMsg = jsonError.message;
+                        } else if (jsonError?.error?.message) {
+                            errorMsg = jsonError?.error?.message;
                         }
                         setError(errorMsg);
                     }
