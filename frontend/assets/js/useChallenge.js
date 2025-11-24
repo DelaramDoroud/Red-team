@@ -16,7 +16,7 @@ export default function useChallenge() {
 
   const createChallenge = useCallback(
     async (payload) => {
-      const url = `${API_BASE}/challenges`;
+      const url = `${API_BASE}/challenge`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

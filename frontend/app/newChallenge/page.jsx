@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import useMatchSettings from '#js/useMatchSetting.js';
+import useChallenge from '#js/useChallenge';
 import styles from './page.module.scss';
 import ToggleSwitch from '#components/common/ToggleSwitch.jsx';
 import Pagination from '#components/common/Pagination.jsx';
 
 export default function NewChallengePage() {
     const { loading, getMatchSettings } = useMatchSettings();
+    const { createChallenge, loadingChallenge } = useChallenge();
+
     const [challenge, setChallenge] = useState({
         title: "",
         startDateTime: "",
         duration: 30,
-        matchSettings: [],
+        matchSettingIds: [],
         status: "public"
     });
     const [matchSettings, setMatchSettings] = useState([]);
@@ -27,9 +30,9 @@ export default function NewChallengePage() {
 
     const toggleSetting = (id) => {
         setChallenge(prev => {
-            const selected = prev.matchSettings;
+            const selected = prev.matchSettingIds;
             const newSelected = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
-            return { ...prev, matchSettings: newSelected };
+            return { ...prev, matchSettingIds: newSelected };
         });
     };
 
@@ -60,14 +63,24 @@ export default function NewChallengePage() {
         load();
     }, [load]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         console.log("Challenge to save: ", challenge);
         setError(null);
-        if (challenge.matchSettings.length === 0) {
-            setError("Seleziona almeno un match setting per creare la sfida.");
+        if (challenge.matchSettingIds.length === 0) {
+            setError("Select at least one match setting.");
         }else{
-            // Call API to save challenge
+            try {
+                const result = await createChallenge(challenge);
+                if (result?.success) {
+                    console.log("Challenge:", result);
+                } else {
+                    setError(result?.error?.message || "Error during the creation.");
+                }
+            } catch (err) {
+                console.error(err);
+                setError("Error: " + err.message);
+            }
         }
     };
 
@@ -100,7 +113,7 @@ export default function NewChallengePage() {
                     onChange={() => setChallenge(prev => ({...prev, status: prev.status === "public" ? "private" : "public"}))}/>
                 </div>
                 <div style={{ marginBottom: '1rem' }}>
-                    <strong>Selected Match Settings: {challenge.matchSettings.length}</strong>
+                    <strong>Selected Match Settings: {challenge.matchSettingIds.length}</strong>
                 </div>
 
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
@@ -114,7 +127,7 @@ export default function NewChallengePage() {
                         {currentItems.map((match) => (
                             <tr key={match.id}>
                                 <td style={{ textAlign: 'center', padding: '0.5rem' }}>
-                                    <input type="checkbox" checked={challenge.matchSettings.includes(match.id)}
+                                    <input type="checkbox" checked={challenge.matchSettingIds.includes(match.id)}
                                     onChange={() => toggleSetting(match.id)}/>
                                 </td>
                                 <td style={{ textAlign: 'center', padding: '0.5rem' }}>{match.problemTitle}</td>
