@@ -192,6 +192,39 @@ setup_git_hooks() {
   log_info "Git will now use hooks from: .githooks/"
 }
 
+normalize_shell_line_endings() {
+  print_section "Step 0: Normalizing line endings for shell scripts"
+
+  # List of scripts we care about (add/remove as needed)
+  SCRIPTS=(
+    "./setup.sh"
+    "./docker/codymatch.sh"
+    "./backend/startup.sh"
+    "./frontend/startup.sh"
+  )
+
+  # Include versioned hooks if you use .githooks
+  if [ -d ".githooks" ]; then
+    for hook in .githooks/*; do
+      [ -f "$hook" ] && SCRIPTS+=("$hook")
+    done
+  fi
+
+  for f in "${SCRIPTS[@]}"; do
+    [ -f "$f" ] || continue
+    if grep -q $'\r' "$f"; then
+      log_warn "Found CRLF line endings in $f – normalizing to LF"
+      tmp="$f.tmp.$$"
+      # Portable way: remove '\r' from each line
+      tr -d '\r' < "$f" > "$tmp" && mv "$tmp" "$f"
+      chmod +x "$f"
+    fi
+  done
+
+  log_ok "Shell script line endings normalized (if needed)"
+}
+
+
 # ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
@@ -202,6 +235,7 @@ main() {
   echo "Note: this script is intended to run in a POSIX shell"
   echo "      (Linux, macOS, WSL2, or Git Bash on Windows)."
 
+  normalize_shell_line_endings
   check_node_and_npm
   check_docker_and_compose
   setup_git_hooks

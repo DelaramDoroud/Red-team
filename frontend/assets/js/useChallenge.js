@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import useFetchData from '#js/useFetchData';
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest';
 
 /**
  * Small wrapper around useFetchData that knows about the Challenge API.
