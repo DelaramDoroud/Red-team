@@ -3,10 +3,6 @@ import sequelize from '#root/services/sequelize.mjs';
 import getValidator from '#root/services/validator.mjs';
 import { errorTypes } from '#root/services/error.mjs';
 
-/**
- * Validate challenge payload using shared JSON Schema validators.
- * You can customize the validator key (e.g. "challenge_create", "challenge_update").
- */
 export async function validateChallengeData(
   data,
   { validatorKey = 'challenge' } = {}
@@ -30,10 +26,6 @@ export async function validateChallengeData(
   }
 }
 
-/**
- * Challenge model
- * Represents a coding challenge that can contain one or more matches.
- */
 const Challenge = sequelize.define(
   'Challenge',
   {
@@ -44,11 +36,10 @@ const Challenge = sequelize.define(
       primaryKey: true,
     },
     title: {
-      type: DataTypes.STRING(255), // or STRING(100) if you aligned the migration
+      type: DataTypes.STRING(255),
       allowNull: false,
     },
     duration: {
-      // Duration in minutes
       type: DataTypes.INTEGER,
       allowNull: false,
     },
@@ -94,7 +85,6 @@ const Challenge = sequelize.define(
         fields: [{ name: 'id' }],
       },
       {
-        // Example index if you query a lot by start date/time
         name: 'challenge_start_datetime_idx',
         fields: [{ name: 'start_datetime' }],
       },
@@ -102,26 +92,15 @@ const Challenge = sequelize.define(
   }
 );
 
-/**
- * Define all the associations for Challenge.
- * We "pretend" related models (MatchSetting, User, Match, ChallengeParticipant) exist.
- */
 Challenge.initializeRelations = function (models) {
-  // This creates the Many-to-Many link.
-  // It allows:
-  // 1. Challenge A -> [Setting 1, Setting 2]
-  // 2. Challenge B -> [Setting 2, Setting 3]
   Challenge.belongsToMany(models.MatchSetting, {
-    through: 'ChallengeMatchSetting', // The junction table
-    as: 'matchSettings', // Accessor: challenge.matchSettings
+    through: 'ChallengeMatchSetting',
+    as: 'matchSettings',
     foreignKey: 'challengeId',
     otherKey: 'matchSettingId',
   });
 };
 
-/**
- * Default ordering for queries on Challenge.
- */
 Challenge.getDefaultOrder = function () {
   return [
     ['start_datetime', 'DESC'],
@@ -129,9 +108,6 @@ Challenge.getDefaultOrder = function () {
   ];
 };
 
-/**
- * Default includes commonly used when loading challenges.
- */
 Challenge.getDefaultIncludes = function () {
   return [
     {
@@ -149,10 +125,6 @@ Challenge.getDefaultIncludes = function () {
   ];
 };
 
-/**
- * Create a challenge with validation.
- * You can use this convenience method from your services instead of Challenge.create.
- */
 Challenge.createWithValidation = async function (payload, options = {}) {
   await validateChallengeData(payload, { validatorKey: 'challenge_create' });
   return Challenge.create(payload, options);
