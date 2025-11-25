@@ -2,9 +2,9 @@
 
 import { useCallback } from 'react';
 import useFetchData from '#js/useFetchData';
-import * as Constants from '#constants/Constants.js';
 
-const API_BASE = Constants.API_BACKEND;
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest';
 
 export default function useChallenge() {
   const { fetchData, loading } = useFetchData();

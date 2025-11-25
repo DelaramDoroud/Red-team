@@ -81,34 +81,28 @@ logs)
   "${DOCKER_COMPOSE[@]}" logs -f
   ;;
 
-build-prod-nc)
-    docker build \
-      --no-cache \
-      --build-arg BRANCH="$BRANCH" \
-      -t "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}" \
-      -f "${BACKEND_FOLDER}/Dockerfile" \
-      "${BACKEND_FOLDER}"
-
-    docker build \
-      --no-cache \
-      --build-arg BRANCH="$BRANCH" \
-      -t "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}" \
-      -f "${FRONTEND_FOLDER}/Dockerfile" \
-      "${FRONTEND_FOLDER}"
-
-    docker login -u "${REGISTRY_USER}" -p "${REGISTRY_TOKEN}" "${REGISTRY_URL}"
-    docker push "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}"
-    docker push "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}"
-    ;;
-
 test)
-  TEST_FILE="${2:-}"
+  # Optional second arg:
+  #   ./codymatch.sh test                → all backend + frontend tests
+  #   ./codymatch.sh test some-file.mjs  → only that backend test file
+  #   ./codymatch.sh test --stop         → all backend + frontend tests (non-watch), then stop
+  #
+  # NOTE: when TEST_FILE is provided, frontend tests are NOT run.
+
+  TEST_FILE=""
+  STOP_AFTER=false
+
+  if [[ "$2" == "--stop" ]]; then
+    STOP_AFTER=true
+  elif [[ -n "$2" ]]; then
+    TEST_FILE="$2"
+  fi
 
   echo "Stopping old test DB if it exists..."
   docker rm -f test-db >/dev/null 2>&1 || true
 
   echo "Starting test-db container from db service..."
-  "${DOCKER_COMPOSE[@]}" run -d \
+  "${DOCKER_COMPOSE[@]}" run -d -T \
     --name test-db \
     -p "${DB_PORT}:5432" \
     db
@@ -128,37 +122,52 @@ test)
     exit 1
   fi
 
-  echo "Running tests..."
+  echo "Running backend tests..."
 
-  STOP_AFTER=false
-
-  if [[ "$2" == "--stop" ]]; then
-    echo "Tests will stop after completion."
-    STOP_AFTER=true
-  fi
+  BACKEND_TEST_EXIT_CODE=0
+  FRONTEND_TEST_EXIT_CODE=0
 
   if [[ -n "$TEST_FILE" && "$STOP_AFTER" == false ]]; then
-    echo "Running test file: $TEST_FILE"
-    "${DOCKER_COMPOSE[@]}" run --rm --no-deps \
+    echo "Running backend test file: $TEST_FILE"
+    "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
       backend sh -c "npm run test -- tests/$TEST_FILE"
-    TEST_EXIT_CODE=$?
+    BACKEND_TEST_EXIT_CODE=$?
   else
-    echo "Running all tests"
+    echo "Running all backend tests"
     if [[ "$STOP_AFTER" == true ]]; then
-      "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
-        "npx vitest run --no-file-parallelism"
-      TEST_EXIT_CODE=$?
+      # Non-watch mode, used e.g. in pre-push
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend sh -c \
+        "npm run test:run -- --no-file-parallelism"
+      BACKEND_TEST_EXIT_CODE=$?
     else
+      # Default test command (may be watch or not, depending on package.json)
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
         "npm run test -- --no-file-parallelism"
-      TEST_EXIT_CODE=$?
+      BACKEND_TEST_EXIT_CODE=$?
+    fi
+  fi
+
+  # Only run frontend tests when we run the full suite (no specific backend file)
+  if [[ -z "$TEST_FILE" ]]; then
+    echo "Running frontend tests..."
+
+    if [[ "$STOP_AFTER" == true ]]; then
+      # Non-watch mode for frontend (single run)
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
+        "npm run test:run"
+      FRONTEND_TEST_EXIT_CODE=$?
+    else
+      # Default frontend test script
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
+        "npm run test"
+      FRONTEND_TEST_EXIT_CODE=$?
     fi
   fi
 
   echo "Cleaning up test DB..."
-  docker rm -f test-db > /dev/null 2>&1
+  docker rm -f test-db > /dev/null 2>&1 || true
 
-  if [[ $TEST_EXIT_CODE -ne 0 ]]; then
+  if [[ $BACKEND_TEST_EXIT_CODE -ne 0 || $FRONTEND_TEST_EXIT_CODE -ne 0 ]]; then
     echo "Some tests failed."
     exit 1
   else
@@ -166,37 +175,6 @@ test)
     exit 0
   fi
   ;;
-
-build-prod)
-    docker build \
-      --build-arg BRANCH="$BRANCH" \
-      -t "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}" \
-      -f "${BACKEND_FOLDER}/Dockerfile" \
-      "${BACKEND_FOLDER}"
-
-    docker build \
-      --build-arg BRANCH="$BRANCH" \
-      -t "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}" \
-      -f "${FRONTEND_FOLDER}/Dockerfile" \
-      "${FRONTEND_FOLDER}"
-
-    docker login -u "${REGISTRY_USER}" -p "${REGISTRY_TOKEN}" "${REGISTRY_URL}"
-    docker push "${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}"
-    docker push "${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}"
-    ;;
-
-deploy)
-  echo "Stopping current containers..."
-  "${DOCKER_COMPOSE[@]}" down
-
-  echo "Pulling latest code from git..."
-  git pull || { echo "Git pull failed, aborting."; exit 1; }
-
-  echo "Running deploy script..."
-  chmod +x ./deploy.sh
-  ./deploy.sh
-  ;;
-
 
 backend|frontend)
     case $2 in
