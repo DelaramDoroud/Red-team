@@ -1,0 +1,1 @@
+export const API_BACKEND ="http://localhost:3001/api/rest";

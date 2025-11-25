@@ -7,6 +7,7 @@ import ReduxProvider from '#js/store/redux-provider';
 import Header from '#components/layout/Header';
 import Footer from '#components/layout/Footer';
 import styles from './layout.module.scss';
+import '@/assets/tailwind.css';
 
 const openSans = Open_Sans({
   subsets: ['latin'],
