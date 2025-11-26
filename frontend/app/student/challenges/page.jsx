@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,7 +15,7 @@ const dummyData = [
     id: 1,
     title: 'Frontend Challenge',
     duration: '3 days',
-    startDatetime: '2025-01-14 10:00',
+    startDatetime: '2025-11-27 10:00',
   },
   {
     id: 2,
@@ -25,15 +26,51 @@ const dummyData = [
 ];
 
 export default function StudentChallengesPage() {
+  const [joinedChallenges, setJoinedChallenges] = useState({});
+  const [countdowns, setCountdowns] = useState({});
+
+  // Calculate countdown every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newCountdowns = {};
+
+      dummyData.forEach((c) => {
+        if (joinedChallenges[c.id]) {
+          const now = new Date();
+          const start = new Date(c.startDatetime);
+          const diff = start - now;
+
+          if (diff <= 0) {
+            newCountdowns[c.id] = 'Challenge Started!';
+          } else {
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff / (1000 * 60)) % 60);
+            const seconds = Math.floor((diff / 1000) % 60);
+
+            newCountdowns[c.id] = `${hours}h ${minutes}m ${seconds}s`;
+          }
+        }
+      });
+
+      setCountdowns(newCountdowns);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [joinedChallenges]);
+
+  const handleJoin = (id) => {
+    setJoinedChallenges((prev) => ({ ...prev, [id]: true }));
+  };
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
+      {/* <div className="w-96 h-32 bg-red-500 mb-100">TEST</div> */}
       <h1 className='text-3xl font-bold text-white'>Available Challenges</h1>
 
-      <div className='space-y-4'>
+      <div>
         {dummyData.map((c) => (
           <Card
             key={c.id}
-            className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl mb-px-20 p-4 w-auto min-w-md'
+            className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg bg-red-500'
           >
             <CardHeader className='pb-5'>
               <CardTitle className='text-xl'>{c.title}</CardTitle>
@@ -46,10 +83,20 @@ export default function StudentChallengesPage() {
                   <br />
                   Duration: {c.duration}
                 </CardDescription>
-
-                <Button className='bg-white text-black hover:bg-gray-200 w-8'>
-                  Join
-                </Button>
+                {!joinedChallenges[c.id] ? (
+                  <Button
+                    className='bg-white text-black hover:bg-gray-200 w-100'
+                    onClick={() => handleJoin(c.id)}
+                  >
+                    Join
+                  </Button>
+                ) : (
+                  <div className='text-yellow-300 font-semibold text-sm'>
+                    Pending... ⏳
+                    <br />
+                    <span className='text-white'>{countdowns[c.id]}</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
