@@ -21,7 +21,7 @@ const dummyData = [
     id: 2,
     title: 'Backend Coding Match',
     duration: '5 days',
-    startDatetime: '2025-01-20 09:00',
+    startDatetime: '2025-11-26 17:42',
   },
 ];
 
@@ -41,7 +41,8 @@ export default function StudentChallengesPage() {
           const diff = start - now;
 
           if (diff <= 0) {
-            newCountdowns[c.id] = 'Challenge Started!';
+            newCountdowns[c.id] =
+              'Wait for the teacher to start the challenge.';
           } else {
             const hours = Math.floor(diff / (1000 * 60 * 60));
             const minutes = Math.floor((diff / (1000 * 60)) % 60);
@@ -64,15 +65,13 @@ export default function StudentChallengesPage() {
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
       {/* <div className="w-96 h-32 bg-red-500 mb-100">TEST</div> */}
-      <h1 className='text-3xl font-bold text-slate-900'>
-        Available Challenges
-      </h1>
+      <h1 className='text-3xl font-bold text-white'>Available Challenges</h1>
 
       <div>
         {dummyData.map((c) => (
           <Card
             key={c.id}
-            className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg bg-red-500'
+            className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
           >
             <CardHeader className='pb-5'>
               <CardTitle className='text-xl'>{c.title}</CardTitle>
@@ -87,7 +86,7 @@ export default function StudentChallengesPage() {
                 </CardDescription>
                 {!joinedChallenges[c.id] ? (
                   <Button
-                    className='bg-white text-black hover:bg-gray-200 w-100'
+                    className='bg-white text-black hover:bg-gray-200 w-200'
                     onClick={() => handleJoin(c.id)}
                   >
                     Join
