@@ -273,4 +273,38 @@ describe('Challenge API - POST /api/rest/challenge', () => {
     expect(res.body.error.missingIds).toContain(99999);
     expect(res.body.error.missingIds).not.toContain(readyMatchSettingIds[0]);
   });
+
+  it('should NOT create a challenge if it overlaps with an existing one', async () => {
+    // 1. Create a challenge
+    const c = await Challenge.create({
+      title: 'Existing Challenge',
+      duration: 60,
+      startDatetime: '2025-12-01T10:00:00Z',
+      endDatetime: '2025-12-01T12:00:00Z',
+      peerReviewStartDate: '2025-12-01T12:05:00Z',
+      peerReviewEndDate: '2025-12-02T12:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(c.id);
+
+    // 2. Try to create another one that overlaps (11:00 - 13:00)
+    const payload = {
+      title: 'Overlapping Challenge',
+      duration: 120,
+      startDatetime: '2025-12-01T11:00:00Z',
+      endDatetime: '2025-12-01T13:00:00Z',
+      peerReviewStartDate: '2025-12-01T13:05:00Z',
+      peerReviewEndDate: '2025-12-02T13:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/overlaps/i);
+  });
 });

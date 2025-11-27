@@ -49,20 +49,11 @@ router.post('/challenge', async (req, res) => {
       validatorKey: 'challenge',
     });
 
+    // Check for overlapping challenges
     const overlappingChallenge = await Challenge.findOne({
       where: {
-        [Op.and]: [
-          {
-            startDatetime: {
-              [Op.lt]: payload.endDatetime,
-            },
-          },
-          {
-            endDatetime: {
-              [Op.gt]: payload.startDatetime,
-            },
-          },
-        ],
+        startDatetime: { [Op.lt]: payload.endDatetime },
+        endDatetime: { [Op.gt]: payload.startDatetime },
       },
     });
 
@@ -70,8 +61,7 @@ router.post('/challenge', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: {
-          message: 'Challenge overlaps with an existing challenge.',
-          overlappingChallengeId: overlappingChallenge.id,
+          message: 'Challenge time overlaps with an existing challenge.',
         },
       });
     }
