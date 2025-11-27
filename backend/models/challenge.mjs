@@ -2,6 +2,7 @@ import { DataTypes } from 'sequelize';
 import sequelize from '#root/services/sequelize.mjs';
 import getValidator from '#root/services/validator.mjs';
 import { errorTypes } from '#root/services/error.mjs';
+//import User from '#root/models/user.mjs';
 
 /**
  * Validate challenge payload using shared JSON Schema validators.
@@ -169,9 +170,31 @@ Challenge.getDefaultIncludes = function () {
  * Create a challenge with validation.
  * You can use this convenience method from your services instead of Challenge.create.
  */
+
 Challenge.createWithValidation = async function (payload, options = {}) {
-  await validateChallengeData(payload, { validatorKey: 'challenge_create' });
+  await validateChallengeData(payload, { validatorKey: 'challenge' });
   return Challenge.create(payload, options);
 };
 
+Challenge.seed = async function () {
+  try {
+    const count = await Challenge.count();
+    if (count > 0) return;
+
+    await Challenge.createWithValidation({
+      title: 'Intro to Loops',
+      duration: 60,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T10:00:00Z',
+      peerReviewStartDate: '2025-12-01T10:30:00Z',
+      peerReviewEndDate: '2025-12-01T12:00:00Z',
+      allowedNumberOfReview: 3,
+      status: 'public',
+    });
+
+    console.log('Challenge seeded successfully.');
+  } catch (error) {
+    console.error('Challenge seeding failed:', error);
+  }
+};
 export default Challenge;

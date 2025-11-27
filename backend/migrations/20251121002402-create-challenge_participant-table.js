@@ -58,5 +58,12 @@ export async function up({ context: queryInterface }) {
 }
 
 export async function down({ context: queryInterface }) {
-  await queryInterface.dropTable(TABLE_NAME);
+  const transaction = await queryInterface.sequelize.transaction();
+  try {
+    await queryInterface.dropTable(TABLE_NAME, { transaction });
+    await transaction.commit();
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
 }

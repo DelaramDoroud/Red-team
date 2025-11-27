@@ -74,13 +74,34 @@ User.seed = async function () {
     const count = await User.count();
     if (count > 0) return;
 
-    await User.create({
-      username: 'teacher1',
-      password: 'password123',
-      role: 'teacher',
-      settings: { theme: 'light' },
-    });
-    console.log('User (Teacher) seeded successfully.');
+    await User.bulkCreate([
+      {
+        username: 'teacher1',
+        password: 'password123',
+        role: 'teacher',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student1',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'dark' },
+      },
+      {
+        username: 'student2',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student3',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+    ]);
+
+    console.log('Users seeded successfully.');
   } catch (error) {
     console.error('User seeding failed:', error);
   }
