@@ -1,6 +1,7 @@
 'use client';
 
 import ChallengeList from '#modules/challenge/list';
+import { Button } from '../assets/components/common/Button';
 import styles from './page.module.scss';
 
 export default function HomePage() {
@@ -14,7 +15,7 @@ export default function HomePage() {
           <code>useChallenge</code> hook.
         </p>
       </header>
-
+      <Button>hello</Button>
       <ChallengeList />
     </section>
   );
