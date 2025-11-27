@@ -46,7 +46,11 @@ export default function NewChallengePage() {
 
   const handleDataField = (event) => {
     const newChallenge = { ...challenge };
-    newChallenge[event.target.name] = event.target.value;
+    const value =
+      event.target.name === 'duration'
+        ? parseInt(event.target.value, 10)
+        : event.target.value;
+    newChallenge[event.target.name] = value;
 
     if (
       event.target.name === 'startDatetime' ||
