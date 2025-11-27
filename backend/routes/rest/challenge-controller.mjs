@@ -1,11 +1,11 @@
 import { Router } from 'express';
+import { Op } from 'sequelize';
 import sequelize from '#root/services/sequelize.mjs';
 import Challenge, { validateChallengeData } from '#root/models/challenge.mjs';
 import MatchSetting from '#root/models/match-setting.mjs';
 import { handleException } from '#root/services/error.mjs';
 
 const router = Router();
-
 
 router.get('/challenges', async (_req, res) => {
   try {
@@ -14,7 +14,7 @@ router.get('/challenges', async (_req, res) => {
         {
           model: MatchSetting,
           as: 'matchSettings',
-          through: { attributes: [] }, 
+          through: { attributes: [] },
         },
       ],
       order: Challenge.getDefaultOrder(),
@@ -24,7 +24,6 @@ router.get('/challenges', async (_req, res) => {
     handleException(res, error);
   }
 });
-
 
 router.post('/challenge', async (req, res) => {
   const payload = {
@@ -49,6 +48,34 @@ router.post('/challenge', async (req, res) => {
     await validateChallengeData(payload, {
       validatorKey: 'challenge',
     });
+
+    const overlappingChallenge = await Challenge.findOne({
+      where: {
+        [Op.and]: [
+          {
+            startDatetime: {
+              [Op.lt]: payload.endDatetime,
+            },
+          },
+          {
+            endDatetime: {
+              [Op.gt]: payload.startDatetime,
+            },
+          },
+        ],
+      },
+    });
+
+    if (overlappingChallenge) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Challenge overlaps with an existing challenge.',
+          overlappingChallengeId: overlappingChallenge.id,
+        },
+      });
+    }
+
     transaction = await sequelize.transaction();
     const challenge = await Challenge.create(payload, { transaction });
     if (matchSettingIds.length > 0) {
@@ -59,7 +86,9 @@ router.post('/challenge', async (req, res) => {
       if (settings.length !== matchSettingIds.length) {
         await transaction.rollback();
         const foundIds = settings.map((s) => s.id);
-        const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+        const missingIds = matchSettingIds.filter(
+          (id) => !foundIds.includes(id)
+        );
         return res.status(400).json({
           success: false,
           error: {
