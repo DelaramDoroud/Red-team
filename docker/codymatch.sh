@@ -44,6 +44,9 @@ error_message () {
           echo -e "${GREEN}dul                        ${WHITE}Down, up and log all services"
           echo -e "${GREEN}ul                         ${WHITE}Up and log all services"
           echo -e "${GREEN}brl                        ${WHITE}Restart backend and log all services"
+          echo -e "${GREEN}migrate                    ${WHITE}Run database migrations"
+          echo -e "${GREEN}migrate-undo               ${WHITE}Undo last database migration"
+          echo -e "${GREEN}migrate-undo-all           ${WHITE}Undo all database migrations"
           echo -e ""
 }
 
@@ -221,6 +224,15 @@ ul)
 brl)
     "${DOCKER_COMPOSE[@]}" restart backend
     "${DOCKER_COMPOSE[@]}" logs -f
+    ;;
+migrate)
+    "${DOCKER_COMPOSE[@]}" exec backend npm run migrate
+    ;;
+migrate-undo)
+    "${DOCKER_COMPOSE[@]}" exec backend npm run migrate-undo
+    ;;
+migrate-undo-all)
+    "${DOCKER_COMPOSE[@]}" exec backend npm run migrate-undo-all
     ;;
 *)
   error_message
