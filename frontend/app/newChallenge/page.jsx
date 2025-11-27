@@ -6,7 +6,7 @@ import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
 import { useRouter } from 'next/navigation';
-import * as Constants from '#constants/Constants.js'; // eslint-disable-line import/no-unresolved, import/extensions
+import * as Constants from '#constants/Constants';
 import styles from './page.module.scss';
 
 export default function NewChallengePage() {
