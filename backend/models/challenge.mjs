@@ -129,6 +129,10 @@ Challenge.initializeRelations = function (models) {
     foreignKey: 'challengeId',
     otherKey: 'studentId',
   });
+  Challenge.hasMany(models.ChallengeMatchSetting, {
+    as: 'challengeMatchSettings',
+    foreignKey: 'challengeId',
+  });
 };
 
 /**

@@ -47,6 +47,10 @@ ChallengeParticipant.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+  ChallengeParticipant.hasOne(models.Match, {
+    as: 'match',
+    foreignKey: 'challengeParticipantId',
+  });
 };
 
 export default ChallengeParticipant;

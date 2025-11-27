@@ -57,6 +57,10 @@ MatchSetting.initializeRelations = function (models) {
     foreignKey: 'matchSettingId',
     otherKey: 'challengeId',
   });
+  MatchSetting.hasMany(models.ChallengeMatchSetting, {
+    as: 'challengeMatchSettings',
+    foreignKey: 'matchSettingId',
+  });
 };
 
 MatchSetting.seed = async function () {
