@@ -307,4 +307,24 @@ describe('Challenge API - POST /api/rest/challenge', () => {
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toMatch(/overlaps/i);
   });
+
+  it('should NOT create a challenge if duration is longer than the time window', async () => {
+    const payload = {
+      title: 'Impossible Duration Challenge',
+      duration: 120, // 2 hours
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T10:00:00Z', // 1 hour window
+      peerReviewStartDate: '2025-12-01T10:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/time window/i);
+  });
 });

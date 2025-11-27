@@ -49,6 +49,22 @@ router.post('/challenge', async (req, res) => {
       validatorKey: 'challenge',
     });
 
+    // Check if duration fits within the time window
+    const start = new Date(payload.startDatetime);
+    const end = new Date(payload.endDatetime);
+    const durationInMs = payload.duration * 60 * 1000; // duration is in minutes
+    const windowInMs = end.getTime() - start.getTime();
+
+    if (windowInMs < durationInMs) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            'The time window (endDatetime - startDatetime) must be greater than or equal to the duration.',
+        },
+      });
+    }
+
     // Check for overlapping challenges
     const overlappingChallenge = await Challenge.findOne({
       where: {
