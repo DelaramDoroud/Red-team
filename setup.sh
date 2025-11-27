@@ -22,6 +22,41 @@ MIN_DOCKER_MAJOR=28
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+
+#!/usr/bin/env bash
+set -e
+
+# Detect root directory of the repo (independent of current working directory)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
+# ------------------------------------------------------------------------------
+# Normalize line endings (CRLF -> LF) for env and shell files
+# This makes the project work on Linux, macOS and WSL/Windows even if
+# some files were saved with Windows-style CRLF endings.
+# ------------------------------------------------------------------------------
+normalize_line_endings() {
+  echo "Normalizing line endings for .sh / .env / docker-compose*.yml (CRLF -> LF if needed)..."
+
+  local patterns=(
+    "*.sh"
+    "*.env"
+    "docker-compose*.yml"
+  )
+
+  for pattern in "${patterns[@]}"; do
+    find "$ROOT_DIR" -type f -name "$pattern" -print0 2>/dev/null | while IFS= read -r -d '' file; do
+      if grep -q $'\r' "$file"; then
+        printf '  -> Fixing %s\n' "$file"
+        local tmp="${file}.tmp.$$"
+        tr -d '\r' < "$file" > "$tmp" && mv "$tmp" "$file"
+      fi
+    done
+  done
+}
+
+normalize_line_endings
+
 # ------------------------------------------------------------------------------
 # Colors & logging helpers
 # ------------------------------------------------------------------------------
