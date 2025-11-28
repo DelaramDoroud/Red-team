@@ -4,7 +4,7 @@ export default {
   password: process.env.DB_PASSWORD,
   options: {
     host: process.env.DB_HOST,
-    port: 5432,
+    port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
     freezeTableName: true,
     logging: process.env.SQL_LOGGING === 'true',

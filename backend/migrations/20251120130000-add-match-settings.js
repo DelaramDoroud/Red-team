@@ -1,9 +1,9 @@
 import { DataTypes } from 'sequelize';
+import { MatchSettingStatus } from '../models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    // 1. Create 'match_setting' table
     await queryInterface.createTable(
       'match_setting',
       {
@@ -35,7 +35,7 @@ export async function up({ context: queryInterface }) {
           allowNull: false,
         },
         status: {
-          type: DataTypes.ENUM('draft', 'ready'),
+          type: DataTypes.ENUM(...Object.values(MatchSettingStatus)),
           allowNull: false,
           defaultValue: 'draft',
         },
@@ -53,7 +53,6 @@ export async function up({ context: queryInterface }) {
       { transaction }
     );
 
-    // 2. Create Junction Table 'ChallengeMatchSetting'
     await queryInterface.createTable(
       'ChallengeMatchSetting',
       {
@@ -92,9 +91,6 @@ export async function up({ context: queryInterface }) {
       },
       { transaction }
     );
-
-    // Note: We do NOT add columns to 'challenge' here anymore,
-    // because you updated the initial create-challenge migration file to include them.
 
     await transaction.commit();
   } catch (err) {

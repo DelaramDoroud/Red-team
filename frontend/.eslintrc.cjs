@@ -18,6 +18,7 @@ module.exports = {
       alias: {
         map: [
           ['#components', './assets/components'],
+          ['#constants', './assets/constants'],
           ['#js', './assets/js'],
           ['#img', './assets/img'],
           ['#modules', './assets/modules'],
