@@ -1,7 +1,7 @@
 import { Umzug, SequelizeStorage } from 'umzug';
 import { Sequelize } from 'sequelize';
 
-import databaseConfig from '#root/config/database.mjs';
+import databaseConfig from '#root/config/database.js';
 
 const sequelize = new Sequelize(
   databaseConfig.name,

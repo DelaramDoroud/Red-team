@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import sequelize from '#root/services/sequelize.mjs';
-import Challenge, { validateChallengeData } from '#root/models/challenge.mjs';
-import MatchSetting from '#root/models/match-setting.mjs';
-import { handleException } from '#root/services/error.mjs';
-import getValidator from '#root/services/validator.mjs';
-import joinChallenge from '#root/services/challenge_participant.mjs';
+import sequelize from '#root/services/sequelize.js';
+import Challenge, { validateChallengeData } from '#root/models/challenge.js';
+import MatchSetting from '#root/models/match-setting.js';
+import { handleException } from '#root/services/error.js';
+import getValidator from '#root/services/validator.js';
+import joinChallenge from '#root/services/challenge-participant.js';
 
 const router = Router();
 

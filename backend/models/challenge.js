@@ -1,8 +1,7 @@
 import { DataTypes } from 'sequelize';
-import sequelize from '#root/services/sequelize.mjs';
-import getValidator from '#root/services/validator.mjs';
-import { errorTypes } from '#root/services/error.mjs';
-//import User from '#root/models/user.mjs';
+import sequelize from '#root/services/sequelize.js';
+import getValidator from '#root/services/validator.js';
+import { errorTypes } from '#root/services/error.js';
 
 /**
  * Validate challenge payload using shared JSON Schema validators.
@@ -79,7 +78,7 @@ const Challenge = sequelize.define(
       defaultValue: 0,
     },
     status: {
-      type: DataTypes.ENUM('public', 'private'),
+      type: DataTypes.ENUM('public', 'private', 'assigned', 'started', 'ended'),
       allowNull: false,
       defaultValue: 'private',
     },

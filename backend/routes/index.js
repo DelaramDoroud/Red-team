@@ -1,0 +1,22 @@
+import { Router } from 'express';
+import userRouter from '#root/routes/api/user-controller.js';
+import configRouter from '#root/routes/api/config-controller.js';
+import challengeRouter from '#root/routes/rest/challenge-controller.js';
+import matchSettingRouter from '#root/routes/rest/match-setting-controller.js';
+import schemaRouter from '#root/routes/rest/schema-controller.js';
+
+const router = Router();
+
+router.use('/api', userRouter);
+router.use('/api', configRouter);
+
+const restApiPrefix = '/api/rest';
+router.use(restApiPrefix, challengeRouter);
+router.use(restApiPrefix, matchSettingRouter);
+router.use(restApiPrefix, schemaRouter);
+
+router.all(/\/api\/(.*)/, (_req, res) => {
+  res.status(404);
+  res.json({ status: 404, message: 'Not Found' });
+});
+export default router;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUserInfo } from '#root/services/session.mjs';
+import { getUserInfo } from '#root/services/session.js';
 
 const router = Router();
 

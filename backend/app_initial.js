@@ -6,9 +6,9 @@ import { createStream } from 'rotating-file-stream';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
-import apiRouter from '#root/routes/index.mjs';
-import errorInit from '#root/services/express-error.mjs';
-import models from '#root/models/init-models.mjs';
+import apiRouter from '#root/routes/index.js';
+import errorInit from '#root/services/express-error.js';
+import models from '#root/models/init-models.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

@@ -87,7 +87,7 @@ logs)
 test)
   # Optional second arg:
   #   ./codymatch.sh test                → all backend + frontend tests
-  #   ./codymatch.sh test some-file.mjs  → only that backend test file
+  #   ./codymatch.sh test some-file.js  → only that backend test file
   #   ./codymatch.sh test --stop         → all backend + frontend tests (non-watch), then stop
   #
   # NOTE: when TEST_FILE is provided, frontend tests are NOT run.

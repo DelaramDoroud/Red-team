@@ -1,6 +1,6 @@
-import logger from '#root/services/logger.mjs';
+import logger from '#root/services/logger.js';
 import { Umzug, SequelizeStorage } from 'umzug';
-import sequelize from '#root/services/sequelize.mjs';
+import sequelize from '#root/services/sequelize.js';
 
 const initMigrator = () =>
   new Umzug({

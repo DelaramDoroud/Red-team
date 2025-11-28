@@ -1,4 +1,4 @@
-import logger from './logger.mjs';
+import logger from './logger.js';
 
 export default function errorInit(app) {
   app.use((err, _req, res, next) => {

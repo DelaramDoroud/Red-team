@@ -7,17 +7,9 @@ import {
   afterAll,
   beforeEach,
 } from 'vitest';
-// import request from 'supertest';
 
-// import {
-//   truncateAllTables,
-//   runQuery,
-//   setupTestData,
-//   login,
-// } from './utils/testUtdils.mjs';
-
-import sequelize from '#root/services/sequelize.mjs';
-// import app from '#root/app_initial.mjs';
+import sequelize from '#root/services/sequelize.js';
+// import app from '#root/app_initial.js';
 
 // let client;
 // const username = 'testuser1@.it';

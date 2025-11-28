@@ -1,4 +1,4 @@
-import sequelize from '#root/services/sequelize.mjs';
+import sequelize from '#root/services/sequelize.js';
 import { DataTypes } from 'sequelize';
 //import ChallengeMatchSetting from '#root/models/challenge_match_setting.mjs';
 

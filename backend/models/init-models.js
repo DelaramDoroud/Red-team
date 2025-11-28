@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import * as migrator from '#root/services/migrator.mjs';
+import * as migrator from '#root/services/migrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +27,7 @@ export async function seedModels() {
 export default {
   init: async function init() {
     for (const file of fs.readdirSync(__dirname)) {
-      if (!file.endsWith('.mjs') || file === 'init-models.mjs') continue;
+      if (!file.endsWith('.js') || file === 'init-models.js') continue;
       const modulePath = path.join(__dirname, file);
       const { default: Model } = await import(modulePath);
       models[Model.name] = Model;

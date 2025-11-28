@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { jsonSchemas } from '#root/services/validator.mjs';
+import { jsonSchemas } from '#root/services/validator.js';
 
 const router = Router();
 

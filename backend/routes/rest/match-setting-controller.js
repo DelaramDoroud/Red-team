@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import MatchSetting from '#root/models/match-setting.mjs';
-import { handleException } from '#root/services/error.mjs';
+import MatchSetting from '#root/models/match-setting.js';
+import { handleException } from '#root/services/error.js';
 
 const router = Router();
 
@@ -16,4 +16,3 @@ router.get('/matchSettings', async (_req, res) => {
   }
 });
 export default router;
-

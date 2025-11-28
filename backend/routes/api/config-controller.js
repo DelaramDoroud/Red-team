@@ -1,5 +1,5 @@
 import express from 'express';
-import config from '#root/config/config.mjs';
+import config from '#root/config/config.js';
 
 const router = express.Router();
 

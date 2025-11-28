@@ -1,6 +1,6 @@
-import ChallengeParticipant from '#root/models/challenge-participant.mjs';
-import Challenge from '#root/models/challenge.mjs';
-import User from '#root/models/user.mjs';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import Challenge from '#root/models/challenge.js';
+import User from '#root/models/user.js';
 
 export default async function joinChallenge({ studentId, challengeId }) {
   const challenge = await Challenge.findByPk(challengeId);
