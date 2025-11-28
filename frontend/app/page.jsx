@@ -2,6 +2,7 @@
 
 import ChallengeList from '#modules/challenge/list';
 import { Button } from '../assets/components/common/Button';
+// import { Badge } from '../assets/components/common/Badge';
 import styles from './page.module.scss';
 
 export default function HomePage() {
@@ -15,7 +16,10 @@ export default function HomePage() {
           <code>useChallenge</code> hook.
         </p>
       </header>
-      <Button>hello</Button>
+      <div>
+        <Button>hello</Button>
+      </div>
+
       <ChallengeList />
     </section>
   );

@@ -1,8 +1,8 @@
 .footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid rgb(148 163 184 / 25%);
+  border-top: 1px solid rgb(var(--color-secondary-300) / 0.25);
   font-size: 0.8rem;
-  color: rgb(148 163 184 / 90%);
+  color: rgb(var(--color-secondary-300) / 0.9);
 }
 
 .muted {

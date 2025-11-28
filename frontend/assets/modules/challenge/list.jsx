@@ -5,6 +5,7 @@ import useChallenge from '#js/useChallenge';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import styles from './list.module.scss';
+import { Button } from '@/assets/components/common/Button';
 
 export default function ChallengeList() {
   const { loading, getChallenges } = useChallenge();
@@ -46,9 +47,12 @@ export default function ChallengeList() {
     <section className={styles.section}>
       <div className={styles.header}>
         <h2>Challenges</h2>
-        <button type='button' onClick={load} className={styles.refresh}>
+        {/* <button type='button' onClick={load} className={styles.refresh}>
           Refresh
-        </button>
+        </button> */}
+        <Button variant='ouline' onClick={load}>
+          Refresh
+        </Button>
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
