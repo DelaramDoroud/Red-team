@@ -1,5 +1,6 @@
 import sequelize from '#root/services/sequelize.mjs';
 import { DataTypes } from 'sequelize';
+//import ChallengeMatchSetting from '#root/models/challenge_match_setting.mjs';
 
 const ChallengeParticipant = sequelize.define(
   'ChallengeParticipant',
@@ -51,6 +52,28 @@ ChallengeParticipant.initializeRelations = (models) => {
     as: 'match',
     foreignKey: 'challengeParticipantId',
   });
+};
+
+ChallengeParticipant.seed = async function () {
+  try {
+    const count = await ChallengeParticipant.count();
+    if (count > 0) return;
+
+    await ChallengeParticipant.bulkCreate([
+      {
+        challengeId: 1,
+        studentId: 2,
+      },
+      {
+        challengeId: 1,
+        studentId: 3,
+      },
+    ]);
+
+    console.log('ChallengeParticipant seeded successfully.');
+  } catch (error) {
+    console.error('ChallengeParticipant seeding failed:', error);
+  }
 };
 
 export default ChallengeParticipant;

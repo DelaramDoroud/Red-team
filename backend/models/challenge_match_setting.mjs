@@ -64,4 +64,26 @@ ChallengeMatchSetting.initializeRelations = (models) => {
   });
 };
 
+ChallengeMatchSetting.seed = async function () {
+  try {
+    const count = await ChallengeMatchSetting.count();
+    if (count > 0) return;
+
+    await ChallengeMatchSetting.bulkCreate([
+      {
+        challengeId: 1,
+        matchSettingId: 1,
+      },
+      {
+        challengeId: 1,
+        matchSettingId: 2,
+      },
+    ]);
+
+    console.log('ChallengeMatchSetting seeded successfully.');
+  } catch (error) {
+    console.error('ChallengeMatchSetting seeding failed:', error);
+  }
+};
+
 export default ChallengeMatchSetting;
