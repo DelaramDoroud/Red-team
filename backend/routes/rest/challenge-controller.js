@@ -5,6 +5,7 @@ import MatchSetting from '#root/models/match-setting.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import joinChallenge from '#root/services/challenge-participant.js';
+import assignMatches from '#root/services/assign-matches.js';
 
 const router = Router();
 
@@ -166,6 +167,48 @@ router.post('/challenge/:challengeId/join', async (req, res) => {
       success: true,
       result: participation,
     });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenge/:challengeId/assign', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const overwrite =
+      String(req.query.overwrite || '').toLowerCase() === 'true';
+    const result = await assignMatches({ challengeId, overwrite });
+
+    if (result.status === 'challenge_not_found') {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+    if (result.status === 'no_match_settings') {
+      return res.status(400).json({
+        success: false,
+        error: 'No match settings selected for this challenge',
+      });
+    }
+    if (result.status === 'no_participants') {
+      return res
+        .status(400)
+        .json({ success: false, error: 'No participants joined' });
+    }
+    if (result.status === 'already_assigned' && !overwrite) {
+      return res.status(409).json({
+        success: false,
+        error: 'Assignments already exist. Use ?overwrite=true to reassign.',
+      });
+    }
+
+    return res.json({ success: true, ...result });
   } catch (error) {
     handleException(res, error);
   }
