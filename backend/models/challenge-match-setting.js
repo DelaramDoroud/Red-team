@@ -78,6 +78,10 @@ ChallengeMatchSetting.seed = async function () {
         challengeId: 1,
         matchSettingId: 2,
       },
+      {
+        challengeId: 1,
+        matchSettingId: 3,
+      },
     ]);
 
     console.log('ChallengeMatchSetting seeded successfully.');

@@ -68,6 +68,38 @@ ChallengeParticipant.seed = async function () {
         challengeId: 1,
         studentId: 3,
       },
+      {
+        challengeId: 1,
+        studentId: 4,
+      },
+      {
+        challengeId: 1,
+        studentId: 5,
+      },
+      {
+        challengeId: 1,
+        studentId: 6,
+      },
+      {
+        challengeId: 1,
+        studentId: 7,
+      },
+      {
+        challengeId: 1,
+        studentId: 8,
+      },
+      {
+        challengeId: 1,
+        studentId: 9,
+      },
+      {
+        challengeId: 1,
+        studentId: 10,
+      },
+      {
+        challengeId: 1,
+        studentId: 11,
+      },
     ]);
 
     console.log('ChallengeParticipant seeded successfully.');
