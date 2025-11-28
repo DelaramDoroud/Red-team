@@ -1,66 +1,72 @@
 import { DataTypes } from 'sequelize';
+import { MatchSettingStatus } from '../models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
+  
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    // 1. Create 'match_setting' table
-    await queryInterface.createTable(
-      'match_setting',
-      {
-        id: {
-          type: DataTypes.INTEGER,
-          primaryKey: true,
-          autoIncrement: true,
-          allowNull: false,
-        },
-        problem_title: {
-          type: DataTypes.STRING(255),
-          allowNull: false,
-          unique: true,
-        },
-        problem_description: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-        },
-        reference_solution: {
-          type: DataTypes.TEXT,
-          allowNull: false,
-        },
-        public_tests: {
-          type: DataTypes.JSONB,
-          allowNull: false,
-        },
-        private_tests: {
-          type: DataTypes.JSONB,
-          allowNull: false,
-        },
-        status: {
-          type: DataTypes.ENUM('draft', 'ready'),
-          allowNull: false,
-          defaultValue: 'draft',
-        },
-        created_at: {
-          type: DataTypes.DATE,
-          allowNull: false,
-          defaultValue: new Date(),
-        },
-        updated_at: {
-          type: DataTypes.DATE,
-          allowNull: false,
-          defaultValue: new Date(),
-        },
+    await queryInterface.createTable('match_setting', {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
       },
-      { transaction }
-    );
+      problem_title: {
+        type: DataTypes.STRING(255),
+        allowNull: false,
+        unique: true,
+      },
+      problem_description: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+      },
+      reference_solution: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+      },
+      public_tests: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
+      private_tests: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+      },
+      status: {
+        type: DataTypes.ENUM(...Object.values(MatchSettingStatus)),
+        allowNull: false,
+        defaultValue: 'draft',
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: new Date(),
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: new Date(),
+      },
+    }, { transaction });
 
-    // 2. Create Junction Table 'ChallengeMatchSetting'
-    await queryInterface.createTable(
-      'ChallengeMatchSetting',
-      {
-        created_at: {
-          type: DataTypes.DATE,
-          allowNull: false,
-          defaultValue: new Date(),
+    await queryInterface.createTable('ChallengeMatchSetting', {
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: new Date(),
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: new Date(),
+      },
+      challengeId: {
+        type: DataTypes.INTEGER,
+        field: 'challenge_id',
+        references: {
+          model: 'challenge',
+          key: 'id',
         },
         updated_at: {
           type: DataTypes.DATE,
@@ -90,12 +96,9 @@ export async function up({ context: queryInterface }) {
           primaryKey: true,
         },
       },
-      { transaction }
-    );
-
-    // Note: We do NOT add columns to 'challenge' here anymore,
-    // because you updated the initial create-challenge migration file to include them.
-
+    }, { transaction });
+    
+    
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();

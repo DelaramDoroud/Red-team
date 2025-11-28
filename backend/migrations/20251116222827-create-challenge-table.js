@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import { ChallengeStatus } from '../models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   await queryInterface.createTable('challenge', {
@@ -22,7 +23,6 @@ export async function up({ context: queryInterface }) {
       field: 'start_datetime',
       allowNull: false,
     },
-    // New fields from model
     endDatetime: {
       type: Sequelize.DATE,
       field: 'end_datetime',
@@ -45,11 +45,10 @@ export async function up({ context: queryInterface }) {
       defaultValue: 0,
     },
     status: {
-      type: Sequelize.ENUM('public', 'private'),
+      type: Sequelize.ENUM(...Object.values(ChallengeStatus)),
       allowNull: false,
       defaultValue: 'private',
     },
-    // Standard timestamps
     createdAt: {
       type: Sequelize.DATE,
       field: 'created_at',
