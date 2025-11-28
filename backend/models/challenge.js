@@ -2,6 +2,7 @@ import { DataTypes } from 'sequelize';
 import sequelize from '#root/services/sequelize.js';
 import getValidator from '#root/services/validator.js';
 import { errorTypes } from '#root/services/error.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 export async function validateChallengeData(
   data,
@@ -69,7 +70,7 @@ const Challenge = sequelize.define(
       defaultValue: 0,
     },
     status: {
-      type: DataTypes.ENUM('public', 'private', 'assigned', 'started', 'ended'),
+      type: DataTypes.ENUM(...Object.values(ChallengeStatus)),
       allowNull: false,
       defaultValue: 'private',
     },

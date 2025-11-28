@@ -28,7 +28,7 @@ router.get('/challenges', async (_req, res) => {
   }
 });
 
-router.post('/challenge', async (req, res) => {
+router.post('/challenges', async (req, res) => {
   const payload = {
     title: req.body.title,
     duration: req.body.duration,
@@ -130,7 +130,7 @@ router.post('/challenge', async (req, res) => {
 });
 
 const validateJoinChallenge = getValidator('join-challenge');
-router.post('/challenge/:challengeId/join', async (req, res) => {
+router.post('/challenges/:challengeId/join', async (req, res) => {
   try {
     if (!validateJoinChallenge) {
       return res.status(500).json({
@@ -193,7 +193,7 @@ router.post('/challenge/:challengeId/join', async (req, res) => {
   }
 });
 
-router.post('/challenge/:challengeId/assign', async (req, res) => {
+router.post('/challenges/:challengeId/assign', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);
     if (!Number.isInteger(challengeId) || challengeId < 1) {

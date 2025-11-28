@@ -34,7 +34,9 @@ export default {
     }
     const registeredModels = initRelations();
     await migrator.up();
-    await seedModels(registeredModels);
+    const isTestEnv =
+      process.env.NODE_ENV === 'test' || process.env.ENVIRONMENT === 'test';
+    if (!isTestEnv) await seedModels(registeredModels);
     return registeredModels;
   },
 };

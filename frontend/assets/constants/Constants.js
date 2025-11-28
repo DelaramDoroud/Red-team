@@ -5,6 +5,9 @@ export const NETWORK_RESPONSE_NOT_OK = 'Network response was not ok: ';
 export const ChallengeStatus = {
   PUBLIC: 'public',
   PRIVATE: 'private',
+  ASSIGNED: 'assigned',
+  STARTED: 'started',
+  ENDED: 'ended',
 };
 
 export const MatchSettingStatus = {

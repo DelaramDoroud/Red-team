@@ -1,14 +1,3 @@
-process.env.DB_NAME = process.env.DB_NAME || 'codymatch';
-process.env.DB_USER = process.env.DB_USER || 'codymatch';
-process.env.DB_PASSWORD = String(
-  process.env.DB_PASSWORD && process.env.DB_PASSWORD.trim()
-    ? process.env.DB_PASSWORD
-    : 'codymatch'
-);
-process.env.DB_HOST = process.env.DB_HOST || 'localhost';
-process.env.DB_PORT = process.env.DB_PORT || '5431'; // Default to docker-compose port
-process.env.SECRET = process.env.SECRET || 'test-secret';
-
 import {
   describe,
   it,
@@ -25,15 +14,14 @@ let app;
 let sequelize;
 let Challenge;
 let MatchSetting;
-
 let readyMatchSettingIds = [];
 let createdChallengeIds = [];
 
 beforeAll(async () => {
-  const appModule = await import('#root/app_initial.mjs');
-  const sequelizeModule = await import('#root/services/sequelize.mjs');
-  const challengeModule = await import('#root/models/challenge.mjs');
-  const matchSettingModule = await import('#root/models/match-setting.mjs');
+  const appModule = await import('#root/app_initial.js');
+  const sequelizeModule = await import('#root/services/sequelize.js');
+  const challengeModule = await import('#root/models/challenge.js');
+  const matchSettingModule = await import('#root/models/match-setting.js');
 
   app = appModule.default;
   sequelize = sequelizeModule.default;
@@ -138,7 +126,7 @@ describe('Challenge API - GET /api/rest/challenges', () => {
   });
 });
 
-describe('Challenge API - POST /api/rest/challenge', () => {
+describe('Challenge API - POST /api/rest/challenges', () => {
   it('AC: Teacher cannot create a challenge unless at least one match setting is selected', async () => {
     const payload = {
       title: 'Test Challenge',
@@ -152,7 +140,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: [],
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -172,7 +160,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     if (res.body.challenge?.id) {
       createdChallengeIds.push(res.body.challenge.id);
@@ -203,7 +191,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.body.success).toBe(false);
@@ -222,7 +210,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: [99999, 99998],
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -242,7 +230,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: readyMatchSettingIds,
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     if (res.body.challenge?.id) {
       createdChallengeIds.push(res.body.challenge.id);
@@ -266,7 +254,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: [readyMatchSettingIds[0], 99999],
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -301,7 +289,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -321,7 +309,7 @@ describe('Challenge API - POST /api/rest/challenge', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenge').send(payload);
+    const res = await request(app).post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);

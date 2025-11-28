@@ -6,4 +6,7 @@ export const MatchSettingStatus = {
 export const ChallengeStatus = {
   PUBLIC: 'public',
   PRIVATE: 'private',
+  ASSIGNED: 'assigned',
+  STARTED: 'started',
+  ENDED: 'ended',
 };
