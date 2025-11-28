@@ -9,32 +9,52 @@ import {
   CardContent,
   CardDescription,
 } from '@/components/ui/card';
+import { getAllChallenges } from "@/services/challengeService";
 
-const dummyData = [
-  {
-    id: 1,
-    title: 'Frontend Challenge',
-    duration: '3 days',
-    startDatetime: '2025-11-27 10:00',
-  },
-  {
-    id: 2,
-    title: 'Backend Coding Match',
-    duration: '5 days',
-    startDatetime: '2025-11-26 17:42',
-  },
-];
+// const dummyData = [
+//   {
+//     id: 1,
+//     title: 'Frontend Challenge',
+//     duration: '3 days',
+//     startDatetime: '2025-11-27 10:00',
+//   },
+//   {
+//     id: 2,
+//     title: 'Backend Coding Match',
+//     duration: '5 days',
+//     startDatetime: '2025-11-26 17:42',
+//   },
+// ];
+
 
 export default function StudentChallengesPage() {
+  // const [mounted, setMounted] = useState(false);
+  const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [countdowns, setCountdowns] = useState({});
 
+  // useEffect(() => {
+  //   setMounted(true);
+  // }, []);
+
+  // if (!mounted) return null;
+
+  useEffect(() => {
+    async function load() {
+      console.log("🔥 Fetching challenges...");
+      const res = await getAllChallenges();
+      if (res.success) {
+        setChallenges(res.challenges);
+      }
+    }
+    load();
+  }, []);
   // Calculate countdown every second
   useEffect(() => {
     const interval = setInterval(() => {
       const newCountdowns = {};
 
-      dummyData.forEach((c) => {
+      challenges.forEach((c) => {
         if (joinedChallenges[c.id]) {
           const now = new Date();
           const start = new Date(c.startDatetime);
@@ -57,7 +77,7 @@ export default function StudentChallengesPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [joinedChallenges]);
+  }, [joinedChallenges, challenges]);
 
   const handleJoin = (id) => {
     setJoinedChallenges((prev) => ({ ...prev, [id]: true }));
@@ -68,7 +88,7 @@ export default function StudentChallengesPage() {
       <h1 className='text-3xl font-bold text-white'>Available Challenges</h1>
 
       <div>
-        {dummyData.map((c) => (
+        {challenges.map((c) => (
           <Card
             key={c.id}
             className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
