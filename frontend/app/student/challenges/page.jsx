@@ -9,42 +9,21 @@ import {
   CardContent,
   CardDescription,
 } from '@/components/ui/card';
-import { getAllChallenges } from "@/services/challengeService";
-
-// const dummyData = [
-//   {
-//     id: 1,
-//     title: 'Frontend Challenge',
-//     duration: '3 days',
-//     startDatetime: '2025-11-27 10:00',
-//   },
-//   {
-//     id: 2,
-//     title: 'Backend Coding Match',
-//     duration: '5 days',
-//     startDatetime: '2025-11-26 17:42',
-//   },
-// ];
+import { getAllChallenges , joinChallenge } from "@/services/challengeService";
 
 
 export default function StudentChallengesPage() {
-  // const [mounted, setMounted] = useState(false);
   const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [countdowns, setCountdowns] = useState({});
 
-  // useEffect(() => {
-  //   setMounted(true);
-  // }, []);
-
-  // if (!mounted) return null;
 
   useEffect(() => {
     async function load() {
       console.log("🔥 Fetching challenges...");
       const res = await getAllChallenges();
       if (res.success) {
-        setChallenges(res.challenges);
+        setChallenges(res.data);
       }
     }
     load();
@@ -79,9 +58,20 @@ export default function StudentChallengesPage() {
     return () => clearInterval(interval);
   }, [joinedChallenges, challenges]);
 
-  const handleJoin = (id) => {
-    setJoinedChallenges((prev) => ({ ...prev, [id]: true }));
-  };
+const handleJoin = async (challengeId) => {
+  try {
+    const res = await joinChallenge(challengeId , 1); // <-- call backend API
+
+    if (res.success) {
+      setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+    } else {
+      console.error("Join failed", res.error);
+    }
+  } catch (err) {
+    console.error("Join error:", err);
+  }
+};
+
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
       {/* <div className="w-96 h-32 bg-red-500 mb-100">TEST</div> */}
