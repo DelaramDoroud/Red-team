@@ -73,7 +73,12 @@ User.seed = async function () {
   try {
     const count = await User.count();
     if (count > 0) return;
-
+    /*await User.destroy({
+      where: {},
+      truncate: true,
+      cascade: true,
+      restartIdentity: true,
+    });*/
     await User.bulkCreate([
       {
         username: 'teacher1',
@@ -95,6 +100,48 @@ User.seed = async function () {
       },
       {
         username: 'student3',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student4',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student5',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'dark' },
+      },
+      {
+        username: 'student6',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student7',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student8',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'dark' },
+      },
+      {
+        username: 'student9',
+        password: 'password123',
+        role: 'student',
+        settings: { theme: 'light' },
+      },
+      {
+        username: 'student10',
         password: 'password123',
         role: 'student',
         settings: { theme: 'light' },

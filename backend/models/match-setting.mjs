@@ -62,7 +62,6 @@ MatchSetting.initializeRelations = function (models) {
     foreignKey: 'matchSettingId',
   });
 };
-
 MatchSetting.seed = async function () {
   try {
     const count = await MatchSetting.count();
@@ -73,7 +72,7 @@ MatchSetting.seed = async function () {
       {
         problemTitle: 'Two Sum',
         problemDescription:
-          'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+          'Given an array nums and an integer target, return the indices of the two numbers that add up to target.',
         referenceSolution: `
 function twoSum(nums, target) {
   const map = new Map();
@@ -86,7 +85,7 @@ function twoSum(nums, target) {
   }
   return [];
 }
-      `,
+        `,
         publicTests: [
           { input: [[2, 7, 11, 15], 9], output: [0, 1] },
           { input: [[3, 2, 4], 6], output: [1, 2] },
@@ -94,6 +93,7 @@ function twoSum(nums, target) {
         privateTests: [{ input: [[3, 3], 6], output: [0, 1] }],
         status: 'ready',
       },
+
       {
         problemTitle: 'Palindrome Number',
         problemDescription:
@@ -104,7 +104,7 @@ function isPalindrome(x) {
   const s = String(x);
   return s === s.split('').reverse().join('');
 }
-      `,
+        `,
         publicTests: [
           { input: [121], output: true },
           { input: [-121], output: false },
@@ -112,7 +112,41 @@ function isPalindrome(x) {
         privateTests: [{ input: [10], output: false }],
         status: 'ready',
       },
+
+      {
+        problemTitle: 'Valid Parentheses',
+        problemDescription:
+          'Given a string s containing only characters (), {}, [], determine if the string is valid. A string is valid if brackets close in the correct order.',
+        referenceSolution: `
+function isValid(s) {
+  const stack = [];
+  const map = { ')': '(', '}': '{', ']': '[' };
+
+  for (const char of s) {
+    if (char in map) {
+      if (stack.pop() !== map[char]) return false;
+    } else {
+      stack.push(char);
+    }
+  }
+
+  return stack.length === 0;
+}
+        `,
+        publicTests: [
+          { input: ['()'], output: true },
+          { input: ['()[]{}'], output: true },
+          { input: ['(]'], output: false },
+        ],
+        privateTests: [
+          { input: ['([{}])'], output: true },
+          { input: ['((()))[]'], output: true },
+          { input: ['([)]'], output: false },
+        ],
+        status: 'ready',
+      },
     ]);
+
     console.log('MatchSettings seeded successfully.');
   } catch (error) {
     console.error('Seeding failed:', error);
