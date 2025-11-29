@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Op } from 'sequelize';
 import sequelize from '#root/services/sequelize.mjs';
 import Challenge, { validateChallengeData } from '#root/models/challenge.mjs';
 import MatchSetting from '#root/models/match-setting.mjs';
@@ -20,8 +21,7 @@ router.get('/challenges', async (_req, res) => {
       ],
       order: Challenge.getDefaultOrder(),
     });
-
-    res.json({ success: true, challenges });
+    res.json({ success: true, data: challenges });
   } catch (error) {
     handleException(res, error);
   }
@@ -38,33 +38,59 @@ router.post('/challenge', async (req, res) => {
     allowedNumberOfReview: req.body.allowedNumberOfReview || 0,
     status: req.body.status || 'private',
   };
-
   const matchSettingIds = req.body.matchSettingIds || [];
-
   if (matchSettingIds.length === 0) {
     return res.status(400).json({
       success: false,
       error: { message: 'At least one match setting is required.' },
     });
   }
-
   let transaction;
-
   try {
     await validateChallengeData(payload, {
       validatorKey: 'challenge',
     });
 
+    // Check if duration fits within the time window
+    const start = new Date(payload.startDatetime);
+    const end = new Date(payload.endDatetime);
+    const durationInMs = payload.duration * 60 * 1000; // duration is in minutes
+    const windowInMs = end.getTime() - start.getTime();
+
+    if (windowInMs < durationInMs) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            'The time window (endDatetime - startDatetime) must be greater than or equal to the duration.',
+        },
+      });
+    }
+
+    // Check for overlapping challenges
+    const overlappingChallenge = await Challenge.findOne({
+      where: {
+        startDatetime: { [Op.lt]: payload.endDatetime },
+        endDatetime: { [Op.gt]: payload.startDatetime },
+      },
+    });
+
+    if (overlappingChallenge) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Challenge time overlaps with an existing challenge.',
+        },
+      });
+    }
+
     transaction = await sequelize.transaction();
-
     const challenge = await Challenge.create(payload, { transaction });
-
     if (matchSettingIds.length > 0) {
       const settings = await MatchSetting.findAll({
         where: { id: matchSettingIds },
         transaction,
       });
-
       if (settings.length !== matchSettingIds.length) {
         await transaction.rollback();
         const foundIds = settings.map((s) => s.id);
@@ -79,13 +105,9 @@ router.post('/challenge', async (req, res) => {
           },
         });
       }
-
       await challenge.addMatchSettings(settings, { transaction });
     }
-
-    // 5) Commit
     await transaction.commit();
-
     const createdChallenge = await Challenge.findByPk(challenge.id, {
       include: [
         {
@@ -95,13 +117,12 @@ router.post('/challenge', async (req, res) => {
         },
       ],
     });
-
     res.status(201).json({
       success: true,
       challenge: createdChallenge,
     });
   } catch (error) {
-    console.error('Create Challenge Error:', error); // <--- Added log
+    console.error('Create Challenge Error:', error);
     if (transaction) await transaction.rollback();
     handleException(res, error);
   }

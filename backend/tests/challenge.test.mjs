@@ -1,278 +1,330 @@
+process.env.DB_NAME = process.env.DB_NAME || 'codymatch';
+process.env.DB_USER = process.env.DB_USER || 'codymatch';
+process.env.DB_PASSWORD = String(
+  process.env.DB_PASSWORD && process.env.DB_PASSWORD.trim()
+    ? process.env.DB_PASSWORD
+    : 'codymatch'
+);
+process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+process.env.DB_PORT = process.env.DB_PORT || '5431'; // Default to docker-compose port
+process.env.SECRET = process.env.SECRET || 'test-secret';
+
 import {
   describe,
   it,
   expect,
   vi,
-  // beforeAll,
+  beforeAll,
   afterAll,
   beforeEach,
+  afterEach,
 } from 'vitest';
-// import request from 'supertest';
+import request from 'supertest';
 
-// import {
-//   truncateAllTables,
-//   runQuery,
-//   setupTestData,
-//   login,
-// } from './utils/testUtdils.mjs';
+let app;
+let sequelize;
+let Challenge;
+let MatchSetting;
 
-import sequelize from '#root/services/sequelize.mjs';
-// import app from '#root/app_initial.mjs';
+let readyMatchSettingIds = [];
+let createdChallengeIds = [];
 
-// let client;
-// const username = 'testuser1@.it';
+beforeAll(async () => {
+  const appModule = await import('#root/app_initial.mjs');
+  const sequelizeModule = await import('#root/services/sequelize.mjs');
+  const challengeModule = await import('#root/models/challenge.mjs');
+  const matchSettingModule = await import('#root/models/match-setting.mjs');
 
-// beforeAll(async () => {
-//   client = request(app);
-// });
+  app = appModule.default;
+  sequelize = sequelizeModule.default;
+  Challenge = challengeModule.default;
+  MatchSetting = matchSettingModule.default;
 
-beforeEach(async () => {
-  const transaction = await sequelize.transaction();
-  try {
-    // await truncateAllTables(transaction);
-    // await setupTestData(transaction);
-    await transaction.commit();
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
+  const existingSettings = await MatchSetting.findAll();
+
+  if (existingSettings.filter((s) => s.status === 'ready').length === 0) {
+    const readySetting = await MatchSetting.create({
+      problemTitle: 'Ready Problem',
+      problemDescription: 'Ready description',
+      referenceSolution: 'function ready() {}',
+      publicTests: [],
+      privateTests: [],
+      status: 'ready',
+    });
+    readyMatchSettingIds.push(readySetting.id);
+  } else {
+    readyMatchSettingIds = existingSettings
+      .filter((s) => s.status === 'ready')
+      .slice(0, 2)
+      .map((s) => s.id);
   }
+});
+
+beforeEach(() => {
+  createdChallengeIds = [];
   vi.clearAllMocks();
 });
 
-afterAll(() => {
+afterEach(async () => {
+  if (createdChallengeIds.length > 0) {
+    try {
+      await Challenge.destroy({
+        where: { id: createdChallengeIds },
+        force: true,
+      });
+    } catch (error) {
+      console.error('Error cleaning up challenges:', error);
+    }
+  }
+});
+
+afterAll(async () => {
   vi.restoreAllMocks();
+  if (sequelize) await sequelize.close();
 });
 
-describe('Challenge API - creation & validation', () => {
-  it('should NOT create a challenge if a required field is missing', async () => {
-    // Login and get session cookie
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
+describe('Match Settings API - AC: Only ready match settings displayed', () => {
+  it('should return only match settings with status "ready"', async () => {
+    const res = await request(app).get('/api/rest/matchSettingsReady');
 
-    // Missing "title" field on purpose
-    // const payload = {
-    //   duration: 60,
-    //   startDatetime: new Date().toISOString(),
-    // };
-    //
-    // const res = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send(payload);
-    //
-    // // Expect validation error
-    // expect(res.status).toBeGreaterThanOrEqual(400);
-    // expect(res.body.success).toBe(false);
-    //
-    // // Check that nothing has been written to disk (no new row)
-    // const [{ count }] = await runQuery(`
-    //   SELECT COUNT(*)::int AS count
-    //   FROM challenge;
-    // `);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeDefined();
 
-    expect(0).toBe(0);
-  });
-
-  it('should create a challenge successfully when payload is valid', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // const payload = {
-    //   title: 'My First Challenge',
-    //   duration: 45,
-    //   startDatetime: new Date().toISOString(),
-    // };
-    //
-    // const res = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send(payload);
-    //
-    // expect(res.status).toBe(201);
-    // expect(res.body.success).toBe(true);
-    // expect(res.body.challenge).toBeDefined();
-    // expect(res.body.challenge.id).toBeDefined();
-    // expect(res.body.challenge.title).toBe(payload.title);
-    //
-    // // Verify it has been persisted
-    // const [{ count }] = await runQuery(`
-    //   SELECT COUNT(*)::int AS count
-    //   FROM challenge
-    //   WHERE title = 'My First Challenge';
-    // `);
-
-    expect(1).toBe(1);
+    res.body.data.forEach((setting) => {
+      expect(setting.status).toBe('ready');
+    });
   });
 });
 
-describe('Challenge API - publish / unpublish', () => {
-  it('should publish a draft challenge successfully', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // // First create a draft challenge
-    // const createRes = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send({
-    //     title: 'Publishable Challenge',
-    //     duration: 30,
-    //     startDatetime: new Date().toISOString(),
-    //   });
-    //
-    // expect(createRes.status).toBe(201);
-    // const challengeId = createRes.body.challenge.id;
-    //
-    // // Then publish it
-    // const publishRes = await client
-    //   .post(`/challenge/${challengeId}/publish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(publishRes.status).toBe(200);
-    // expect(publishRes.body.success).toBe(true);
-    // expect(publishRes.body.challenge.status).toBe('published');
-    //
-    // // Double check in DB
-    // const [row] = await runQuery(
-    //   `
-    //   SELECT status
-    //   FROM challenge
-    //   WHERE id = $1
-    // `,
-    //   [challengeId]
-    // );
+describe('Challenge API - GET /api/rest/challenges', () => {
+  it('should return an empty array when no challenges exist', async () => {
+    const res = await request(app).get('/api/rest/challenges');
 
-    expect('published').toBe('published');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeDefined();
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 
-  it('should unpublish a published challenge successfully', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // // Create challenge
-    // const createRes = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send({
-    //     title: 'Unpublishable Challenge',
-    //     duration: 30,
-    //     startDatetime: new Date().toISOString(),
-    //   });
-    //
-    // expect(createRes.status).toBe(201);
-    // const challengeId = createRes.body.challenge.id;
-    //
-    // // Publish it
-    // const publishRes = await client
-    //   .post(`/challenge/${challengeId}/publish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(publishRes.status).toBe(200);
-    //
-    // // Now unpublish
-    // const unpublishRes = await client
-    //   .post(`/challenge/${challengeId}/unpublish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(unpublishRes.status).toBe(200);
-    // expect(unpublishRes.body.success).toBe(true);
-    // expect(unpublishRes.body.challenge.status).toBe('draft');
-    //
-    // // Check in DB
-    // const [row] = await runQuery(
-    //   `
-    //   SELECT status
-    //   FROM challenge
-    //   WHERE id = $1
-    // `,
-    //   [challengeId]
-    // );
+  it('should return all challenges with their match settings', async () => {
+    const challenge = await Challenge.create({
+      title: 'Test Challenge GET',
+      duration: 60,
+      startDatetime: new Date('2025-12-01T09:00:00Z'),
+      endDatetime: new Date('2025-12-01T11:00:00Z'),
+      peerReviewStartDate: new Date('2025-12-01T11:05:00Z'),
+      peerReviewEndDate: new Date('2025-12-02T09:00:00Z'),
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
 
-    expect('draft').toBe('draft');
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const res = await request(app).get('/api/rest/challenges');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const foundChallenge = res.body.data.find((c) => c.id === challenge.id);
+    expect(foundChallenge).toBeDefined();
+    expect(foundChallenge.title).toBe('Test Challenge GET');
+    expect(foundChallenge.matchSettings).toBeDefined();
+    expect(foundChallenge.matchSettings.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Challenge API - POST /api/rest/challenge', () => {
+  it('AC: Teacher cannot create a challenge unless at least one match setting is selected', async () => {
+    const payload = {
+      title: 'Test Challenge',
+      duration: 60,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T11:00:00Z',
+      peerReviewStartDate: '2025-12-01T11:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: [],
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/at least one match setting/i);
   });
 
-  it('should NOT publish a non-existing challenge', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // const nonExistingId = 9999;
-    //
-    // const publishRes = await client
-    //   .post(`/challenge/${nonExistingId}/publish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(publishRes.status).toBe(404);
-    // expect(publishRes.body.success).toBe(false);
-    // expect(publishRes.body.error).toMatch(/not found/i);
-    expect(1).toBe(1);
+  it('AC: Challenge created successfully when all required fields are valid and at least one match setting is selected', async () => {
+    const payload = {
+      title: 'My First Challenge',
+      duration: 120,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T11:00:00Z',
+      peerReviewStartDate: '2025-12-01T11:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    if (res.body.challenge?.id) {
+      createdChallengeIds.push(res.body.challenge.id);
+    }
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge).toBeDefined();
+    expect(res.body.challenge.id).toBeDefined();
+    expect(res.body.challenge.title).toBe(payload.title);
+    expect(res.body.challenge.matchSettings.length).toBeGreaterThanOrEqual(1);
+    const dbChallenge = await Challenge.findByPk(res.body.challenge.id, {
+      include: [
+        {
+          model: MatchSetting,
+          as: 'matchSettings',
+          through: { attributes: [] },
+        },
+      ],
+    });
+    expect(dbChallenge).toBeDefined();
+    expect(dbChallenge.title).toBe(payload.title);
+    expect(dbChallenge.matchSettings.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should NOT publish a challenge that is already published', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // // Create and publish once
-    // const createRes = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send({
-    //     title: 'Already Published Challenge',
-    //     duration: 30,
-    //     startDatetime: new Date().toISOString(),
-    //   });
-    //
-    // expect(createRes.status).toBe(201);
-    // const challengeId = createRes.body.challenge.id;
-    //
-    // const firstPublish = await client
-    //   .post(`/challenge/${challengeId}/publish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(firstPublish.status).toBe(200);
-    //
-    // // Try to publish again
-    // const secondPublish = await client
-    //   .post(`/challenge/${challengeId}/publish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(secondPublish.status).toBeGreaterThanOrEqual(400);
-    // expect(secondPublish.body.success).toBe(false);
-    // expect(secondPublish.body.error).toMatch(/already published/i);
-    expect(1).toBe(1);
+  it('should NOT create a challenge if required fields are missing', async () => {
+    const payload = {
+      duration: 60,
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.body.success).toBe(false);
   });
 
-  it('should NOT unpublish a challenge that is already in draft', async () => {
-    // const { response, cookie } = await login(app, username);
-    // expect(response.status).toBe(302);
-    //
-    // // Create challenge (status = draft by default)
-    // const createRes = await client
-    //   .post('/challenge')
-    //   .set('Cookie', cookie)
-    //   .send({
-    //     title: 'Draft Challenge',
-    //     duration: 30,
-    //     startDatetime: new Date().toISOString(),
-    //   });
-    //
-    // expect(createRes.status).toBe(201);
-    // const challengeId = createRes.body.challenge.id;
-    //
-    // // Try to unpublish while still draft
-    // const unpublishRes = await client
-    //   .post(`/challenge/${challengeId}/unpublish`)
-    //   .set('Cookie', cookie)
-    //   .send();
-    //
-    // expect(unpublishRes.status).toBeGreaterThanOrEqual(400);
-    // expect(unpublishRes.body.success).toBe(false);
-    // expect(unpublishRes.body.error).toMatch(/already draft/i);
-    expect(1).toBe(1);
+  it('should NOT create a challenge if matchSettingIds contains invalid IDs', async () => {
+    const payload = {
+      title: 'Test Challenge',
+      duration: 60,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T11:00:00Z',
+      peerReviewStartDate: '2025-12-01T11:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: [99999, 99998],
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/match settings not found/i);
+  });
+
+  it('should accept multiple match settings (checkbox toggling behavior)', async () => {
+    const payload = {
+      title: 'Challenge with Multiple Settings',
+      duration: 90,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T11:00:00Z',
+      peerReviewStartDate: '2025-12-01T11:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds,
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    if (res.body.challenge?.id) {
+      createdChallengeIds.push(res.body.challenge.id);
+    }
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.matchSettings.length).toBe(
+      readyMatchSettingIds.length
+    );
+  });
+
+  it('should handle partial matchSettingIds validation', async () => {
+    const payload = {
+      title: 'Test Challenge',
+      duration: 60,
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T11:00:00Z',
+      peerReviewStartDate: '2025-12-01T11:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      matchSettingIds: [readyMatchSettingIds[0], 99999],
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.missingIds).toContain(99999);
+    expect(res.body.error.missingIds).not.toContain(readyMatchSettingIds[0]);
+  });
+
+  it('should NOT create a challenge if it overlaps with an existing one', async () => {
+    // 1. Create a challenge
+    const c = await Challenge.create({
+      title: 'Existing Challenge',
+      duration: 60,
+      startDatetime: '2025-12-01T10:00:00Z',
+      endDatetime: '2025-12-01T12:00:00Z',
+      peerReviewStartDate: '2025-12-01T12:05:00Z',
+      peerReviewEndDate: '2025-12-02T12:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(c.id);
+
+    // 2. Try to create another one that overlaps (11:00 - 13:00)
+    const payload = {
+      title: 'Overlapping Challenge',
+      duration: 120,
+      startDatetime: '2025-12-01T11:00:00Z',
+      endDatetime: '2025-12-01T13:00:00Z',
+      peerReviewStartDate: '2025-12-01T13:05:00Z',
+      peerReviewEndDate: '2025-12-02T13:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/overlaps/i);
+  });
+
+  it('should NOT create a challenge if duration is longer than the time window', async () => {
+    const payload = {
+      title: 'Impossible Duration Challenge',
+      duration: 120, // 2 hours
+      startDatetime: '2025-12-01T09:00:00Z',
+      endDatetime: '2025-12-01T10:00:00Z', // 1 hour window
+      peerReviewStartDate: '2025-12-01T10:05:00Z',
+      peerReviewEndDate: '2025-12-02T09:00:00Z',
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenge').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toMatch(/time window/i);
   });
 });

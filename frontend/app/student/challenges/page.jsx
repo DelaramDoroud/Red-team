@@ -10,6 +10,8 @@ import {
   CardContent,
   CardDescription,
 } from '@/components/ui/card';
+import { getAllChallenges , joinChallenge } from "@/services/challengeService";
+
 
 const dummyData = [
   {
@@ -29,11 +31,23 @@ const dummyData = [
 ];
 
 export default function StudentChallengesPage() {
+  const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   // const [tick, setTick] = useState(0);
   const [now, setNow] = useState(new Date());
   const router = useRouter();
 
+
+  useEffect(() => {
+    async function load() {
+      console.log("🔥 Fetching challenges...");
+      const res = await getAllChallenges();
+      if (res.success) {
+        setChallenges(res.data);
+      }
+    }
+    load();
+  }, []);
   function filterChallenges(challenges, joined, nowTime) {
     return challenges.filter((c) => {
       const start = new Date(c.startDatetime);
@@ -62,9 +76,20 @@ export default function StudentChallengesPage() {
 
   const visibleChallenges = filterChallenges(dummyData, joinedChallenges, now);
 
-  const handleJoin = (id) => {
-    setJoinedChallenges((prev) => ({ ...prev, [id]: true }));
-  };
+const handleJoin = async (challengeId) => {
+  try {
+    const res = await joinChallenge(challengeId , 1); // <-- call backend API
+
+    if (res.success) {
+      setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+    } else {
+      console.error("Join failed", res.error);
+    }
+  } catch (err) {
+    console.error("Join error:", err);
+  }
+};
+
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
       {/* <div className="w-96 h-32 bg-red-500 mb-100">TEST</div> */}
