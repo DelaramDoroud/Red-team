@@ -2,16 +2,15 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '#components/common/Button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardContent,
   CardDescription,
-} from '@/components/ui/card';
-import { getAllChallenges , joinChallenge } from "@/services/challengeService";
-
+} from '#components/common/card';
+import { getAllChallenges, joinChallenge } from '@/services/challengeService';
 
 // const dummyData = [
 //   {
@@ -37,10 +36,9 @@ export default function StudentChallengesPage() {
   const [now, setNow] = useState(new Date());
   const router = useRouter();
 
-
   useEffect(() => {
     async function load() {
-      console.log("🔥 Fetching challenges...");
+      console.log('🔥 Fetching challenges...');
       const res = await getAllChallenges();
       if (res.success) {
         setChallenges(res.data);
@@ -48,8 +46,8 @@ export default function StudentChallengesPage() {
     }
     load();
   }, []);
-  function filterChallenges(challenges, joined, nowTime) {
-    return challenges.filter((c) => {
+  function filterChallenges(allChallenges, joined, nowTime) {
+    return allChallenges.filter((c) => {
       const start = new Date(c.startDatetime);
       // const end = new Date(start.getTime() + 60 * 1000); // +1 minute
 
@@ -72,23 +70,23 @@ export default function StudentChallengesPage() {
       }); // این باعث رندر دوباره صفحه می‌شود
     }, 2000);
     return () => clearInterval(interval);
-  }, [joinedChallenges, router]);
+  }, [joinedChallenges, router, challenges]);
 
   const visibleChallenges = filterChallenges(challenges, joinedChallenges, now);
 
-const handleJoin = async (challengeId) => {
-  try {
-    const res = await joinChallenge(challengeId , 1); // <-- call backend API
+  const handleJoin = async (challengeId) => {
+    try {
+      const res = await joinChallenge(challengeId, 1); // <-- call backend API
 
-    if (res.success) {
-      setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
-    } else {
-      console.error("Join failed", res.error);
+      if (res.success) {
+        setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+      } else {
+        console.error('Join failed', res.error);
+      }
+    } catch (err) {
+      console.error('Join error:', err);
     }
-  } catch (err) {
-    console.error("Join error:", err);
-  }
-};
+  };
 
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>

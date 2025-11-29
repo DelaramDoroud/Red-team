@@ -1,8 +1,5 @@
 // eslint-disable-next-line camelcase
 import { Open_Sans, Roboto } from 'next/font/google';
-
-// import '@/assets/tailwind.css';
-import './globals.css';
 import '#scss/styles.scss';
 // import './globals.css';
 import { Toaster } from 'react-hot-toast';
@@ -37,6 +34,7 @@ export default function RootLayout({ children }) {
         <ReduxProvider>
           <Header />
           <main className={styles.main}>{children}</main>
+
           <Footer />
           <Toaster position='top-right' />
         </ReduxProvider>

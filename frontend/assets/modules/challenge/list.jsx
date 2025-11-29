@@ -5,6 +5,7 @@ import useChallenge from '#js/useChallenge';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import Pagination from '#components/common/Pagination';
+import { Button } from '#components/common/Button';
 import styles from './list.module.scss';
 
 export default function ChallengeList() {
@@ -19,11 +20,13 @@ export default function ChallengeList() {
   const load = useCallback(async () => {
     setError(null);
     const result = await getChallenges();
+
     if (result?.success === false) {
       setError(result.message || 'Unable to load challenges');
       setChallenges([]);
       return;
     }
+
     if (Array.isArray(result)) {
       setChallenges(result);
     } else if (Array.isArray(result?.data)) {
@@ -41,36 +44,43 @@ export default function ChallengeList() {
   const endIndex = startIndex + pageSize;
   const currentItems = challenges.slice(startIndex, endIndex);
 
-  return <>
-    {loading && !challenges.length && !error ? 
-      <div className={styles.center}>
-        <Spinner label='Loading challenges…' />
+  return loading && !challenges.length && !error ? (
+    <div className={styles.center}>
+      <Spinner label='Loading challenges…' />
+    </div>
+  ) : (
+    <section className={styles.section}>
+      <div className={styles.header}>
+        <h2>Challenges</h2>
+        <Button variant='outline' onClick={load}>
+          Refresh
+        </Button>
       </div>
-      :
-      <>
-        <section className={styles.section}>
-          <div className={styles.header}>
-            <h2>Challenges</h2>
-            <button type='button' onClick={load} className={styles.refresh}>
-              Refresh
-            </button>
-          </div>
-          {error && <p className={styles.error}>{error}</p>}
-          {!error && !challenges.length && !loading && (
-            <p className={styles.empty}>
-              No challenges yet. Try creating one from the backend.
-            </p>
-          )}
-          <div className={styles.grid}>
-            {currentItems.map((challenge) => (
-              <ChallengeCard key={challenge.id ?? challenge.title} challenge={challenge}/>
-            ))}
-          </div>
-          {challenges.length > pageSize && (
-            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage}/>
-          )}
-        </section>
-      </>
-    }
-  </>
+
+      {error && <p className={styles.error}>{error}</p>}
+
+      {!error && !challenges.length && !loading && (
+        <p className={styles.empty}>
+          No challenges yet. Try creating one from the backend.
+        </p>
+      )}
+
+      <div className={styles.grid}>
+        {currentItems.map((challenge) => (
+          <ChallengeCard
+            key={challenge.id ?? challenge.title}
+            challenge={challenge}
+          />
+        ))}
+      </div>
+
+      {challenges.length > pageSize && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
+    </section>
+  );
 }

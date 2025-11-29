@@ -1,9 +1,45 @@
+/* stylelint-disable at-rule-no-unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
+
+/* THEME VARIABLES
+---------------------------------------------------------------------------*/
 :root {
-  --bg-body: #020617;
-  --text-body: #e5e7eb;
-  --accent: #38bdf8;
+  /* RGB triplets for Tailwind + withOpacity */
+  --color-primary-900: 0 125 194; /* #007DC2 */
+  --color-primary-800: 26 142 208; /* #1A8ED0 */
+  --color-primary-700: 51 159 221; /* #339FDD */
+  --color-primary-600: 76 175 233; /* #4CAFE9 */
+  --color-primary-500: 102 191 243; /* #66BFF3 */
+  --color-primary-400: 128 204 247; /* #80CCF7 */
+  --color-primary-300: 153 216 250; /* #99D8FA */
+  --color-primary-200: 179 227 252; /* #B3E3FC */
+  --color-primary-100: 204 239 254; /* #CCEFFE */
+  --color-primary-0: 244 251 255; /* #F4FBFF */
+
+  --color-secondary-900: 30 33 34; /* #1E2122 */
+  --color-secondary-800: 50 56 57; /* #323839 */
+  --color-secondary-700: 74 81 83; /* #4A5153 */
+  --color-secondary-600: 98 106 109; /* #626A6D */
+  --color-secondary-500: 122 131 134; /* #7A8386 */
+  --color-secondary-400: 146 156 159; /* #929C9F */
+  --color-secondary-300: 171 180 182; /* #ABB4B6 */
+  --color-secondary-200: 196 203 204; /* #C4CBCC */
+  --color-secondary-100: 220 225 226; /* #DCE1E2 */
+  --color-secondary-0: 247 248 248; /* #F7F8F8 */
+
+  --color-success: 28 194 0; /* #1CC200 */
+  --color-warning: 194 69 0; /* #C24500 */
+  --color-error: 220 38 38; /* #DC2626 */
+
+  --color-white: #fff;
+  --color-cloudy-gray: #fafbfc;
 }
 
+/* RESET / BASE
+---------------------------------------------------------------------------*/
 *,
 *::before,
 *::after {
@@ -14,8 +50,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg-body);
-  color: var(--text-body);
+  background-color: var(--color-white);
+  color: var(--color-secondary-900);
+  line-height: 1.6;
   font-family:
     system-ui,
     -apple-system,
@@ -29,10 +66,81 @@ a {
   text-decoration: none;
 }
 
-a:hover {
-  text-decoration: underline;
-}
-
 button {
   font: inherit;
+}
+
+@layer base {
+  :root {
+    /* shadcn semantic tokens (HSL) */
+    --background: 0 0% 100%;
+    --foreground: 210 15% 10%;
+
+    /* Use your primary-600 (#4CAFE9) as the main brand color */
+    /* #4CAFE9 → hsl(202 78% 61%) approx */
+    --primary: 202 78% 61%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Use your secondary-800 (#323839) as surface-ish tone */
+    /* #323839 → hsl(189 7% 21%) approx */
+    --secondary: 189 7% 21%;
+    --secondary-foreground: 0 0% 100%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 10%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 15% 45%;
+    --accent: 210 20% 96%;
+    --accent-foreground: 210 15% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 202 78% 61%;
+
+    --chart-1: 202 78% 61%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* dark theme version of your palette */
+    --background: 210 18% 8%;
+    --foreground: 0 0% 100%;
+
+    --card: 210 18% 10%;
+    --card-foreground: 0 0% 100%;
+
+    --primary: 202 78% 61%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 18%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 18%;
+    --muted-foreground: 215 20% 75%;
+    --accent: 210 15% 18%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 15% 18%;
+    --input: 210 15% 18%;
+    --ring: 202 78% 61%;
+
+    --chart-1: 202 78% 61%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
 }
