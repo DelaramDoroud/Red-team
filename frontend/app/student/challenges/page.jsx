@@ -13,22 +13,22 @@ import {
 import { getAllChallenges , joinChallenge } from "@/services/challengeService";
 
 
-const dummyData = [
-  {
-    id: 1,
-    title: 'Frontend Challenge',
-    duration: '3 days',
-    startDatetime: '2025-11-29 11:19',
-    status: 'started',
-  },
-  {
-    id: 2,
-    title: 'Backend Coding Match',
-    duration: '5 days',
-    startDatetime: '2025-11-28 9:50',
-    status: 'started',
-  },
-];
+// const dummyData = [
+//   {
+//     id: 1,
+//     title: 'Frontend Challenge',
+//     duration: '3 days',
+//     startDatetime: '2025-11-29 11:19',
+//     status: 'started',
+//   },
+//   {
+//     id: 2,
+//     title: 'Backend Coding Match',
+//     duration: '5 days',
+//     startDatetime: '2025-11-28 9:50',
+//     status: 'started',
+//   },
+// ];
 
 export default function StudentChallengesPage() {
   const [challenges, setChallenges] = useState([]);
@@ -65,7 +65,7 @@ export default function StudentChallengesPage() {
     const interval = setInterval(() => {
       // setTick((t) => t + 1);
       setNow(new Date());
-      dummyData.forEach((c) => {
+      challenges.forEach((c) => {
         if (joinedChallenges[c.id] && c.status === 'started') {
           router.push(`/newChallenge`);
         }
@@ -74,7 +74,7 @@ export default function StudentChallengesPage() {
     return () => clearInterval(interval);
   }, [joinedChallenges, router]);
 
-  const visibleChallenges = filterChallenges(dummyData, joinedChallenges, now);
+  const visibleChallenges = filterChallenges(challenges, joinedChallenges, now);
 
 const handleJoin = async (challengeId) => {
   try {
