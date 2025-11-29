@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,49 +16,51 @@ const dummyData = [
     id: 1,
     title: 'Frontend Challenge',
     duration: '3 days',
-    startDatetime: '2025-11-27 10:00',
+    startDatetime: '2025-11-29 11:19',
+    status: 'started',
   },
   {
     id: 2,
     title: 'Backend Coding Match',
     duration: '5 days',
-    startDatetime: '2025-11-26 17:42',
+    startDatetime: '2025-11-28 9:50',
+    status: 'started',
   },
 ];
 
 export default function StudentChallengesPage() {
   const [joinedChallenges, setJoinedChallenges] = useState({});
-  const [countdowns, setCountdowns] = useState({});
+  // const [tick, setTick] = useState(0);
+  const [now, setNow] = useState(new Date());
+  const router = useRouter();
 
-  // Calculate countdown every second
+  function filterChallenges(challenges, joined, nowTime) {
+    return challenges.filter((c) => {
+      const start = new Date(c.startDatetime);
+      // const end = new Date(start.getTime() + 60 * 1000); // +1 minute
+
+      const inWindow = nowTime >= start;
+      const status = c.status !== 'started';
+      const isJoined = joined[c.id] === true;
+
+      return inWindow && (status || isJoined);
+    });
+  }
+
   useEffect(() => {
     const interval = setInterval(() => {
-      const newCountdowns = {};
-
+      // setTick((t) => t + 1);
+      setNow(new Date());
       dummyData.forEach((c) => {
-        if (joinedChallenges[c.id]) {
-          const now = new Date();
-          const start = new Date(c.startDatetime);
-          const diff = start - now;
-
-          if (diff <= 0) {
-            newCountdowns[c.id] =
-              'Wait for the teacher to start the challenge.';
-          } else {
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff / (1000 * 60)) % 60);
-            const seconds = Math.floor((diff / 1000) % 60);
-
-            newCountdowns[c.id] = `${hours}h ${minutes}m ${seconds}s`;
-          }
+        if (joinedChallenges[c.id] && c.status === 'started') {
+          router.push(`/newChallenge`);
         }
-      });
-
-      setCountdowns(newCountdowns);
-    }, 1000);
-
+      }); // این باعث رندر دوباره صفحه می‌شود
+    }, 2000);
     return () => clearInterval(interval);
-  }, [joinedChallenges]);
+  }, [joinedChallenges, router]);
+
+  const visibleChallenges = filterChallenges(dummyData, joinedChallenges, now);
 
   const handleJoin = (id) => {
     setJoinedChallenges((prev) => ({ ...prev, [id]: true }));
@@ -68,7 +71,7 @@ export default function StudentChallengesPage() {
       <h1 className='text-3xl font-bold text-white'>Available Challenges</h1>
 
       <div>
-        {dummyData.map((c) => (
+        {visibleChallenges.map((c) => (
           <Card
             key={c.id}
             className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
@@ -93,9 +96,7 @@ export default function StudentChallengesPage() {
                   </Button>
                 ) : (
                   <div className='text-yellow-300 font-semibold text-sm'>
-                    Pending... ⏳
-                    <br />
-                    <span className='text-white'>{countdowns[c.id]}</span>
+                    Wait for the teacher to start the challenge.
                   </div>
                 )}
               </div>
