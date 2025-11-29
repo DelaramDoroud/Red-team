@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
+import { Button } from '#components/common/Button';
 import styles from './list.module.scss';
 
 export default function ChallengeList() {
@@ -46,9 +47,12 @@ export default function ChallengeList() {
     <section className={styles.section}>
       <div className={styles.header}>
         <h2>Challenges</h2>
-        <button type='button' onClick={load} className={styles.refresh}>
+        {/* <button type='button' onClick={load} className={styles.refresh}>
           Refresh
-        </button>
+        </button> */}
+        <Button variant='outline' onClick={load}>
+          Refresh
+        </Button>
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
