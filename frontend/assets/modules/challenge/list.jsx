@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
+import { Button } from '#components/common/Button';
 import styles from './list.module.scss';
-import { Button } from '@/assets/components/common/Button';
 
 export default function ChallengeList() {
   const { loading, getChallenges } = useChallenge();
@@ -50,7 +50,7 @@ export default function ChallengeList() {
         {/* <button type='button' onClick={load} className={styles.refresh}>
           Refresh
         </button> */}
-        <Button variant='ouline' onClick={load}>
+        <Button variant='outline' onClick={load}>
           Refresh
         </Button>
       </div>

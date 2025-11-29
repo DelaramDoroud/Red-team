@@ -8,18 +8,3 @@
   text-align: center;
   padding: 2rem 1.5rem;
 }
-
-.link {
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-
-  border: 1px solid rgb(var(--color-primary-600));
-  color: rgb(var(--color-primary-600));
-
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.link:hover {
-  background-color: rgb(var(--color-primary-600) / 0.1);
-}
