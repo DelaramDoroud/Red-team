@@ -1,6 +1,5 @@
 'use client';
 
-// import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Button } from '#components/common/Button';
 import {
@@ -34,7 +33,6 @@ export default function StudentChallengesPage() {
   const [joinedChallenges, setJoinedChallenges] = useState({});
   // const [tick, setTick] = useState(0);
   const [now, setNow] = useState(new Date());
-  // const router = useRouter();
 
   useEffect(() => {
     let isCancelled = false;
@@ -59,10 +57,7 @@ export default function StudentChallengesPage() {
       // const end = new Date(start.getTime() + 60 * 1000); // +1 minute
 
       const inWindow = nowTime >= start;
-      const status = c.status !== 'started';
-      const isJoined = joined[c.id] === true;
-
-      return inWindow && (status || isJoined);
+      return inWindow;
     });
   }
 
@@ -95,7 +90,7 @@ export default function StudentChallengesPage() {
     allAvailableChallenges.length > 0 ? [allAvailableChallenges[0]] : [];
   const handleJoin = async (challengeId) => {
     try {
-      const res = await joinChallenge(challengeId, 1); // <-- call backend API
+      const res = await joinChallenge(challengeId, 1);
 
       if (res.success) {
         setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
@@ -106,17 +101,6 @@ export default function StudentChallengesPage() {
       console.error('Join error:', err);
     }
   };
-  const activeJoinedChallenge = challenges.find(
-    (c) => joinedChallenges[c.id] && c.status === 'started'
-  );
-
-  if (activeJoinedChallenge) {
-    return (
-      <div className='max-w-4xl mx-auto p-6 space-y-6'>
-        <h1 className='text-3xl font-bold text-green-300'>challenge phase 1</h1>
-      </div>
-    );
-  }
   function renderChallengeStatus(c) {
     const joined = joinedChallenges[c.id];
     const started = c.status === 'started';
@@ -142,7 +126,6 @@ export default function StudentChallengesPage() {
 
   return (
     <div className='max-w-4xl mx-auto p-6 space-y-6'>
-      {/* <div className="w-96 h-32 bg-red-500 mb-100">TEST</div> */}
       <h1 className='text-3xl font-bold '>Available Challenges</h1>
 
       <div>
@@ -162,13 +145,6 @@ export default function StudentChallengesPage() {
                   <br />
                   Duration: {c.duration}
                 </CardDescription>
-                {/* {!joinedChallenges[c.id] ? (
-                  <Button onClick={() => handleJoin(c.id)}>Join</Button>
-                ) : (
-                  <div className='text-yellow-300 font-semibold text-sm'>
-                    Wait for the teacher to start the challenge.
-                  </div>
-                )} */}
                 {renderChallengeStatus(c)}
               </div>
             </CardContent>
