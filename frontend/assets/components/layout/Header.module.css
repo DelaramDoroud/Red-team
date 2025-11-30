@@ -9,13 +9,12 @@
   padding: 1rem 1.5rem;
 
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgb(var(--color-secondary-700) / 0.8);
+  border-bottom: 1px solid hsl(var(--border));
   background: linear-gradient(
     120deg,
-    rgb(var(--color-secondary-300) / 0.8),
-    rgb(var(--color-primary-900) / 0.8)
+    hsl(var(--background)),
+    hsl(var(--primary))
   );
-  box-shadow: 0 10px 30px rgb(var(--color-secondary-900) / 0.5);
 }
 
 .logo {
@@ -65,9 +64,8 @@
   padding: 0.5rem 2rem;
   border-radius: 15px;
   border: 1px solid transparent;
-
-  color: rgb(var(--color-secondary-0));
-  background-color: transparent;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
 
   transition:
     background-color 0.2s ease-out,
@@ -77,10 +75,9 @@
 }
 
 .nav-link:hover {
-  border-color: rgb(var(--color-primary-400));
-  background-color: rgb(var(--color-primary-0) / 0.9);
-  color: rgb(var(--color-primary-900));
-  box-shadow: 0 0 0 1px rgb(var(--color-primary-100) / 0.9);
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .themeToggle {
