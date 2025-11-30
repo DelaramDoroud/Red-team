@@ -33,7 +33,6 @@ export default function RootLayout({ children }) {
         <ReduxProvider>
           <Header />
           <main className={styles.main}>{children}</main>
-
           <Footer />
           <Toaster position='top-right' />
         </ReduxProvider>
