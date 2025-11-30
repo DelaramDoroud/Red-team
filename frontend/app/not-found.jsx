@@ -1,7 +1,7 @@
 'use client';
 
 import APPLink from '#components/common/AppLink';
-import styles from './not-found.module.scss';
+import styles from './not-found.module.css';
 
 export default function NotFound() {
   return (

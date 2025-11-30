@@ -1,6 +1,6 @@
 'use client';
 
-import styles from './ChallengeCard.module.scss';
+import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({ challenge }) {
   const { title, duration, startDatetime, status } = challenge;

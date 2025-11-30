@@ -25,7 +25,7 @@ import {
 
 import { useState } from 'react';
 import { Input } from '#components/common/Input';
-import styles from './page.module.scss';
+import styles from './page.module.css';
 
 export default function HomePage() {
   const data = [

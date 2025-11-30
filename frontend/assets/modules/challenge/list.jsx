@@ -6,7 +6,7 @@ import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
-import styles from './list.module.scss';
+import styles from './list.module.css';
 
 export default function ChallengeList() {
   const { loading, getChallenges } = useChallenge();

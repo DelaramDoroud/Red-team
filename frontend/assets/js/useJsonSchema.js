@@ -5,7 +5,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import addErrors from 'ajv-errors';
 import useFetchData from '#js/useFetchData';
-import { apiUrl } from '#js/useApiService';
+import { API_URL } from '#js/constants';
 
 const ajv = new Ajv({
   allErrors: true,
@@ -71,7 +71,7 @@ export default function useJsonSchema() {
       loadPromises[id] = (async () => {
         let fn = ajv.getSchema(id);
         if (!fn) {
-          const schema = await fetchData(`${apiUrl}/schemas/${id}`);
+          const schema = await fetchData(`${API_URL}/schemas/${id}`);
           if (schema instanceof Error) {
             throw schema;
           }

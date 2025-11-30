@@ -54,6 +54,12 @@
   gap: 0.6rem;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .nav-link {
   font-size: 0.9rem;
   padding: 0.5rem 2rem;
@@ -75,4 +81,9 @@
   background-color: rgb(var(--color-primary-0) / 0.9);
   color: rgb(var(--color-primary-900));
   box-shadow: 0 0 0 1px rgb(var(--color-primary-100) / 0.9);
+}
+
+.themeToggle {
+  backdrop-filter: blur(6px);
+  border-color: rgb(var(--color-primary-400) / 40%);
 }

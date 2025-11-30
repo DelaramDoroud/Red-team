@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import styles from './ToggleSwitch.module.scss';
+import styles from './ToggleSwitch.module.css';
 
 export default function ToggleSwitch({ checked, onChange, label }) {
   return (

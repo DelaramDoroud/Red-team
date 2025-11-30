@@ -7,7 +7,7 @@ import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
 import * as Constants from '#js/constants';
-import styles from './page.module.scss';
+import styles from './page.module.css';
 
 export default function NewChallengePage() {
   const router = useRouter();
@@ -201,10 +201,10 @@ export default function NewChallengePage() {
       {successMessage && (
         <div className={styles.successBox}>{successMessage}</div>
       )}
-      <main style={{ padding: '2rem', maxWidth: 700, margin: '0 auto' }}>
+      <main className={styles.main}>
         <h1>Create New Challenge</h1>
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
+        <form onSubmit={handleSubmit} className={styles.card}>
+          <div className={styles.field}>
             <label htmlFor='title'>
               Challenge Name
               <input
@@ -213,19 +213,14 @@ export default function NewChallengePage() {
                 value={challenge.title}
                 onChange={handleDataField}
                 name='title'
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginTop: '0.25rem',
-                }}
+                className={styles.input}
                 required
               />
             </label>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ flex: 1 }}>
+          <div className={styles.row}>
+            <div className={styles.field}>
               <label htmlFor='startDatetime'>
                 Start Date/Time
                 <input
@@ -234,18 +229,13 @@ export default function NewChallengePage() {
                   value={challenge.startDatetime}
                   onChange={handleDataField}
                   name='startDatetime'
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '0.5rem',
-                    marginTop: '0.25rem',
-                  }}
+                  className={styles.datetime}
                   min={getMinDateTime()}
                   required
                 />
               </label>
             </div>
-            <div style={{ width: 120 }}>
+            <div className={styles.field}>
               <label htmlFor='duration'>
                 Duration (min)
                 <input
@@ -254,19 +244,14 @@ export default function NewChallengePage() {
                   value={challenge.duration}
                   onChange={handleDataField}
                   name='duration'
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '0.5rem',
-                    marginTop: '0.25rem',
-                  }}
+                  className={styles.number}
                   min={1}
                   required
                 />
               </label>
             </div>
           </div>
-          <div style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
             <label htmlFor='endDatetime'>
               End Date/Time
               <input
@@ -276,18 +261,13 @@ export default function NewChallengePage() {
                 name='endDatetime'
                 min={getMinEndDate()}
                 onChange={handleDataField}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginTop: '0.25rem',
-                }}
+                className={styles.datetime}
                 required
                 disabled={!challenge.startDatetime || !challenge.duration}
               />
             </label>
           </div>
-          <div style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
             <label htmlFor='peerReviewStartDate'>
               Peer Review Start
               <input
@@ -297,17 +277,12 @@ export default function NewChallengePage() {
                 name='peerReviewStartDate'
                 min={getMinDateTime()}
                 onChange={handleDataField}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginTop: '0.25rem',
-                }}
+                className={styles.datetime}
                 required
               />
             </label>
           </div>
-          <div style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
             <label htmlFor='peerReviewEndDate'>
               Peer Review End
               <input
@@ -317,24 +292,12 @@ export default function NewChallengePage() {
                 name='peerReviewEndDate'
                 min={getMinDateTime()}
                 onChange={handleDataField}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.5rem',
-                  marginTop: '0.25rem',
-                }}
+                className={styles.datetime}
                 required
               />
             </label>
           </div>
-          <div
-            style={{
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-            }}
-          >
+          <div className={styles.field}>
             <span>Status</span>
             <ToggleSwitch
               checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
@@ -354,29 +317,23 @@ export default function NewChallengePage() {
               }
             />
           </div>
-          <div style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
             <strong>
               Selected Match Settings: {challenge?.matchSettingIds?.length}
             </strong>
           </div>
 
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              marginBottom: '1rem',
-            }}
-          >
+          <table className={styles.table}>
             <thead>
               <tr>
-                <th style={{ borderBottom: '1px solid #ccc' }}>Select</th>
-                <th style={{ borderBottom: '1px solid #ccc' }}>Title</th>
+                <th>Select</th>
+                <th>Title</th>
               </tr>
             </thead>
             <tbody>
               {currentItems.map((match) => (
                 <tr key={match.id}>
-                  <td style={{ textAlign: 'center', padding: '0.5rem' }}>
+                  <td style={{ textAlign: 'center' }}>
                     <input
                       aria-label='select setting'
                       type='checkbox'
@@ -384,9 +341,7 @@ export default function NewChallengePage() {
                       onChange={() => toggleSetting(match.id)}
                     />
                   </td>
-                  <td style={{ textAlign: 'center', padding: '0.5rem' }}>
-                    {match.problemTitle}
-                  </td>
+                  <td style={{ textAlign: 'center' }}>{match.problemTitle}</td>
                 </tr>
               ))}
             </tbody>

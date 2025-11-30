@@ -9,7 +9,7 @@
     "#img/*": "./assets/img/*",
     "#js/*": "./assets/js/*",
     "#modules/*": "./assets/modules/*",
-    "#scss/*": "./assets/scss/*",
+    "#css/*": "./assets/css/*",
     "#config/*": "./config/*"
   },
   "scripts": {
@@ -46,7 +46,6 @@
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",
     "reset-css": "^5.0.2",
-    "sass": "^1.94.2",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
   },
@@ -76,7 +75,6 @@
     "prettier": "^3.6.2",
     "stylelint": "^16.26.0",
     "stylelint-config-recommended": "^17.0.0",
-    "stylelint-scss": "^6.12.1",
     "tailwindcss": "^4.1.17",
     "vitest": "^4.0.13"
   },
@@ -93,7 +91,7 @@
       "eslint --fix",
       "prettier --write"
     ],
-    "**/*.scss": [
+    "**/*.css": [
       "stylelint --fix",
       "prettier --write"
     ]

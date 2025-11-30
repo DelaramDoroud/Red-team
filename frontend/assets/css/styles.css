@@ -32,7 +32,6 @@ button {
 }
 
 :root {
-  /* RGB triplets for Tailwind + withOpacity */
   --color-primary-900: 0 125 194; /* #007DC2 */
   --color-primary-800: 26 142 208; /* #1A8ED0 */
   --color-primary-700: 51 159 221; /* #339FDD */
@@ -109,33 +108,46 @@ button {
     @apply bg-background text-foreground;
   }
   :root {
-    --background: 0 0% 100%;
-    --foreground: 210 15% 10%;
+    /* Light theme aligned to requested palette */
+    /* Background: Cloud Grey #FAFBFC */
+    --background: 210 20% 99%;
+    /* Text main: Charcoal Grey #323839 */
+    --foreground: 189 7% 21%;
 
-    --primary: 202 78% 61%;
+    /* Primary: Skyline Blue #007DC2 */
+    --primary: 202 100% 38%;
     --primary-foreground: 0 0% 100%;
 
+    /* Secondary used for dark text/on-muted surfaces */
     --secondary: 189 7% 21%;
     --secondary-foreground: 0 0% 100%;
 
+    /* Surface: Pure White #FFFFFF */
     --card: 0 0% 100%;
-    --card-foreground: 210 15% 10%;
+    --card-foreground: 189 7% 21%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 15% 10%;
+    --popover-foreground: 189 7% 21%;
 
+    /* Muted and Accent tints derived from Cloud Grey */
     --muted: 210 20% 96%;
     --muted-foreground: 215 15% 45%;
-    --accent: 210 20% 96%;
-    --accent-foreground: 210 15% 10%;
+    /* Accent maps to Burnt Orange for emphasis */
+    /* Burnt Orange #C24500 */
+    --accent: 20 100% 38%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    /* Destructive also uses Burnt Orange family for coherence */
+    --destructive: 20 100% 38%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Borders/inputs slightly darker than muted */
     --border: 214 20% 90%;
     --input: 214 20% 90%;
-    --ring: 202 78% 61%;
+    /* Focus ring uses Primary */
+    --ring: 202 100% 38%;
 
-    --chart-1: 202 78% 61%;
+    /* Charts: keep primary first, then supporting hues */
+    --chart-1: 202 100% 38%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;

@@ -67,7 +67,7 @@ export default function StudentChallengesPage() {
   //     setNow(new Date());
   //     challenges.forEach((c) => {
   //       if (joinedChallenges[c.id] && c.status === 'started') {
-  //         router.push(`/newChallenge`);
+  //         router.push(`/new-challenge`);
   //       }
   //     }); // این باعث رندر دوباره صفحه می‌شود
   //   }, 2000);

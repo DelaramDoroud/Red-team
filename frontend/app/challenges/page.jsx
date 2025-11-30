@@ -1,7 +1,7 @@
 'use client';
 
 import ChallengeList from '#modules/challenge/list';
-import styles from './page.module.scss';
+import styles from './page.module.css';
 
 export default function ChallengesPage() {
   return (

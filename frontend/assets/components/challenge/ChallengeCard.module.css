@@ -1,12 +1,27 @@
 .card {
   padding: 1rem 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgb(148 163 184 / 35%);
-  background: radial-gradient(
-    circle at top left,
-    rgb(56 189 248 / 8%),
-    rgb(15 23 42 / 100%)
-  );
+  border-radius: 1rem;
+  border: 1px solid rgb(148 163 184 / 30%);
+  background:
+    linear-gradient(180deg, rgb(2 6 23 / 90%), rgb(2 6 23 / 92%)) padding-box,
+    radial-gradient(120% 120% at 0% 0%, rgb(56 189 248 / 25%), transparent 60%)
+      border-box;
+  backdrop-filter: blur(6px);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 6%) inset,
+    0 10px 25px rgb(2 6 23 / 50%);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 10%) inset,
+    0 16px 35px rgb(2 6 23 / 55%);
+  border-color: rgb(56 189 248 / 45%);
 }
 
 .header {
@@ -19,6 +34,7 @@
 .title {
   margin: 0;
   font-size: 1.1rem;
+  letter-spacing: 0.01em;
 }
 
 .status {
@@ -28,6 +44,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border: 1px solid rgb(148 163 184 / 60%);
+  background-color: rgb(2 6 23 / 40%);
 }
 
 .status-published {
