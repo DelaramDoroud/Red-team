@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
+import styles from './page.module.css';
 
 // const dummyData = [
 //   {
@@ -124,7 +125,7 @@ export default function StudentChallengesPage() {
         <Button
           variant='default'
           size='lg'
-          className='shadow-md hover:shadow-lg'
+          className={styles.joinButton}
           onClick={() => handleJoin(c.id)}
         >
           Join
@@ -179,10 +180,7 @@ export default function StudentChallengesPage() {
           </Card>
         ) : (
           visibleChallenges.map((c) => (
-            <Card
-              key={c.id}
-              className='rounded-xl w-lg mb-4 shadow-lg hover:shadow-xl transition-shadow'
-            >
+            <Card key={c.id} className={styles.challengeCard}>
               <CardHeader className='pb-5'>
                 <CardTitle className='text-xl'>{c.title}</CardTitle>
               </CardHeader>

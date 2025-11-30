@@ -27,6 +27,7 @@ export default function NewChallengePage() {
   const [matchSettings, setMatchSettings] = useState([]);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -156,6 +157,7 @@ export default function NewChallengePage() {
       } else if (peerStart > peerEnd) {
         setError('Peer review end cannot be before peer review start.');
       } else {
+        setIsSubmitting(true);
         const payload = {
           ...challenge,
           startDatetime: toISODateTime(challenge.startDatetime),
@@ -186,182 +188,190 @@ export default function NewChallengePage() {
               errorMsg = jsonError?.error?.message;
             }
             setError(errorMsg);
+            setIsSubmitting(false);
           }
         } catch (err) {
           // console.error(err);
           setError(`Error: ${err.message}`);
+          setIsSubmitting(false);
         }
       }
     }
   };
 
   return (
-    <>
-      {error && <div className={styles.errorBox}>{error}</div>}
-      {successMessage && (
-        <div className={styles.successBox}>{successMessage}</div>
-      )}
-      <main className={styles.main} aria-labelledby='page-title'>
-        <div className={styles.header}>
-          <h1 id='page-title'>Create New Challenge</h1>
-          <p>Fill out the form below to create a new challenge.</p>
-        </div>
-        <form onSubmit={handleSubmit} className={styles.card}>
-          <div className={styles.field}>
-            <label htmlFor='title'>
-              Challenge Name
-              <input
-                id='title'
-                type='text'
-                value={challenge.title}
-                onChange={handleDataField}
-                name='title'
-                className={styles.input}
-                required
-              />
-            </label>
-          </div>
-
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label htmlFor='startDatetime'>
-                Start Date/Time
-                <input
-                  id='startDatetime'
-                  type='datetime-local'
-                  value={challenge.startDatetime}
-                  onChange={handleDataField}
-                  name='startDatetime'
-                  className={styles.datetime}
-                  min={getMinDateTime()}
-                  required
-                />
-              </label>
-            </div>
-            <div className={styles.field}>
-              <label htmlFor='duration'>
-                Duration (min)
-                <input
-                  id='duration'
-                  type='number'
-                  value={challenge.duration}
-                  onChange={handleDataField}
-                  name='duration'
-                  className={styles.number}
-                  min={1}
-                  required
-                />
-              </label>
-            </div>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor='endDatetime'>
-              End Date/Time
-              <input
-                id='endDatetime'
-                type='datetime-local'
-                value={challenge.endDatetime}
-                name='endDatetime'
-                min={getMinEndDate()}
-                onChange={handleDataField}
-                className={styles.datetime}
-                required
-                disabled={!challenge.startDatetime || !challenge.duration}
-              />
-            </label>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor='peerReviewStartDate'>
-              Peer Review Start
-              <input
-                id='peerReviewStartDate'
-                type='datetime-local'
-                value={challenge.peerReviewStartDate}
-                name='peerReviewStartDate'
-                min={getMinDateTime()}
-                onChange={handleDataField}
-                className={styles.datetime}
-                required
-              />
-            </label>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor='peerReviewEndDate'>
-              Peer Review End
-              <input
-                id='peerReviewEndDate'
-                type='datetime-local'
-                value={challenge.peerReviewEndDate}
-                name='peerReviewEndDate'
-                min={getMinDateTime()}
-                onChange={handleDataField}
-                className={styles.datetime}
-                required
-              />
-            </label>
-          </div>
-          <div className={styles.field}>
-            <span>Status</span>
-            <ToggleSwitch
-              checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
-              label={
-                challenge.status === Constants.ChallengeStatus.PUBLIC
-                  ? 'Public'
-                  : 'Private'
-              }
-              onChange={() =>
-                setChallenge((prev) => ({
-                  ...prev,
-                  status:
-                    prev.status === Constants.ChallengeStatus.PUBLIC
-                      ? Constants.ChallengeStatus.PRIVATE
-                      : Constants.ChallengeStatus.PUBLIC,
-                }))
-              }
+    <main className={styles.main} aria-labelledby='page-title'>
+      <div className={styles.header}>
+        <h1 id='page-title'>Create New Challenge</h1>
+        <p>Fill out the form below to create a new challenge.</p>
+      </div>
+      <form onSubmit={handleSubmit} className={styles.card}>
+        <div className={styles.field}>
+          <label htmlFor='title'>
+            Challenge Name
+            <input
+              id='title'
+              type='text'
+              value={challenge.title}
+              onChange={handleDataField}
+              name='title'
+              className={styles.input}
+              required
             />
+          </label>
+        </div>
+
+        <div className={styles.row}>
+          <div className={styles.field}>
+            <label htmlFor='startDatetime'>
+              Start Date/Time
+              <input
+                id='startDatetime'
+                type='datetime-local'
+                value={challenge.startDatetime}
+                onChange={handleDataField}
+                name='startDatetime'
+                className={styles.datetime}
+                min={getMinDateTime()}
+                required
+              />
+            </label>
           </div>
           <div className={styles.field}>
-            <strong>
-              Selected Match Settings: {challenge?.matchSettingIds?.length}
-            </strong>
+            <label htmlFor='duration'>
+              Duration (min)
+              <input
+                id='duration'
+                type='number'
+                value={challenge.duration}
+                onChange={handleDataField}
+                name='duration'
+                className={styles.number}
+                min={1}
+                required
+              />
+            </label>
           </div>
-
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Select</th>
-                <th>Title</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map((match) => (
-                <tr key={match.id}>
-                  <td style={{ textAlign: 'center' }}>
-                    <input
-                      aria-label='select setting'
-                      type='checkbox'
-                      checked={challenge.matchSettingIds.includes(match.id)}
-                      onChange={() => toggleSetting(match.id)}
-                    />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{match.problemTitle}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
+        </div>
+        <div className={styles.field}>
+          <label htmlFor='endDatetime'>
+            End Date/Time
+            <input
+              id='endDatetime'
+              type='datetime-local'
+              value={challenge.endDatetime}
+              name='endDatetime'
+              min={getMinEndDate()}
+              onChange={handleDataField}
+              className={styles.datetime}
+              required
+              disabled={!challenge.startDatetime || !challenge.duration}
+            />
+          </label>
+        </div>
+        <div className={styles.field}>
+          <label htmlFor='peerReviewStartDate'>
+            Peer Review Start
+            <input
+              id='peerReviewStartDate'
+              type='datetime-local'
+              value={challenge.peerReviewStartDate}
+              name='peerReviewStartDate'
+              min={getMinDateTime()}
+              onChange={handleDataField}
+              className={styles.datetime}
+              required
+            />
+          </label>
+        </div>
+        <div className={styles.field}>
+          <label htmlFor='peerReviewEndDate'>
+            Peer Review End
+            <input
+              id='peerReviewEndDate'
+              type='datetime-local'
+              value={challenge.peerReviewEndDate}
+              name='peerReviewEndDate'
+              min={getMinDateTime()}
+              onChange={handleDataField}
+              className={styles.datetime}
+              required
+            />
+          </label>
+        </div>
+        <div className={styles.field}>
+          <span>Status</span>
+          <ToggleSwitch
+            checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
+            label={
+              challenge.status === Constants.ChallengeStatus.PUBLIC
+                ? 'Public'
+                : 'Private'
+            }
+            onChange={() =>
+              setChallenge((prev) => ({
+                ...prev,
+                status:
+                  prev.status === Constants.ChallengeStatus.PUBLIC
+                    ? Constants.ChallengeStatus.PRIVATE
+                    : Constants.ChallengeStatus.PUBLIC,
+              }))
+            }
           />
+        </div>
+        <div className={styles.field}>
+          <strong>
+            Selected Match Settings: {challenge?.matchSettingIds?.length}
+          </strong>
+        </div>
 
-          <div className={styles.submitWrapper}>
-            <button type='submit' className={styles.submitButton}>
-              Create
-            </button>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Select</th>
+              <th>Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            {currentItems.map((match) => (
+              <tr key={match.id}>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    aria-label='select setting'
+                    type='checkbox'
+                    checked={challenge.matchSettingIds.includes(match.id)}
+                    onChange={() => toggleSetting(match.id)}
+                  />
+                </td>
+                <td style={{ textAlign: 'center' }}>{match.problemTitle}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+
+        <div className={styles.submitWrapper}>
+          <div className={styles.feedback} aria-live='polite'>
+            {error && <span className={styles.feedbackError}>{error}</span>}
+            {!error && successMessage && (
+              <span className={styles.feedbackSuccess}>{successMessage}</span>
+            )}
           </div>
-        </form>
-      </main>
-    </>
+          <button
+            type='submit'
+            className={styles.submitButton}
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+          >
+            {isSubmitting && <span className={styles.spinner} aria-hidden />}
+            {isSubmitting ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+      </form>
+    </main>
   );
 }
