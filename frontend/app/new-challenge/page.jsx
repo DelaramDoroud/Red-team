@@ -201,8 +201,11 @@ export default function NewChallengePage() {
       {successMessage && (
         <div className={styles.successBox}>{successMessage}</div>
       )}
-      <main className={styles.main}>
-        <h1>Create New Challenge</h1>
+      <main className={styles.main} aria-labelledby='page-title'>
+        <div className={styles.header}>
+          <h1 id='page-title'>Create New Challenge</h1>
+          <p>Fill out the form below to create a new challenge.</p>
+        </div>
         <form onSubmit={handleSubmit} className={styles.card}>
           <div className={styles.field}>
             <label htmlFor='title'>

@@ -120,7 +120,16 @@ export default function StudentChallengesPage() {
     const started = c.status === 'started';
 
     if (!joined && !started) {
-      return <Button onClick={() => handleJoin(c.id)}>Join</Button>;
+      return (
+        <Button
+          variant='default'
+          size='lg'
+          className='shadow-md hover:shadow-lg'
+          onClick={() => handleJoin(c.id)}
+        >
+          Join
+        </Button>
+      );
     }
 
     if (!joined && started) {
@@ -144,14 +153,14 @@ export default function StudentChallengesPage() {
 
       <div>
         {error && (
-          <Card className='mb-4'>
+          <Card className='mb-4 shadow-sm'>
             <CardContent className='py-6'>
               <p className='text-destructive text-sm'>{error}</p>
             </CardContent>
           </Card>
         )}
         {!error && loading && (
-          <Card className='border border-dashed rounded-xl w-lg mb-4'>
+          <Card className='border border-dashed rounded-xl w-lg mb-4 shadow-sm'>
             <CardContent className='py-6'>
               <p className='text-sm text-muted-foreground'>
                 Loading challenges…
@@ -160,7 +169,7 @@ export default function StudentChallengesPage() {
           </Card>
         )}
         {!error && !loading && visibleChallenges.length === 0 ? (
-          <Card className='border border-dashed rounded-xl w-lg mb-4'>
+          <Card className='border border-dashed rounded-xl w-lg mb-4 shadow-sm'>
             <CardContent className='py-6'>
               <p className='text-muted-foreground text-sm'>
                 There is no available challenge at the moment. Please wait for
@@ -170,7 +179,10 @@ export default function StudentChallengesPage() {
           </Card>
         ) : (
           visibleChallenges.map((c) => (
-            <Card key={c.id} className='rounded-xl w-lg mb-4'>
+            <Card
+              key={c.id}
+              className='rounded-xl w-lg mb-4 shadow-lg hover:shadow-xl transition-shadow'
+            >
               <CardHeader className='pb-5'>
                 <CardTitle className='text-xl'>{c.title}</CardTitle>
               </CardHeader>

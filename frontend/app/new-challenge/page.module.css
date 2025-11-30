@@ -24,7 +24,7 @@
 /* Modern form styles */
 .main {
   padding: 2rem;
-  max-width: 860px;
+  max-width: 100%;
   margin: 0 auto;
 }
 

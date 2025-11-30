@@ -1,14 +1,14 @@
 .footer {
   padding: 1rem 2rem;
-  border-top: 1px solid rgb(var(--color-secondary-300) / 0.7);
+  border-top: 1px solid hsl(var(--border));
 
   font-size: 0.9rem;
-  color: rgb(var(--color-secondary-500));
+  color: hsl(var(--foreground));
 
-  background: rgb(var(--color-secondary-0));
+  background: hsl(var(--background));
 }
 
 .muted {
   opacity: 0.8;
-  color: rgb(var(--color-primary-700));
+  color: hsl(var(--muted-foreground));
 }
