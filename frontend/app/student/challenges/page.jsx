@@ -129,27 +129,38 @@ export default function StudentChallengesPage() {
       <h1 className='text-3xl font-bold '>Available Challenges</h1>
 
       <div>
-        {visibleChallenges.map((c) => (
-          <Card
-            key={c.id}
-            className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
-          >
-            <CardHeader className='pb-5'>
-              <CardTitle className='text-xl'>{c.title}</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <div className='flex items-center justify-between w-full'>
-                <CardDescription className='text-gray-300 text-sm'>
-                  Start: {c.startDatetime}
-                  <br />
-                  Duration: {c.duration}
-                </CardDescription>
-                {renderChallengeStatus(c)}
-              </div>
+        {visibleChallenges.length === 0 ? (
+          <Card className='bg-white/5 border border-dashed border-white/20 text-white rounded-xl w-lg mb-4'>
+            <CardContent className='py-6'>
+              <p className='text-warning text-sm'>
+                There is no available challenge at the moment. Please wait for
+                your teacher to schedule one.
+              </p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          visibleChallenges.map((c) => (
+            <Card
+              key={c.id}
+              className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
+            >
+              <CardHeader className='pb-5'>
+                <CardTitle className='text-xl'>{c.title}</CardTitle>
+              </CardHeader>
+
+              <CardContent>
+                <div className='flex items-center justify-between w-full'>
+                  <CardDescription className='text-gray-300 text-sm'>
+                    Start: {c.startDatetime}
+                    <br />
+                    Duration: {c.duration}
+                  </CardDescription>
+                  {renderChallengeStatus(c)}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
