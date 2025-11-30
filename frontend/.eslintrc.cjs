@@ -22,7 +22,7 @@ module.exports = {
           ['#js', './assets/js'],
           ['#img', './assets/img'],
           ['#modules', './assets/modules'],
-          ['#styles', './assets/styles'],
+          ['#scss', './assets/scss'],
           ['#config', './config'],
         ],
         extensions: ['.js', '.jsx', '.scss'],

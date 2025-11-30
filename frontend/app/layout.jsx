@@ -1,7 +1,7 @@
 // eslint-disable-next-line camelcase
 import { Open_Sans, Roboto } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
-import '#styles/styles.scss';
+import '#scss/styles.scss';
 import ReduxProvider from '#js/store/redux-provider';
 import Header from '#components/layout/Header';
 import Footer from '#components/layout/Footer';
