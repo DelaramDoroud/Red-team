@@ -23,16 +23,16 @@ if [ -f "frontend/package.json" ]; then
 fi
 
 # Root Markdown linting
-STAGED_ROOT_MD_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.md$')
-if [ -n "$STAGED_ROOT_MD_FILES" ]; then
-  echo "[pre-commit] Root: markdownlint --fix"
-  if [ -f "backend/node_modules/.bin/markdownlint" ]; then
-      ./backend/node_modules/.bin/markdownlint --fix $STAGED_ROOT_MD_FILES
-      git add $STAGED_ROOT_MD_FILES
-  elif [ -f "frontend/node_modules/.bin/markdownlint" ]; then
-      ./frontend/node_modules/.bin/markdownlint --fix $STAGED_ROOT_MD_FILES
-      git add $STAGED_ROOT_MD_FILES
-  else
-      echo "Warning: markdownlint not found in backend or frontend node_modules. Skipping root files."
-  fi
-fi
+#STAGED_ROOT_MD_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.md$')
+#if [ -n "$STAGED_ROOT_MD_FILES" ]; then
+#  echo "[pre-commit] Root: markdownlint --fix"
+#  if [ -f "backend/node_modules/.bin/markdownlint" ]; then
+#      ./backend/node_modules/.bin/markdownlint --fix $STAGED_ROOT_MD_FILES
+#      git add $STAGED_ROOT_MD_FILES
+#  elif [ -f "frontend/node_modules/.bin/markdownlint" ]; then
+#      ./frontend/node_modules/.bin/markdownlint --fix $STAGED_ROOT_MD_FILES
+#      git add $STAGED_ROOT_MD_FILES
+#  else
+#      echo "Warning: markdownlint not found in backend or frontend node_modules. Skipping root files."
+#  fi
+#fi

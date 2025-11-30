@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -31,8 +30,7 @@ import styles from './page.module.css';
 // ];
 
 export default function StudentChallengesPage() {
-  const router = useRouter();
-  const { loading, getChallenges, joinChallenge } = useChallenge();
+  const { getChallenges, joinChallenge } = useChallenge();
   const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [error, setError] = useState(null);
@@ -56,16 +54,18 @@ export default function StudentChallengesPage() {
   }, [getChallenges]);
 
   useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      if (!cancelled) {
-        await load();
+    let isCancelled = false;
+    async function doFetch() {
+      setNow(new Date());
+      const res = await load();
+      if (!isCancelled && res.success) {
+        setChallenges(res.data);
       }
-    };
-    tick();
-    const interval = setInterval(tick, 2000);
+    }
+    doFetch();
+    const interval = setInterval(doFetch, 2000);
     return () => {
-      cancelled = true;
+      isCancelled = true;
       clearInterval(interval);
     };
   }, [load]);
@@ -79,24 +79,6 @@ export default function StudentChallengesPage() {
     });
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-      challenges.forEach((c) => {
-        if (joinedChallenges[c.id] && c.status === 'started')
-          router.push(`/new-challenge`);
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [joinedChallenges, router, challenges]);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const allAvailableChallenges = filterChallenges(
     challenges,
     joinedChallenges,
@@ -107,13 +89,14 @@ export default function StudentChallengesPage() {
   const handleJoin = async (challengeId) => {
     try {
       const res = await joinChallenge(challengeId, 1);
-      if (res?.success === false) {
-        console.error('Join failed', res.error || res.message);
-        return;
+
+      if (res.success) {
+        setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+      } else {
+        // console.error('Join failed', res.error);
       }
-      setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
     } catch (err) {
-      console.error('Join error:', err);
+      // console.error('Join error:', err);
     }
   };
   function renderChallengeStatus(c) {
@@ -160,19 +143,10 @@ export default function StudentChallengesPage() {
             </CardContent>
           </Card>
         )}
-        {!error && loading && (
-          <Card className='border border-dashed rounded-xl w-lg mb-4 shadow-sm'>
+        {visibleChallenges.length === 0 ? (
+          <Card className='bg-white/5 border border-dashed border-white/20 text-white rounded-xl w-lg mb-4'>
             <CardContent className='py-6'>
-              <p className='text-sm text-muted-foreground'>
-                Loading challenges…
-              </p>
-            </CardContent>
-          </Card>
-        )}
-        {!error && !loading && visibleChallenges.length === 0 ? (
-          <Card className='border border-dashed rounded-xl w-lg mb-4 shadow-sm'>
-            <CardContent className='py-6'>
-              <p className='text-muted-foreground text-sm'>
+              <p className='text-warning text-sm'>
                 There is no available challenge at the moment. Please wait for
                 your teacher to schedule one.
               </p>
@@ -180,14 +154,17 @@ export default function StudentChallengesPage() {
           </Card>
         ) : (
           visibleChallenges.map((c) => (
-            <Card key={c.id} className={styles.challengeCard}>
+            <Card
+              key={c.id}
+              className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
+            >
               <CardHeader className='pb-5'>
                 <CardTitle className='text-xl'>{c.title}</CardTitle>
               </CardHeader>
 
               <CardContent>
                 <div className='flex items-center justify-between w-full'>
-                  <CardDescription className='text-muted-foreground text-sm'>
+                  <CardDescription className='text-gray-300 text-sm'>
                     Start: {c.startDatetime}
                     <br />
                     Duration: {c.duration}
