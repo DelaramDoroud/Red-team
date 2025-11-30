@@ -31,4 +31,4 @@ RUN chown ${USERID}:${GROUPID} /usr/app
 COPY --chown=${USERID}:${GROUPID} . /usr/app
 
 USER ${USERID}:${GROUPID}
-CMD ["sh", "/usr/app/startup.sh"]
+CMD ["sh", "-c", "set -eu; npm i --no-audit --no-fund && npm run debug"]

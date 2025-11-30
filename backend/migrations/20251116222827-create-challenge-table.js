@@ -1,5 +1,4 @@
 import { Sequelize } from 'sequelize';
-import { ChallengeStatus } from '../models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   await queryInterface.createTable('challenge', {
@@ -45,7 +44,7 @@ export async function up({ context: queryInterface }) {
       defaultValue: 0,
     },
     status: {
-      type: Sequelize.ENUM(...Object.values(ChallengeStatus)),
+      type: Sequelize.ENUM('public', 'private', 'assigned', 'started', 'ended'),
       allowNull: false,
       defaultValue: 'private',
     },

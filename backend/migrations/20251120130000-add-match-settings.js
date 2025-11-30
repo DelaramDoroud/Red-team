@@ -1,5 +1,4 @@
 import { DataTypes } from 'sequelize';
-import { MatchSettingStatus } from '../models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
@@ -35,7 +34,7 @@ export async function up({ context: queryInterface }) {
           allowNull: false,
         },
         status: {
-          type: DataTypes.ENUM(...Object.values(MatchSettingStatus)),
+          type: DataTypes.ENUM('draft', 'ready'),
           allowNull: false,
           defaultValue: 'draft',
         },
