@@ -94,7 +94,7 @@ const Challenge = sequelize.define(
 
 Challenge.initializeRelations = function (models) {
   Challenge.belongsToMany(models.MatchSetting, {
-    through: 'challenge_match_setting',
+    through: 'ChallengeMatchSetting',
     as: 'matchSettings',
     foreignKey: 'challengeId',
     otherKey: 'matchSettingId',

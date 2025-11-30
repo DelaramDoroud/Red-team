@@ -54,7 +54,7 @@ export async function up({ context: queryInterface }) {
     );
 
     await queryInterface.createTable(
-      'challenge_match_setting',
+      'ChallengeMatchSetting',
       {
         challenge_id: {
           type: DataTypes.INTEGER,
@@ -102,7 +102,7 @@ export async function up({ context: queryInterface }) {
 export async function down({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.dropTable('challenge_match_setting', { transaction });
+    await queryInterface.dropTable('ChallengeMatchSetting', { transaction });
     await queryInterface.dropTable('match_setting', { transaction });
     await transaction.commit();
   } catch (err) {
