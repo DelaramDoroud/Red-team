@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import ChallengeList from '#modules/challenge/list';
 import { Badge } from '#components/common/Badge';
 import { Button } from '#components/common/Button';
@@ -22,9 +24,8 @@ import {
   FieldDescription,
   FieldError,
 } from '#components/common/Field';
-
-import { useState } from 'react';
 import { Input } from '#components/common/Input';
+
 import styles from './page.module.css';
 
 export default function HomePage() {
@@ -42,34 +43,49 @@ export default function HomePage() {
       setError(null);
     }
   };
+
   return (
     <section className={styles.container}>
       <header className={styles.hero}>
         <h1>CodyMatch demo dashboard</h1>
         <p>
-          This page shows how to wire a simple Challenge list to the backend
-          using <code>useFetchData</code> and a dedicated{' '}
-          <code>useChallenge</code> hook.
+          This page showcases the main UI components wired to the CodyMatch
+          design system, including <code>Button</code>, <code>Badge</code>,{' '}
+          <code>Toggle</code>, form fields and tables.
         </p>
       </header>
-      <div className='flex justify-between'>
-        <span> Buttons</span>
-        <Button>default/primary</Button>
-        <Button variant='secondary'>secondary</Button>
-        <Button variant='outline'>outline</Button>
+
+      <div className={styles.showcaseRow}>
+        <span className={styles.showcaseLabel}>Buttons</span>
+        <div className={styles.showcaseGroup}>
+          <Button>Primary</Button>
+          <Button variant='secondary'>Secondary</Button>
+          <Button variant='outline'>Outline</Button>
+          <Button variant='ghost'>Ghost</Button>
+          <Button variant='destructive'>Destructive</Button>
+        </div>
       </div>
-      <div className='flex justify-between'>
-        <span> Badge</span>
-        <Badge>default/primary</Badge>
-        <Badge variant='secondary'>secondary</Badge>
-        <Badge variant='outline'>outline</Badge>
+
+      {/* Badges */}
+      <div className={styles.showcaseRow}>
+        <span className={styles.showcaseLabel}>Badges</span>
+        <div className={styles.showcaseGroup}>
+          <Badge>Primary</Badge>
+          <Badge variant='secondary'>Secondary</Badge>
+          <Badge variant='outline'>Outline</Badge>
+        </div>
       </div>
-      <div className='flex justify-between'>
-        <span> Toggle</span>
-        <Toggle>Default</Toggle>
-        <Toggle variant='outline'>Outline</Toggle>
+
+      {/* Toggles */}
+      <div className={styles.showcaseRow}>
+        <span className={styles.showcaseLabel}>Toggle</span>
+        <div className={styles.showcaseGroup}>
+          <Toggle>Default</Toggle>
+          <Toggle variant='outline'>Outline</Toggle>
+        </div>
       </div>
-      <div className='max-w-xl mx-auto mt-10 p-6 border border-secondary-200 rounded-lg bg-secondary-0'>
+
+      <div className={styles.formCard}>
         <FieldSet>
           <Field orientation='horizontal' data-invalid={!!error}>
             <FieldLabel htmlFor='challenge-name'>Challenge name</FieldLabel>
@@ -78,7 +94,7 @@ export default function HomePage() {
               <Input
                 id='challenge-name'
                 name='challenge-name'
-                placeholder='enter a name'
+                placeholder='Enter a name'
                 onBlur={handleBlur}
               />
 
@@ -94,7 +110,7 @@ export default function HomePage() {
               <Input
                 id='match-name'
                 name='match-name'
-                placeholder='enter a name'
+                placeholder='Enter a name'
                 onBlur={handleBlur}
               />
 
@@ -104,8 +120,10 @@ export default function HomePage() {
           </Field>
         </FieldSet>
       </div>
-      <div>
-        <span> Table</span>
+
+      {/* Table */}
+      <div className={styles.tableSection}>
+        <span className={styles.showcaseLabel}>Table</span>
         <Table>
           <TableCaption>Table Caption</TableCaption>
           <TableHeader>
@@ -131,6 +149,7 @@ export default function HomePage() {
           </TableFooter>
         </Table>
       </div>
+
       <ChallengeList />
     </section>
   );

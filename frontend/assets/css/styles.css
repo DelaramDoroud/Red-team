@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @custom-variant dark (&:is(.dark *));
 
+/* -------------------------------------------------------------------------- */
+/* Base reset                                                                 */
+/* -------------------------------------------------------------------------- */
+
 *,
 *::before,
 *::after {
@@ -11,8 +15,6 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
   line-height: 1.6;
   font-family:
     system-ui,
@@ -31,7 +33,12 @@ button {
   font: inherit;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Legacy palette (RGB triplets etc.) to be used in css modules               */
+/* -------------------------------------------------------------------------- */
+
 :root {
+  /* RGB triplets per gradient / ombre, ecc. */
   --color-primary-900: 0 125 194; /* #007DC2 */
   --color-primary-800: 26 142 208; /* #1A8ED0 */
   --color-primary-700: 51 159 221; /* #339FDD */
@@ -62,34 +69,47 @@ button {
   --color-cloudy-gray: #fafbfc;
 }
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
+/* -------------------------------------------------------------------------- */
+/* Tailwind v4 theme tokens                                                   */
+/*  - bg-primary, text-foreground, ecc.                                       */
+/*  - note: use hsl(var(--background)) so that they will update on dark mode  */
+/* -------------------------------------------------------------------------- */
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -98,52 +118,65 @@ button {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* radius tokens usati da Tilwind */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Light & dark mode tramite CSS vars                                         */
+/*  - .dark on <html> per dark mode                                           */
+/* -------------------------------------------------------------------------- */
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
+  /* LIGHT MODE (default) */
   :root {
-    /* Light theme aligned to requested palette */
     /* Background: Cloud Grey #FAFBFC */
     --background: 210 20% 99%;
     /* Text main: Charcoal Grey #323839 */
     --foreground: 189 7% 21%;
 
-    /* Primary: Skyline Blue #007DC2 */
+    /* Primary: #007BC0 */
     --primary: 202 100% 38%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary used for dark text/on-muted surfaces */
-    --secondary: 189 7% 21%;
-    --secondary-foreground: 0 0% 100%;
+    /* Secondary: #7AB1F5  */
+    --secondary: 213 86% 72%;
+    --secondary-foreground: 210 15% 18%;
 
-    /* Surface: Pure White #FFFFFF */
+    /* Surfaces */
     --card: 0 0% 100%;
     --card-foreground: 189 7% 21%;
     --popover: 0 0% 100%;
     --popover-foreground: 189 7% 21%;
 
-    /* Muted and Accent tints derived from Cloud Grey */
+    /* Muted & Accent */
     --muted: 210 20% 96%;
     --muted-foreground: 215 15% 45%;
-    /* Accent maps to Burnt Orange for emphasis */
-    /* Burnt Orange #C24500 */
+
+    /* Accent → Burnt Orange #C24500 */
     --accent: 20 100% 38%;
     --accent-foreground: 0 0% 100%;
 
-    /* Destructive also uses Burnt Orange family for coherence */
+    /* Destructive */
     --destructive: 20 100% 38%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders/inputs slightly darker than muted */
+    /* Borders / input / ring */
     --border: 214 20% 90%;
     --input: 214 20% 90%;
-    /* Focus ring uses Primary */
     --ring: 202 100% 38%;
 
     /* Charts: keep primary first, then supporting hues */
@@ -152,7 +185,6 @@ button {
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --radius: 0.5rem;
 
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -164,7 +196,10 @@ button {
     --sidebar-ring: oklch(0.708 0 0);
   }
 
+  /* DARK MODE (<html class="dark">) */
   .dark {
+    color-scheme: dark;
+
     --background: 210 18% 8%;
     --foreground: 0 0% 100%;
 
