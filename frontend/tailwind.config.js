@@ -1,11 +1,15 @@
-export default {
-  content: [
-    './app/**/*.{js,jsx}',
-    './components/**/*.{js,jsx}',
-    './assets/**/*.{js,jsx,scss}',
-  ],
+import animate from 'tailwindcss-animate';
+
+const config = {
+  darkMode: ['class'],
   theme: {
-    extend: {},
+    extend: {
+      container: {
+        center: true,
+        padding: '1rem',
+      },
+    },
   },
-  plugins: [],
+  plugins: [animate],
 };
+export default config;

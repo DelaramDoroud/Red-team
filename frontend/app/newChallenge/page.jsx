@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import useMatchSettings from '#js/useMatchSetting';
 import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
-import { useRouter } from 'next/navigation';
-import * as Constants from '#constants/Constants';
+import * as Constants from '#js/constants';
 import styles from './page.module.scss';
 
 export default function NewChallengePage() {
@@ -46,11 +46,11 @@ export default function NewChallengePage() {
 
   const handleDataField = (event) => {
     const newChallenge = { ...challenge };
-    const value =
+
+    newChallenge[event.target.name] =
       event.target.name === 'duration'
         ? parseInt(event.target.value, 10)
         : event.target.value;
-    newChallenge[event.target.name] = value;
 
     if (
       event.target.name === 'startDatetime' ||
@@ -116,10 +116,7 @@ export default function NewChallengePage() {
     now.setSeconds(0, 0);
     // Adjust to local time string
     const offsetMs = now.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(now.getTime() - offsetMs)
-      .toISOString()
-      .slice(0, 16);
-    return localISOTime;
+    return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
   };
 
   const getMinEndDate = () => {

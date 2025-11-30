@@ -27,7 +27,7 @@ const nextConfig = {
       '#img': path.join(dirname, 'assets/img'),
       '#js': path.join(dirname, 'assets/js'),
       '#modules': path.join(dirname, 'assets/modules'),
-      '#scss': path.join(dirname, 'assets/scss'),
+      '#styles': path.join(dirname, 'assets/styles'),
       '#config': path.join(dirname, 'config'),
     },
   },

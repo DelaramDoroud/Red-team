@@ -1,13 +1,11 @@
 // eslint-disable-next-line camelcase
 import { Open_Sans, Roboto } from 'next/font/google';
-
-import '#scss/styles.scss';
 import { Toaster } from 'react-hot-toast';
+import '#styles/styles.scss';
 import ReduxProvider from '#js/store/redux-provider';
 import Header from '#components/layout/Header';
 import Footer from '#components/layout/Footer';
 import styles from './layout.module.scss';
-import '@/assets/tailwind.css';
 
 const openSans = Open_Sans({
   subsets: ['latin'],
@@ -35,6 +33,7 @@ export default function RootLayout({ children }) {
         <ReduxProvider>
           <Header />
           <main className={styles.main}>{children}</main>
+
           <Footer />
           <Toaster position='top-right' />
         </ReduxProvider>

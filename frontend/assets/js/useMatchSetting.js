@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import useFetchData from '#js/useFetchData';
-import * as Constants from '#constants/Constants';
+import * as Constants from '#js/constants';
 
 const API_BASE = Constants.API_BACKEND;
 

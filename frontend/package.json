@@ -24,7 +24,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-toggle": "^1.1.10",
     "@reduxjs/toolkit": "^2.11.0",
     "ajv": "^8.17.1",
     "ajv-errors": "^3.0.0",
