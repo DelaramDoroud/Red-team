@@ -8,7 +8,7 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
-} from '#components/common/Card';
+} from '#components/common/card';
 import { getAllChallenges, joinChallenge } from '@/services/challengeService';
 
 // const dummyData = [
@@ -37,7 +37,7 @@ export default function StudentChallengesPage() {
   useEffect(() => {
     let isCancelled = false;
     async function load() {
-      console.log('🔥 Fetching challenges...');
+      setNow(new Date());
       const res = await getAllChallenges();
       if (!isCancelled && res.success) {
         setChallenges(res.data);
@@ -61,26 +61,6 @@ export default function StudentChallengesPage() {
     });
   }
 
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     // setTick((t) => t + 1);
-  //     setNow(new Date());
-  //     challenges.forEach((c) => {
-  //       if (joinedChallenges[c.id] && c.status === 'started') {
-  //         router.push(`/newChallenge`);
-  //       }
-  //     }); // این باعث رندر دوباره صفحه می‌شود
-  //   }, 2000);
-  //   return () => clearInterval(interval);
-  // }, [joinedChallenges, router, challenges]);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const allAvailableChallenges = filterChallenges(
     challenges,
     joinedChallenges,
@@ -95,10 +75,10 @@ export default function StudentChallengesPage() {
       if (res.success) {
         setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
       } else {
-        console.error('Join failed', res.error);
+        // console.error('Join failed', res.error);
       }
     } catch (err) {
-      console.error('Join error:', err);
+      // console.error('Join error:', err);
     }
   };
   function renderChallengeStatus(c) {
