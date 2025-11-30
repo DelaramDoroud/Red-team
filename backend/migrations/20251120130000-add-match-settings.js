@@ -54,8 +54,30 @@ export async function up({ context: queryInterface }) {
     );
 
     await queryInterface.createTable(
-      'ChallengeMatchSetting',
+      'challenge_match_setting',
       {
+        challenge_id: {
+          type: DataTypes.INTEGER,
+          references: {
+            model: 'challenge',
+            key: 'id',
+          },
+          onUpdate: 'CASCADE',
+          onDelete: 'CASCADE',
+          primaryKey: true,
+          allowNull: false,
+        },
+        match_setting_id: {
+          type: DataTypes.INTEGER,
+          references: {
+            model: 'match_setting',
+            key: 'id',
+          },
+          onUpdate: 'CASCADE',
+          onDelete: 'CASCADE',
+          primaryKey: true,
+          allowNull: false,
+        },
         created_at: {
           type: DataTypes.DATE,
           allowNull: false,
@@ -65,41 +87,6 @@ export async function up({ context: queryInterface }) {
           type: DataTypes.DATE,
           allowNull: false,
           defaultValue: new Date(),
-        },
-        challengeId: {
-          type: DataTypes.INTEGER,
-          field: 'challenge_id',
-          references: {
-            model: 'challenge',
-            key: 'id',
-          },
-          updated_at: {
-            type: DataTypes.DATE,
-            allowNull: false,
-            defaultValue: new Date(),
-          },
-          challengeId: {
-            type: DataTypes.INTEGER,
-            field: 'challenge_id',
-            references: {
-              model: 'challenge',
-              key: 'id',
-            },
-            onUpdate: 'CASCADE',
-            onDelete: 'CASCADE',
-            primaryKey: true,
-          },
-          matchSettingId: {
-            type: DataTypes.INTEGER,
-            field: 'match_setting_id',
-            references: {
-              model: 'match_setting',
-              key: 'id',
-            },
-            onUpdate: 'CASCADE',
-            onDelete: 'CASCADE',
-            primaryKey: true,
-          },
         },
       },
       { transaction }
@@ -115,7 +102,7 @@ export async function up({ context: queryInterface }) {
 export async function down({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.dropTable('ChallengeMatchSetting', { transaction });
+    await queryInterface.dropTable('challenge_match_setting', { transaction });
     await queryInterface.dropTable('match_setting', { transaction });
     await transaction.commit();
   } catch (err) {
