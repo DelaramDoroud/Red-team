@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import ChallengeCard from '#components/challenge/ChallengeCard';
@@ -65,12 +66,34 @@ export default function ChallengeList() {
         </p>
       )}
       <div className={styles.grid}>
-        {currentItems.map((challenge) => (
-          <ChallengeCard
-            key={challenge.id ?? challenge.title}
-            challenge={challenge}
-          />
-        ))}
+        {currentItems.map((challenge, index) => {
+          const hasId = challenge?.id !== undefined && challenge?.id !== null;
+          const key =
+            challenge.id ?? challenge.title ?? `challenge-${index + startIndex}`;
+          const card = <ChallengeCard challenge={challenge} />;
+
+          if (!hasId) {
+            return (
+              <div
+                key={key}
+                className={styles.cardLink}
+                aria-disabled='true'
+              >
+                {card}
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={key}
+              href={`/challenges/${challenge.id}`}
+              className={styles.cardLink}
+            >
+              {card}
+            </Link>
+          );
+        })}
       </div>
       {challenges.length > pageSize && (
         <Pagination
