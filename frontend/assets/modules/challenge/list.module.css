@@ -30,7 +30,7 @@
 }*/
 
 .error {
-  color: #fca5a5;
+  color: hsl(var(--destructive));
   font-size: 0.9rem;
 }
 

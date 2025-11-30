@@ -1,15 +1,13 @@
 .card {
   padding: 1rem 1.25rem;
   border-radius: 1rem;
-  border: 1px solid rgb(148 163 184 / 30%);
-  background:
-    linear-gradient(180deg, rgb(2 6 23 / 90%), rgb(2 6 23 / 92%)) padding-box,
-    radial-gradient(120% 120% at 0% 0%, rgb(56 189 248 / 25%), transparent 60%)
-      border-box;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   backdrop-filter: blur(6px);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 6%) inset,
-    0 10px 25px rgb(2 6 23 / 50%);
+    0 1px 0 hsl(var(--foreground) / 0.06) inset,
+    0 8px 20px hsl(var(--foreground) / 0.08);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -19,9 +17,9 @@
 .card:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 10%) inset,
-    0 16px 35px rgb(2 6 23 / 55%);
-  border-color: rgb(56 189 248 / 45%);
+    0 1px 0 hsl(var(--foreground) / 0.1) inset,
+    0 14px 28px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--ring));
 }
 
 .header {
@@ -43,8 +41,9 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  border: 1px solid rgb(148 163 184 / 60%);
-  background-color: rgb(2 6 23 / 40%);
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.6);
+  color: hsl(var(--muted-foreground));
 }
 
 .status-published {

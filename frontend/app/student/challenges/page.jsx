@@ -125,14 +125,14 @@ export default function StudentChallengesPage() {
 
     if (!joined && started) {
       return (
-        <div className='text-red-300 font-semibold text-sm'>
+        <div className='text-destructive font-semibold text-sm'>
           the challenge is in progress.
         </div>
       );
     }
 
     return (
-      <div className='text-yellow-300 font-semibold text-sm'>
+      <div className='text-accent font-semibold text-sm'>
         Wait for the teacher to start the challenge.
       </div>
     );
@@ -144,23 +144,25 @@ export default function StudentChallengesPage() {
 
       <div>
         {error && (
-          <Card className='bg-red-500/10 border border-red-500/30 text-white rounded-xl w-lg mb-4'>
+          <Card className='mb-4'>
             <CardContent className='py-6'>
-              <p className='text-red-300 text-sm'>{error}</p>
+              <p className='text-destructive text-sm'>{error}</p>
             </CardContent>
           </Card>
         )}
         {!error && loading && (
-          <Card className='bg-white/5 border border-dashed border-white/20 text-white rounded-xl w-lg mb-4'>
+          <Card className='border border-dashed rounded-xl w-lg mb-4'>
             <CardContent className='py-6'>
-              <p className='text-sm text-gray-200'>Loading challenges…</p>
+              <p className='text-sm text-muted-foreground'>
+                Loading challenges…
+              </p>
             </CardContent>
           </Card>
         )}
         {!error && !loading && visibleChallenges.length === 0 ? (
-          <Card className='bg-white/5 border border-dashed border-white/20 text-white rounded-xl w-lg mb-4'>
+          <Card className='border border-dashed rounded-xl w-lg mb-4'>
             <CardContent className='py-6'>
-              <p className='text-warning text-sm'>
+              <p className='text-muted-foreground text-sm'>
                 There is no available challenge at the moment. Please wait for
                 your teacher to schedule one.
               </p>
@@ -168,17 +170,14 @@ export default function StudentChallengesPage() {
           </Card>
         ) : (
           visibleChallenges.map((c) => (
-            <Card
-              key={c.id}
-              className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
-            >
+            <Card key={c.id} className='rounded-xl w-lg mb-4'>
               <CardHeader className='pb-5'>
                 <CardTitle className='text-xl'>{c.title}</CardTitle>
               </CardHeader>
 
               <CardContent>
                 <div className='flex items-center justify-between w-full'>
-                  <CardDescription className='text-gray-300 text-sm'>
+                  <CardDescription className='text-muted-foreground text-sm'>
                     Start: {c.startDatetime}
                     <br />
                     Duration: {c.duration}

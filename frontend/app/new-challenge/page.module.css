@@ -31,14 +31,12 @@
 .card {
   padding: 1.25rem;
   border-radius: 1rem;
-  border: 1px solid rgb(148 163 184 / 30%);
-  background:
-    linear-gradient(180deg, rgb(2 6 23 / 90%), rgb(2 6 23 / 92%)) padding-box,
-    radial-gradient(120% 120% at 0% 0%, rgb(56 189 248 / 18%), transparent 60%)
-      border-box;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 6%) inset,
-    0 10px 25px rgb(2 6 23 / 50%);
+    0 1px 0 hsl(var(--foreground) / 0.06) inset,
+    0 8px 20px hsl(var(--foreground) / 0.08);
 }
 
 .row {
@@ -103,17 +101,17 @@
 }
 
 .table thead th {
-  border-bottom: 1px solid rgb(148 163 184 / 40%);
+  border-bottom: 1px solid hsl(var(--border));
   font-weight: 600;
   font-size: 0.9rem;
 }
 
 .table tbody tr {
-  border-bottom: 1px dashed rgb(148 163 184 / 25%);
+  border-bottom: 1px dashed hsl(var(--border));
 }
 
 .table tbody tr:hover {
-  background-color: rgb(2 6 23 / 35%);
+  background-color: hsl(var(--muted));
 }
 
 .submitWrapper {
@@ -123,9 +121,9 @@
 
 .submitButton {
   padding: 0.8rem 1.25rem;
-  background-color: rgb(var(--color-primary-700));
-  color: #fff;
-  border: 1px solid rgb(var(--color-primary-600));
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: 1px solid hsl(var(--ring));
   border-radius: 0.75rem;
   cursor: pointer;
   font-weight: 700;
@@ -137,8 +135,8 @@
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 12px 22px rgb(2 6 23 / 45%);
-    background-color: rgb(var(--color-primary-600));
+    box-shadow: 0 12px 22px hsl(var(--foreground) / 0.15);
+    background-color: hsl(var(--primary) / 0.9);
   }
 }
 
