@@ -69,6 +69,7 @@
     "eslint-plugin-vitest": "^0.5.4",
     "jsdom": "^27.2.0",
     "lint-staged": "^16.2.7",
+    "markdownlint-cli": "^0.46.0",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "stylelint": "^16.26.0",
@@ -93,6 +94,9 @@
     "**/*.scss": [
       "stylelint --fix",
       "prettier --write"
+    ],
+    "**/*.md": [
+      "markdownlint --fix"
     ]
   }
 }
