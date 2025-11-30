@@ -76,6 +76,7 @@ export async function up({ context: queryInterface }) {
           onUpdate: 'CASCADE',
           onDelete: 'CASCADE',
           primaryKey: true,
+          allowNull: false,
         },
         matchSettingId: {
           type: DataTypes.INTEGER,
@@ -87,6 +88,7 @@ export async function up({ context: queryInterface }) {
           onUpdate: 'CASCADE',
           onDelete: 'CASCADE',
           primaryKey: true,
+          allowNull: false,
         },
       },
       { transaction }
