@@ -18,14 +18,14 @@ Before running anything, you should have:
 
 - **Git**
 - **Node.js**
-    - Required major version: **Node 25.x**
+  - Required major version: **Node 25.x**
 - **npm**
-    - Required major version: **npm 11.x**
+  - Required major version: **npm 11.x**
 - **Docker**
-    - macOS / Windows: Docker Desktop
-    - Linux / WSL2: Docker Engine
+  - macOS / Windows: Docker Desktop
+  - Linux / WSL2: Docker Engine
 - **Docker Compose (v2)**
-    - We use `docker compose` (the v2 plugin)
+  - We use `docker compose` (the v2 plugin)
 
 You can use any installation method you prefer, as long as the versions match the requirements above.
 
@@ -68,7 +68,7 @@ The script will:
     - into `.git/hooks` and makes them executable.
 
 4. **Create `.env` files**
-    - If not already present, creates `.env` files for docker and for backend/test environment variables from the provided templates. 
+    - If not already present, creates `.env` files for docker and for backend/test environment variables from the provided templates.
     - **If you need to customize any values in the .env files, do so after this step.**
 
 If any step fails, fix your local environment according to the error message and run `./setup.sh` again.
@@ -96,8 +96,9 @@ You can stop everything using the corresponding commands defined in `codymatch.s
 
 ## 4. Managing dependencies (npm)
 
-If you need to keep the team environment consistent (codymatch.sh already ensures that), 
-### **do not run `npm install` directly on your host machine**.
+If you need to keep the team environment consistent (codymatch.sh already ensures that),
+
+### **do not run `npm install` directly on your host machine**
 
 Instead, always run npm commands **through Docker**, using `codymatch.sh`.
 

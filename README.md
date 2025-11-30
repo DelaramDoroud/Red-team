@@ -70,12 +70,16 @@ Problem ->
 
 ## Contribution guidelines
 
-If you want to contribute to SPy, be sure to review the [contribution guidelines](CONTRIBUTING.md)
+If you want to contribute, be sure to review the [contribution guidelines](CONTRIBUTING.md)
 
 ## Development setup
+
 To set up your development environment, follow these steps:
+
 1. Clone the repository:
-   ```bash
+
+   ```sh
    git clone https://github.com/DelaramDoroud/Red-team
    ```
+
 2. Follow the installation instructions in the [SETUP.md](SETUP.md) file to configure your environment.
