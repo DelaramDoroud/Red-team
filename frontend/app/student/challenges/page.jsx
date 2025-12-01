@@ -56,17 +56,13 @@ export default function StudentChallengesPage() {
   useEffect(() => {
     let isCancelled = false;
     async function doFetch() {
+      if (isCancelled) return;
       setNow(new Date());
-      const res = await load();
-      if (!isCancelled && res.success) {
-        setChallenges(res.data);
-      }
+      await load();
     }
     doFetch();
-    const interval = setInterval(doFetch, 2000);
     return () => {
       isCancelled = true;
-      clearInterval(interval);
     };
   }, [load]);
 
