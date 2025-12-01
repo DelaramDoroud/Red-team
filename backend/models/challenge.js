@@ -120,7 +120,8 @@ Challenge.initializeRelations = function (models) {
 
 Challenge.getDefaultOrder = function () {
   return [
-    ['start_datetime', 'DESC'],
+    // Use the actual DB column to avoid alias/field mapping issues in ORDER BY
+    [sequelize.literal('"Challenge"."start_datetime"'), 'DESC'],
     ['id', 'DESC'],
   ];
 };
