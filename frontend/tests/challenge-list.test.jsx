@@ -3,6 +3,17 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ChallengeList from '#modules/challenge/list';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
 // We mock the hook so the test does not depend on a real backend.
 vi.mock('#js/useChallenge', () => ({
   default: () => ({
