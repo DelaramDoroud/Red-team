@@ -8,7 +8,10 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
-import joinChallenge from '#root/services/challenge-participant.js';
+import {
+  getChallengeParticipants,
+  joinChallenge,
+} from '#root/services/challenge-participant.js';
 import assignMatches from '#root/services/assign-matches.js';
 import { Op } from 'sequelize';
 
@@ -191,6 +194,37 @@ router.post('/challenges/:challengeId/join', async (req, res) => {
     return res.json({
       success: true,
       result: participation,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.get('/challenges/:challengeId/participants', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
+
+    const result = await getChallengeParticipants({ challengeId });
+
+    if (result.status === 'error') {
+      console.error('Error getting participants:', result.error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal Server Error',
+      });
+    }
+
+    const data = result.participants || [];
+
+    return res.json({
+      success: true,
+      data,
     });
   } catch (error) {
     handleException(res, error);

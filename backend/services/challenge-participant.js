@@ -2,7 +2,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Challenge from '#root/models/challenge.js';
 import User from '#root/models/user.js';
 
-export default async function joinChallenge({ studentId, challengeId }) {
+export async function joinChallenge({ studentId, challengeId }) {
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) {
     return { status: 'challenge_not_found' };
@@ -33,5 +33,27 @@ export default async function joinChallenge({ studentId, challengeId }) {
       return { status: 'already_joined' };
     }
     throw error;
+  }
+}
+export async function getChallengeParticipants({ challengeId }) {
+  if (!challengeId) {
+    return { status: 'error', message: 'Challenge ID is required' };
+  }
+
+  try {
+    const participants = await ChallengeParticipant.findAll({
+      where: { challengeId },
+      include: [{ model: User, as: 'student' }],
+      order: [['id', 'ASC']],
+    });
+
+    if (!participants || participants.length === 0) {
+      return { status: 'no_participants' };
+    }
+
+    return { status: 'ok', participants };
+  } catch (error) {
+    console.error('Error fetching challenge participants:', error);
+    return { status: 'error', error: error.message };
   }
 }

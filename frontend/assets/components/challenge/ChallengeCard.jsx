@@ -5,7 +5,7 @@ import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({ challenge, actions, href }) {
   const router = useRouter();
-  const { title, duration, startDatetime, status } = challenge;
+  const { title, duration, startDatetime, status, participants } = challenge;
 
   const start = startDatetime ? new Date(startDatetime) : null;
   const readableDate = start ? start.toLocaleString() : 'TBD';
@@ -49,6 +49,12 @@ export default function ChallengeCard({ challenge, actions, href }) {
           <dt>Start</dt>
           <dd>{readableDate}</dd>
         </div>
+        {typeof participants === 'number' && (
+          <div>
+            <dt>Students</dt>
+            <dd>{participants}</dd>
+          </div>
+        )}
       </dl>
       {actions ? (
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions

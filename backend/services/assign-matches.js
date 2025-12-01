@@ -5,6 +5,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Match from '#root/models/match.js';
 import MatchSetting from '#root/models/match-setting.js';
 import User from '#root/models/user.js';
+import { getChallengeParticipants } from '#root/services/challenge-participant.js';
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -31,12 +32,12 @@ export default async function assignMatches({
   if (!cmsList.length) return { status: 'no_match_settings' };
 
   // 3) Load joined participants
-  const participants = await ChallengeParticipant.findAll({
-    where: { challengeId },
-    include: [{ model: User, as: 'student' }],
-    order: [['id', 'ASC']],
-  });
-  if (!participants.length) return { status: 'no_participants' };
+  const participantsResult = await getChallengeParticipants({ challengeId });
+
+  if (participantsResult.status !== 'ok') {
+    return { status: participantsResult.status };
+  }
+  const participants = participantsResult.participants;
 
   // 4) Detect existing assignments
   const participantIds = participants.map((p) => p.id);
