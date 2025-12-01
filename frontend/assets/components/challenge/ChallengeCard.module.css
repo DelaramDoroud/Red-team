@@ -56,6 +56,24 @@
   color: rgb(251 191 36 / 90%);
 }
 
+.status-public {
+  border-color: rgb(59 130 246 / 75%);
+  color: rgb(37 99 235 / 90%);
+  background-color: rgb(59 130 246 / 0.08);
+}
+
+.status-assigned {
+  border-color: rgb(234 179 8 / 70%);
+  color: rgb(202 138 4 / 90%);
+  background-color: rgb(234 179 8 / 0.12);
+}
+
+.status-started {
+  border-color: rgb(52 211 153 / 70%);
+  color: rgb(22 163 74 / 90%);
+  background-color: rgb(52 211 153 / 0.12);
+}
+
 .status-archived {
   border-color: rgb(148 163 184 / 90%);
   color: rgb(148 163 184 / 90%);
@@ -75,4 +93,12 @@
 .meta dd {
   margin: 0;
   font-weight: 500;
+}
+
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }

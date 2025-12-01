@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import useChallenge from '#js/useChallenge';
+import { ChallengeStatus } from '#js/constants';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import Pagination from '#components/common/Pagination';
@@ -9,9 +10,10 @@ import { Button } from '#components/common/Button';
 import styles from './list.module.css';
 
 export default function ChallengeList() {
-  const { loading, getChallenges } = useChallenge();
+  const { loading, getChallenges, assignChallenge } = useChallenge();
   const [challenges, setChallenges] = useState([]);
   const [error, setError] = useState(null);
+  const [pending, setPending] = useState({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -33,6 +35,38 @@ export default function ChallengeList() {
       setChallenges([]);
     }
   }, [getChallenges]);
+
+  const setPendingAction = (id, key, value) => {
+    setPending((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [key]: value },
+    }));
+  };
+
+  const handleAssign = async (challengeId) => {
+    setError(null);
+    setPendingAction(challengeId, 'assign', true);
+    try {
+      const res = await assignChallenge(challengeId);
+      if (res?.success) {
+        setChallenges((prev) =>
+          prev.map((item) =>
+            item.id === challengeId
+              ? { ...item, status: ChallengeStatus.ASSIGNED }
+              : item
+          )
+        );
+      } else {
+        setError(
+          res?.error || res?.message || 'Unable to assign students to challenge'
+        );
+      }
+    } catch (_err) {
+      setError('Unable to assign students to challenge');
+    } finally {
+      setPendingAction(challengeId, 'assign', false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -69,6 +103,23 @@ export default function ChallengeList() {
           <ChallengeCard
             key={challenge.id ?? challenge.title}
             challenge={challenge}
+            actions={
+              // eslint-disable-next-line no-nested-ternary
+              challenge.status === ChallengeStatus.PUBLIC ? (
+                <Button
+                  onClick={() => handleAssign(challenge.id)}
+                  disabled={pending[challenge.id]?.assign}
+                >
+                  {pending[challenge.id]?.assign
+                    ? 'Assigning...'
+                    : 'Assign students'}
+                </Button>
+              ) : challenge.status === ChallengeStatus.ASSIGNED ? (
+                <Button variant='secondary' disabled>
+                  Start
+                </Button>
+              ) : null
+            }
           />
         ))}
       </div>

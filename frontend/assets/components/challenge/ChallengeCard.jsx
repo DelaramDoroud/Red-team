@@ -2,7 +2,7 @@
 
 import styles from './ChallengeCard.module.css';
 
-export default function ChallengeCard({ challenge }) {
+export default function ChallengeCard({ challenge, actions }) {
   const { title, duration, startDatetime, status } = challenge;
 
   const start = startDatetime ? new Date(startDatetime) : null;
@@ -28,6 +28,7 @@ export default function ChallengeCard({ challenge }) {
           <dd>{readableDate}</dd>
         </div>
       </dl>
+      {actions ? <div className={styles.actions}>{actions}</div> : null}
     </article>
   );
 }

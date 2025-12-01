@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -9,25 +9,25 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import { ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
-import styles from './page.module.css';
 
-// const dummyData = [
-//   {
-//     id: 1,
-//     title: 'Frontend Challenge',
-//     duration: '3 days',
-//     startDatetime: '2025-11-29 11:19',
-//     status: 'started',
-//   },
-//   {
-//     id: 2,
-//     title: 'Backend Coding Match',
-//     duration: '5 days',
-//     startDatetime: '2025-11-28 9:50',
-//     status: 'started',
-//   },
-// ];
+const statusStyles = {
+  [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/15',
+  [ChallengeStatus.ASSIGNED]:
+    'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
+  [ChallengeStatus.STARTED]:
+    'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-200',
+  [ChallengeStatus.PRIVATE]:
+    'bg-muted text-muted-foreground ring-1 ring-border',
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+};
 
 export default function StudentChallengesPage() {
   const { getChallenges, joinChallenge } = useChallenge();
@@ -35,6 +35,7 @@ export default function StudentChallengesPage() {
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
+  const [pendingActions, setPendingActions] = useState({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -66,48 +67,70 @@ export default function StudentChallengesPage() {
     };
   }, [load]);
 
-  function filterChallenges(allChallenges, joined, nowTime) {
-    return allChallenges.filter((c) => {
-      const start = new Date(c.startDatetime);
-      // const end = new Date(start.getTime() + 60 * 1000); // +1 minute
-
-      return nowTime >= start;
-    });
-  }
-
-  const allAvailableChallenges = filterChallenges(
-    challenges,
-    joinedChallenges,
-    now
+  const filterChallenges = useCallback(
+    (allChallenges, nowTime) =>
+      allChallenges.filter((challenge) => {
+        const start = new Date(challenge.startDatetime);
+        return nowTime >= start;
+      }),
+    []
   );
-  const visibleChallenges =
-    allAvailableChallenges.length > 0 ? [allAvailableChallenges[0]] : [];
+
+  const visibleChallenges = useMemo(() => {
+    const available = filterChallenges(challenges, now);
+    return available.length > 0 ? [available[0]] : [];
+  }, [challenges, filterChallenges, now]);
+
+  const setActionPending = (challengeId, actionKey, isPending) => {
+    setPendingActions((prev) => ({
+      ...prev,
+      [challengeId]: { ...(prev[challengeId] || {}), [actionKey]: isPending },
+    }));
+  };
+
   const handleJoin = async (challengeId) => {
+    setError(null);
+    setActionPending(challengeId, 'join', true);
     try {
       const res = await joinChallenge(challengeId, 1);
 
       if (res.success) {
         setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
       } else {
-        // console.error('Join failed', res.error);
+        setError(res?.error || res?.message || 'Unable to join the challenge');
       }
-    } catch (err) {
-      // console.error('Join error:', err);
+    } catch (_err) {
+      setError('Unable to join the challenge');
+    } finally {
+      setActionPending(challengeId, 'join', false);
     }
   };
-  function renderChallengeStatus(c) {
-    const joined = joinedChallenges[c.id];
-    const started = c.status === 'started';
+
+  const renderStatusBadge = (status) => {
+    const badgeStyles =
+      statusStyles[status] || statusStyles[ChallengeStatus.PRIVATE];
+    return (
+      <span
+        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ring-1 ${badgeStyles}`}
+      >
+        {status || 'draft'}
+      </span>
+    );
+  };
+
+  const renderStudentAction = (challenge) => {
+    const joined = joinedChallenges[challenge.id];
+    const started = challenge.status === ChallengeStatus.STARTED;
+    const isJoining = pendingActions[challenge.id]?.join;
 
     if (!joined && !started) {
       return (
         <Button
-          variant='default'
           size='lg'
-          className={styles.joinButton}
-          onClick={() => handleJoin(c.id)}
+          onClick={() => handleJoin(challenge.id)}
+          disabled={isJoining}
         >
-          Join
+          {isJoining ? 'Joining...' : 'Join'}
         </Button>
       );
     }
@@ -121,51 +144,90 @@ export default function StudentChallengesPage() {
     }
 
     return (
-      <div className='text-accent font-semibold text-sm'>
+      <div className='text-primary font-semibold text-sm'>
         Wait for the teacher to start the challenge.
       </div>
     );
-  }
+  };
 
   return (
-    <div className='max-w-4xl mx-auto p-6 space-y-6'>
-      <h1 className='text-3xl font-bold '>Available Challenges</h1>
+    <div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
+      <div className='space-y-2'>
+        <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+          Student area
+        </p>
+        <h1 className='text-3xl font-bold text-foreground'>
+          Available Challenges
+        </h1>
+        <p className='text-muted-foreground text-sm'>
+          Challenges become visible once their start time arrives. Join to be
+          included, then wait for your teacher to start the challenge.
+        </p>
+      </div>
 
-      <div>
+      <div className='space-y-3'>
         {error && (
-          <Card className='mb-4 shadow-sm'>
-            <CardContent className='py-6'>
-              <p className='text-destructive text-sm'>{error}</p>
+          <Card className='border border-destructive/30 bg-destructive/5 text-destructive'>
+            <CardContent className='py-4'>
+              <p className='text-sm'>{error}</p>
             </CardContent>
           </Card>
         )}
+
         {visibleChallenges.length === 0 ? (
-          <Card className='bg-white/5 border border-dashed border-white/20 text-white rounded-xl w-lg mb-4'>
+          <Card className='border border-dashed border-border bg-card text-card-foreground shadow-sm'>
             <CardContent className='py-6'>
-              <p className='text-warning text-sm'>
+              <p className='text-muted-foreground text-sm'>
                 There is no available challenge at the moment. Please wait for
                 your teacher to schedule one.
               </p>
             </CardContent>
           </Card>
         ) : (
-          visibleChallenges.map((c) => (
+          visibleChallenges.map((challenge) => (
             <Card
-              key={c.id}
-              className='bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-xl w-lg mb-4'
+              key={challenge.id}
+              className='border border-border bg-card text-card-foreground shadow-sm'
             >
-              <CardHeader className='pb-5'>
-                <CardTitle className='text-xl'>{c.title}</CardTitle>
+              <CardHeader className='pb-4'>
+                <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                  <div className='space-y-1.5'>
+                    <CardTitle className='text-xl font-semibold text-foreground'>
+                      {challenge.title}
+                    </CardTitle>
+                    <CardDescription className='text-muted-foreground text-sm leading-normal'>
+                      Join the challenge and wait for your teacher to assign
+                      matches.
+                    </CardDescription>
+                  </div>
+                  {renderStatusBadge(challenge.status)}
+                </div>
               </CardHeader>
 
               <CardContent>
-                <div className='flex items-center justify-between w-full'>
-                  <CardDescription className='text-gray-300 text-sm'>
-                    Start: {c.startDatetime}
-                    <br />
-                    Duration: {c.duration}
-                  </CardDescription>
-                  {renderChallengeStatus(c)}
+                <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                  <dl className='flex flex-wrap gap-6 text-sm text-muted-foreground'>
+                    <div className='space-y-1'>
+                      <dt className='text-xs font-semibold uppercase tracking-wide'>
+                        Start
+                      </dt>
+                      <dd className='text-foreground font-medium'>
+                        {formatDateTime(challenge.startDatetime)}
+                      </dd>
+                    </div>
+                    <div className='space-y-1'>
+                      <dt className='text-xs font-semibold uppercase tracking-wide'>
+                        Duration
+                      </dt>
+                      <dd className='text-foreground font-medium'>
+                        {challenge.duration} min
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className='flex flex-wrap gap-3 justify-end'>
+                    {renderStudentAction(challenge)}
+                  </div>
                 </div>
               </CardContent>
             </Card>

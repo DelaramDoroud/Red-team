@@ -6,6 +6,7 @@ import { given, when, andThen as then } from './bdd';
 
 const mockGetChallenges = vi.fn();
 const mockJoinChallenge = vi.fn();
+const mockAssignChallenge = vi.fn();
 
 vi.mock('#components/common/Button', () => {
   function Button({ children, ...props }) {
@@ -43,6 +44,7 @@ vi.mock('#js/useChallenge', () => ({
     loading: false,
     getChallenges: mockGetChallenges,
     joinChallenge: mockJoinChallenge,
+    assignChallenge: mockAssignChallenge,
     createChallenge: vi.fn(),
     publishChallenge: vi.fn(),
     unpublishChallenge: vi.fn(),

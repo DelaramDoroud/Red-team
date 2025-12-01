@@ -16,7 +16,7 @@ export default function useChallenge() {
 
   const joinChallenge = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenge/${challengeId}/join`;
+      const url = `${API_BASE}/challenges/${challengeId}/join`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,6 +46,15 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const assignChallenge = useCallback(
+    async (challengeId, overwrite = false) => {
+      const searchParams = overwrite ? '?overwrite=true' : '';
+      const url = `${API_BASE}/challenges/${challengeId}/assign${searchParams}`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
+
   const unpublishChallenge = useCallback(
     async (id) => {
       const url = `${API_BASE}/challenges/${id}/unpublish`;
@@ -60,6 +69,7 @@ export default function useChallenge() {
     joinChallenge,
     createChallenge,
     publishChallenge,
+    assignChallenge,
     unpublishChallenge,
   };
 }
