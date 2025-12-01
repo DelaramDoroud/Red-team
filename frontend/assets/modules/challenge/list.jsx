@@ -103,6 +103,7 @@ export default function ChallengeList() {
           <ChallengeCard
             key={challenge.id ?? challenge.title}
             challenge={challenge}
+            href={`/challenges/${challenge.id}`}
             actions={
               // eslint-disable-next-line no-nested-ternary
               challenge.status === ChallengeStatus.PUBLIC ? (

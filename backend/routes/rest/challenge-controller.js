@@ -2,6 +2,10 @@ import { Router } from 'express';
 import sequelize from '#root/services/sequelize.js';
 import Challenge, { validateChallengeData } from '#root/models/challenge.js';
 import MatchSetting from '#root/models/match-setting.js';
+import Match from '#root/models/match.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import User from '#root/models/user.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import joinChallenge from '#root/services/challenge-participant.js';
@@ -230,6 +234,86 @@ router.post('/challenges/:challengeId/assign', async (req, res) => {
     }
 
     return res.json({ success: true, ...result });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.get('/challenges/:challengeId/matches', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    const matches = await Match.findAll({
+      include: [
+        {
+          model: ChallengeMatchSetting,
+          as: 'challengeMatchSetting',
+          where: { challengeId },
+          include: [{ model: MatchSetting, as: 'matchSetting' }],
+        },
+        {
+          model: ChallengeParticipant,
+          as: 'challengeParticipant',
+          include: [{ model: User, as: 'student' }],
+        },
+      ],
+      order: [
+        ['id', 'ASC'],
+        [{ model: ChallengeMatchSetting, as: 'challengeMatchSetting' }, 'id'],
+      ],
+    });
+
+    const grouped = {};
+    matches.forEach((matchRow) => {
+      const cmsId = matchRow.challengeMatchSettingId;
+      if (!grouped[cmsId]) {
+        grouped[cmsId] = {
+          challengeMatchSettingId: cmsId,
+          matchSetting: matchRow.challengeMatchSetting?.matchSetting
+            ? {
+                id: matchRow.challengeMatchSetting.matchSetting.id,
+                problemTitle:
+                  matchRow.challengeMatchSetting.matchSetting.problemTitle,
+              }
+            : null,
+          matches: [],
+        };
+      }
+
+      grouped[cmsId].matches.push({
+        id: matchRow.id,
+        student: matchRow.challengeParticipant?.student
+          ? {
+              id: matchRow.challengeParticipant.student.id,
+              username: matchRow.challengeParticipant.student.username,
+            }
+          : null,
+      });
+    });
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: challenge.id,
+        title: challenge.title,
+        status: challenge.status,
+        startDatetime: challenge.startDatetime,
+        duration: challenge.duration,
+      },
+      assignments: Object.values(grouped),
+    });
   } catch (error) {
     handleException(res, error);
   }

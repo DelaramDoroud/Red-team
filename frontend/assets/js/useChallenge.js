@@ -14,6 +14,14 @@ export default function useChallenge() {
     return fetchData(url);
   }, [fetchData]);
 
+  const getChallengeMatches = useCallback(
+    async (challengeId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/matches`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
+
   const joinChallenge = useCallback(
     async (challengeId, studentId) => {
       const url = `${API_BASE}/challenges/${challengeId}/join`;
@@ -66,6 +74,7 @@ export default function useChallenge() {
   return {
     loading,
     getChallenges,
+    getChallengeMatches,
     joinChallenge,
     createChallenge,
     publishChallenge,

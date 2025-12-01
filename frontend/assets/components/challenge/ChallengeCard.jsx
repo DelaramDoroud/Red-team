@@ -1,15 +1,37 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import styles from './ChallengeCard.module.css';
 
-export default function ChallengeCard({ challenge, actions }) {
+export default function ChallengeCard({ challenge, actions, href }) {
+  const router = useRouter();
   const { title, duration, startDatetime, status } = challenge;
 
   const start = startDatetime ? new Date(startDatetime) : null;
   const readableDate = start ? start.toLocaleString() : 'TBD';
 
+  const handleNavigate = () => {
+    if (href) router.push(href);
+  };
+
+  const handleKeyDown = (event) => {
+    if (!href) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      router.push(href);
+    }
+  };
+
   return (
-    <article className={styles.card}>
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <article
+      className={`${styles.card} ${href ? styles.clickable : ''}`}
+      role={href ? 'link' : undefined}
+      /* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */
+      tabIndex={href ? 0 : undefined}
+      onClick={handleNavigate}
+      onKeyDown={handleKeyDown}
+    >
       <header className={styles.header}>
         <h2 className={styles.title}>{title}</h2>
         {status && (
@@ -28,7 +50,12 @@ export default function ChallengeCard({ challenge, actions }) {
           <dd>{readableDate}</dd>
         </div>
       </dl>
-      {actions ? <div className={styles.actions}>{actions}</div> : null}
+      {actions ? (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions
+        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
+          {actions}
+        </div>
+      ) : null}
     </article>
   );
 }

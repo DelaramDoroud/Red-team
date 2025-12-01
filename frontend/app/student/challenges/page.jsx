@@ -121,9 +121,10 @@ export default function StudentChallengesPage() {
   const renderStudentAction = (challenge) => {
     const joined = joinedChallenges[challenge.id];
     const started = challenge.status === ChallengeStatus.STARTED;
+    const assigned = challenge.status === ChallengeStatus.ASSIGNED;
     const isJoining = pendingActions[challenge.id]?.join;
 
-    if (!joined && !started) {
+    if (!joined && !started && !assigned) {
       return (
         <Button
           size='lg'
@@ -132,6 +133,14 @@ export default function StudentChallengesPage() {
         >
           {isJoining ? 'Joining...' : 'Join'}
         </Button>
+      );
+    }
+
+    if (!joined && assigned) {
+      return (
+        <div className='text-primary font-semibold text-sm'>
+          Wait for the teacher to start the challenge.
+        </div>
       );
     }
 

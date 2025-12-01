@@ -14,6 +14,10 @@
     border-color 180ms ease;
 }
 
+.card.clickable {
+  cursor: pointer;
+}
+
 .card:hover {
   transform: translateY(-2px);
   box-shadow:
@@ -27,6 +31,17 @@
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.linkWrapper {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  outline: none;
+}
+.card.clickable:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
 }
 
 .title {
