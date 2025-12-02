@@ -155,11 +155,11 @@ test)
     echo "Running frontend tests..."
 
     if [[ "$STOP_AFTER" == true ]]; then
-      # Non-watch mode for frontend (single run)
-      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
-        "npm run test:run"
+      "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
+        -e CI=true \
+        frontend sh -c "npx vitest run"
       FRONTEND_TEST_EXIT_CODE=$?
-    else
+  else
       # Default frontend test script
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
         "npm run test"
