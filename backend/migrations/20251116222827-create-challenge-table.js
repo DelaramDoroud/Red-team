@@ -27,14 +27,9 @@ export async function up({ context: queryInterface }) {
       field: 'end_datetime',
       allowNull: false,
     },
-    peerReviewStartDate: {
-      type: Sequelize.DATE,
-      field: 'peer_review_start_date',
-      allowNull: false,
-    },
-    peerReviewEndDate: {
-      type: Sequelize.DATE,
-      field: 'peer_review_end_date',
+    durationPeerReview: {
+      type: Sequelize.INTEGER,
+      field: 'duration_peer_review',
       allowNull: false,
     },
     allowedNumberOfReview: {

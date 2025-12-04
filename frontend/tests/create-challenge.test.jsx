@@ -90,11 +90,9 @@ describe('Create Challenge Page', () => {
     const endInput = screen.getByLabelText(/End Date\/Time/i);
     fireEvent.change(endInput, { target: { value: '2025-12-01T12:00' } });
 
-    const pStartInput = screen.getByLabelText(/Peer Review Start/i);
-    fireEvent.change(pStartInput, { target: { value: '2025-12-01T12:05' } });
-
-    const pEndInput = screen.getByLabelText(/Peer Review End/i);
-    fireEvent.change(pEndInput, { target: { value: '2025-12-02T12:00' } });
+    const durationPeerReviewInput = screen.getByLabelText(/Duration\/Peer\/Review/i);
+    await user.clear(durationPeerReviewInput);
+    await user.type(durationPeerReviewInput, '60');
 
     const createButton = screen.getByRole('button', { name: /Create/i });
     await user.click(createButton);
@@ -130,13 +128,10 @@ describe('Create Challenge Page', () => {
     fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
       target: { value: '2025-12-01T12:00' },
     });
-    fireEvent.change(screen.getByLabelText(/Peer Review Start/i), {
-      target: { value: '2025-12-01T12:05' },
-    });
-    fireEvent.change(screen.getByLabelText(/Peer Review End/i), {
-      target: { value: '2025-12-02T12:00' },
-    });
-
+    
+    const durationPeerReviewInput = screen.getByLabelText(/Duration\/Peer\/Review/i);
+    await user.clear(durationPeerReviewInput);
+    await user.type(durationPeerReviewInput, '60');
     const checkbox = await screen.findAllByLabelText('select setting');
     await user.click(checkbox[0]); // Select first one
 

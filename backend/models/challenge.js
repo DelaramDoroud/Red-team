@@ -54,14 +54,9 @@ const Challenge = sequelize.define(
       field: 'end_datetime',
       allowNull: false,
     },
-    peerReviewStartDate: {
-      type: DataTypes.DATE,
-      field: 'peer_review_start_date',
-      allowNull: false,
-    },
-    peerReviewEndDate: {
-      type: DataTypes.DATE,
-      field: 'peer_review_end_date',
+    durationPeerReview: {
+      type: DataTypes.INTEGER,
+      field: 'duration_peer_review',
       allowNull: false,
     },
     allowedNumberOfReview: {
@@ -158,8 +153,7 @@ Challenge.seed = async function () {
       duration: 60,
       startDatetime: '2025-12-01T09:00:00Z',
       endDatetime: '2025-12-01T10:00:00Z',
-      peerReviewStartDate: '2025-12-01T10:30:00Z',
-      peerReviewEndDate: '2025-12-01T12:00:00Z',
+      durationPeerReview: 60,
       allowedNumberOfReview: 3,
       status: 'public',
     });

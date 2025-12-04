@@ -25,13 +25,10 @@
       "type": "string",
       "format": "date-time"
     },
-    "peerReviewStartDate": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "peerReviewEndDate": {
-      "type": "string",
-      "format": "date-time"
+    "durationPeerReview": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Duration peer review in minutes"
     },
     "allowedNumberOfReview": {
       "type": "integer",
@@ -50,8 +47,7 @@
     "duration",
     "startDatetime",
     "endDatetime",
-    "peerReviewStartDate",
-    "peerReviewEndDate"
+    "durationPeerReview"
   ],
   "additionalProperties": false
 }

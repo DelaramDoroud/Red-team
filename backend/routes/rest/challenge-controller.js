@@ -41,8 +41,7 @@ router.post('/challenges', async (req, res) => {
     duration: req.body.duration,
     startDatetime: req.body.startDatetime,
     endDatetime: req.body.endDatetime,
-    peerReviewStartDate: req.body.peerReviewStartDate,
-    peerReviewEndDate: req.body.peerReviewEndDate,
+    durationPeerReview: req.body.durationPeerReview,
     allowedNumberOfReview: req.body.allowedNumberOfReview || 0,
     status: req.body.status || 'private',
   };

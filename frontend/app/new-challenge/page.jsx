@@ -13,6 +13,7 @@ export default function NewChallengePage() {
   const router = useRouter();
   const { getMatchSettingsReady } = useMatchSettings();
   const { createChallenge } = useChallenge();
+  const mountedRef = useRef(false);
 
   const [challenge, setChallenge] = useState({
     title: '',
@@ -21,8 +22,7 @@ export default function NewChallengePage() {
     duration: 30,
     matchSettingIds: [],
     status: Constants.ChallengeStatus.PUBLIC,
-    peerReviewStartDate: '',
-    peerReviewEndDate: '',
+    durationPeerReview: 30
   });
   const [matchSettings, setMatchSettings] = useState([]);
   const [error, setError] = useState(null);
@@ -31,17 +31,64 @@ export default function NewChallengePage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
-  const safeMatchSettings = matchSettings || [];
-  const currentItems = safeMatchSettings.slice(
-    (currentPage - 1) * pageSize,
-    (currentPage - 1) * pageSize + pageSize
-  );
-  const totalPages = Math.ceil(safeMatchSettings.length / pageSize);
+  const totalPages = Math.ceil(matchSettings.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentItems = matchSettings.slice(startIndex, endIndex);
 
-  const mountedRef = useRef(false);
+  const toggleSetting = (id) => {
+    setChallenge((prev) => ({
+      ...prev,
+      matchSettingIds: prev.matchSettingIds.includes(id)
+        ? prev.matchSettingIds.filter((s) => s !== id)
+        : [...prev.matchSettingIds, id],
+    }));
+  };
+
+  const handleDataField = (event) => {
+    const newChallenge = { ...challenge };
+
+    if (event.target.name === 'duration' || event.target.name === 'durationPeerReview') {
+      const val = parseInt(event.target.value, 10);
+      newChallenge[event.target.name] = Number.isNaN(val) ? 0 : val;
+    }else{
+      newChallenge[event.target.name] = event.target.value;
+    }
+    if (event.target.name === 'startDatetime' || event.target.name === 'duration' || event.target.name === 'durationPeerReview'){
+      const startVal = newChallenge.startDatetime;
+      const durationVal = newChallenge.duration;
+      const durationPeerReviewVal = newChallenge.durationPeerReview;
+      if (startVal && durationVal && durationPeerReviewVal) {
+        const start = new Date(startVal);
+        if (!Number.isNaN(start.getTime())) {
+          const durationMs = (durationVal || 0) * 60 * 1000;
+          const durationPeerReviewMs = (durationPeerReviewVal || 0) * 60 * 1000;
+          const minEndDate = new Date(start.getTime() + durationMs + durationPeerReviewMs);
+
+          const year = minEndDate.getFullYear();
+          const month = String(minEndDate.getMonth() + 1).padStart(2, '0');
+          const day = String(minEndDate.getDate()).padStart(2, '0');
+          const hours = String(minEndDate.getHours()).padStart(2, '0');
+          const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
+          const minEndStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+          if (!newChallenge.endDatetime || newChallenge.endDatetime < minEndStr) {
+            newChallenge.endDatetime = minEndStr;
+          }
+        }
+      }
+    }
+    setChallenge(newChallenge);
+  };
+
+  const toISODateTime = (localDateTime) => {
+    if (!localDateTime) return null;
+    const dt = new Date(localDateTime);
+    return dt.toISOString();
+  };
 
   useEffect(() => {
-    mountedRef.current = true;
+     mountedRef.current = true;
     const loadData = async () => {
       setError(null);
       try {
@@ -65,113 +112,87 @@ export default function NewChallengePage() {
     return () => {
       mountedRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleSetting = (id) => {
-    setChallenge((prev) => ({
-      ...prev,
-      matchSettingIds: prev.matchSettingIds.includes(id)
-        ? prev.matchSettingIds.filter((s) => s !== id)
-        : [...prev.matchSettingIds, id],
-    }));
+  const getMinDateTime = () => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    // Adjust to local time string
+    const offsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
   };
 
-  const handleDataField = (event) => {
-    const { name, value } = event.target;
-    const newChallenge = { ...challenge };
-
-    if (name === 'duration') {
-      newChallenge[name] = value === '' ? '' : parseInt(value, 10);
-    } else {
-      newChallenge[name] = value;
-    }
-
-    if (name === 'startDatetime' || name === 'duration') {
-      const startVal = newChallenge.startDatetime;
-      const durationVal =
-        newChallenge.duration === '' || Number.isNaN(newChallenge.duration)
-          ? 0
-          : newChallenge.duration;
-
-      if (startVal) {
-        const start = new Date(startVal);
-        if (!Number.isNaN(start.getTime())) {
-          const durationMs = durationVal * 60 * 1000;
-          const minEndDate = new Date(start.getTime() + durationMs);
-          const minEndStr = minEndDate.toISOString().slice(0, 16);
-
-          if (
-            !newChallenge.endDatetime ||
-            newChallenge.endDatetime < minEndStr
-          ) {
-            newChallenge.endDatetime = minEndStr;
-          }
-        }
-      }
-    }
-    setChallenge(newChallenge);
-  };
-
-  const toISODateTime = (localDateTime) => {
-    if (!localDateTime) return null;
-    return new Date(localDateTime).toISOString();
+  const getMinEndDate = () => {
+    if (!challenge.startDatetime) 
+      return getMinDateTime();
+    const start = new Date(challenge.startDatetime);
+    if (Number.isNaN(start.getTime())) 
+      return getMinDateTime();
+    const durationMs = (challenge.duration + challenge.durationPeerReview || 0) * 60 * 1000;
+    const minEndDate = new Date(start.getTime() + durationMs);
+    const year = minEndDate.getFullYear();
+    const month = String(minEndDate.getMonth() + 1).padStart(2, '0');
+    const day = String(minEndDate.getDate()).padStart(2, '0');
+    const hours = String(minEndDate.getHours()).padStart(2, '0');
+    const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // console.log("Challenge to save: ", challenge);
     setError(null);
+    if (challenge.matchSettingIds.length === 0) {
+      setError('Select at least one match setting.');
+    } else {
+      const start = new Date(challenge.startDatetime);
+      const end = new Date(challenge.endDatetime);
+      const finalTime = new Date(start.getTime() + (duration + durationPeerReview) * 60000);
 
-    if (!challenge.matchSettingIds || challenge.matchSettingIds.length === 0) {
-      setError('Select at least one match setting');
-      return;
-    }
-
-    const start = new Date(challenge.startDatetime);
-    const end = new Date(challenge.endDatetime);
-    const peerStart = new Date(challenge.peerReviewStartDate);
-    const peerEnd = new Date(challenge.peerReviewEndDate);
-
-    if (start > end) {
-      setError('End date/time cannot be before start date/time.');
-      return;
-    }
-    if (end > peerStart) {
-      setError('Peer review start cannot be before challenge end.');
-      return;
-    }
-    if (peerStart > peerEnd) {
-      setError('Peer review end cannot be before peer review start.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    const payload = {
-      ...challenge,
-      startDatetime: toISODateTime(challenge.startDatetime),
-      endDatetime: toISODateTime(challenge.endDatetime),
-      peerReviewStartDate: toISODateTime(challenge.peerReviewStartDate),
-      peerReviewEndDate: toISODateTime(challenge.peerReviewEndDate),
-    };
-
-    try {
-      const result = await createChallenge(payload);
-
-      if (result?.success) {
-        setSuccessMessage('Challenge created successfully! Redirecting...');
-        setTimeout(() => router.push('/challenges'), 3000);
+      if (start > end) {
+        setError('End date/time cannot be before start date/time.');
+      }  else if (finalTime > end) {
+        setError('End date/time must accommodate challenge and peer review durations.');
       } else {
-        setError(result?.message || 'Error occurred');
-        setIsSubmitting(false);
+        setIsSubmitting(true);
+        const payload = {
+          ...challenge,
+          startDatetime: toISODateTime(challenge.startDatetime),
+          endDatetime: toISODateTime(challenge.endDatetime),
+        };
+        try {
+          const result = await createChallenge(payload);
+          // console.log("Result: ", result)
+          if (result?.success) {
+            setSuccessMessage('Challenge created successfully! Redirecting...');
+            // console.log("Challenge:", result);
+            setTimeout(() => {
+              router.push('/challenges');
+            }, 3000);
+          } else {
+            let errorMsg = 'An unknown error occurred';
+            const message = result?.message.slice(
+              Constants.NETWORK_RESPONSE_NOT_OK.length
+            );
+            const jsonError = JSON.parse(message);
+            if (jsonError.error?.errors?.length > 0) {
+              errorMsg = jsonError.error.errors[0].message;
+            } else if (jsonError?.message) {
+              errorMsg = jsonError.message;
+            } else if (jsonError?.error?.message) {
+              errorMsg = jsonError?.error?.message;
+            }
+            setError(errorMsg);
+            setIsSubmitting(false);
+          }
+        } catch (err) {
+          // console.error(err);
+          setError(`Error: ${err.message}`);
+          setIsSubmitting(false);
+        }
       }
-    } catch (err) {
-      setError(`Error: ${err.message}`);
-      setIsSubmitting(false);
     }
   };
-
-  const getVal = (val) =>
-    Number.isNaN(val) || val === null || val === undefined ? '' : val;
 
   return (
     <main className={styles.main} aria-labelledby='page-title'>
@@ -183,99 +204,85 @@ export default function NewChallengePage() {
         <div className={styles.field}>
           <label htmlFor='title'>
             Challenge Name
-            <input
-              id='title'
-              type='text'
-              value={challenge.title}
-              onChange={handleDataField}
-              name='title'
-              className={styles.input}
-              required
-            />
+            <input id='title' type='text' value={challenge.title} onChange={handleDataField} name='title'
+            className={styles.input} required/>
           </label>
         </div>
         <div className={styles.row}>
           <div className={styles.field}>
-            <label htmlFor='startDatetime'>
-              Start Date/Time
-              <input
-                id='startDatetime'
-                type='datetime-local'
-                value={challenge.startDatetime}
-                onChange={handleDataField}
-                name='startDatetime'
-                className={styles.datetime}
-                required
-              />
-            </label>
+            <label htmlFor="startDatetime">Start Date/Time</label>
+            <input
+              id="startDatetime"
+              type="datetime-local"
+              name="startDatetime"
+              value={challenge.startDatetime}
+              onChange={handleDataField}
+              className={styles.datetime}
+              min={getMinDateTime()}
+              required
+            />
           </div>
           <div className={styles.field}>
-            <label htmlFor='duration'>
-              Duration (min)
+            <label htmlFor="endDatetime">End Date/Time</label>
+            <input
+              id="endDatetime"
+              type="datetime-local"
+              name="endDatetime"
+              value={challenge.endDatetime}
+              onChange={handleDataField}
+              className={styles.datetime}
+              min={getMinEndDate()}
+              required
+              disabled={!challenge.startDatetime || !challenge.duration}
+            />
+          </div>
+        </div>
+        <div>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label htmlFor="duration">Duration (min)</label>
               <input
-                id='duration'
-                type='number'
-                value={getVal(challenge.duration)}
+                id="duration"
+                type="number"
+                name="duration"
+                value={challenge.duration}
                 onChange={handleDataField}
-                name='duration'
                 className={styles.number}
                 min={1}
                 required
               />
-            </label>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="durationPeerReview">Duration Peer Review (min)</label>
+              <input
+                id="durationPeerReview"
+                type="number"
+                name="durationPeerReview"
+                value={challenge.durationPeerReview}
+                onChange={handleDataField}
+                className={styles.number}
+                min={1}
+                required
+              />
+            </div>
           </div>
-        </div>
-        <div className={styles.field}>
-          <label htmlFor='endDatetime'>
-            End Date/Time
-            <input
-              id='endDatetime'
-              type='datetime-local'
-              value={challenge.endDatetime}
-              name='endDatetime'
-              onChange={handleDataField}
-              className={styles.datetime}
-              required
-            />
-          </label>
-        </div>
-        <div className={styles.field}>
-          <label htmlFor='peerReviewStartDate'>
-            Peer Review Start
-            <input
-              id='peerReviewStartDate'
-              type='datetime-local'
-              value={challenge.peerReviewStartDate}
-              name='peerReviewStartDate'
-              onChange={handleDataField}
-              className={styles.datetime}
-              required
-            />
-          </label>
-        </div>
-        <div className={styles.field}>
-          <label htmlFor='peerReviewEndDate'>
-            Peer Review End
-            <input
-              id='peerReviewEndDate'
-              type='datetime-local'
-              value={challenge.peerReviewEndDate}
-              name='peerReviewEndDate'
-              onChange={handleDataField}
-              className={styles.datetime}
-              required
-            />
-          </label>
         </div>
         <div className={styles.field}>
           <span>Status</span>
           <ToggleSwitch
             checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
-            label='Public'
+            label={
+              challenge.status === Constants.ChallengeStatus.PUBLIC
+                ? 'Public'
+                : 'Private'
+            }
             onChange={() =>
-              setChallenge((p) => ({
-                ...p,
-                status: p.status === 'public' ? 'private' : 'public',
+              setChallenge((prev) => ({
+                ...prev,
+                status:
+                  prev.status === Constants.ChallengeStatus.PUBLIC
+                    ? Constants.ChallengeStatus.PRIVATE
+                    : Constants.ChallengeStatus.PUBLIC,
               }))
             }
           />
@@ -317,14 +324,7 @@ export default function NewChallengePage() {
 
         <div className={styles.submitWrapper}>
           <div className={styles.feedback} aria-live='polite'>
-            {error && (
-              <span
-                className={styles.feedbackError}
-                style={{ color: 'red', display: 'block' }}
-              >
-                ERROR: {error}
-              </span>
-            )}
+            {error && <span className={styles.feedbackError}>{error}</span>}
             {!error && successMessage && (
               <span className={styles.feedbackSuccess}>{successMessage}</span>
             )}
@@ -333,7 +333,9 @@ export default function NewChallengePage() {
             type='submit'
             className={styles.submitButton}
             disabled={isSubmitting}
+            aria-busy={isSubmitting}
           >
+            {isSubmitting && <span className={styles.spinner} aria-hidden />}
             {isSubmitting ? 'Creating…' : 'Create'}
           </button>
         </div>
