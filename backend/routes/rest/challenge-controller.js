@@ -357,6 +357,7 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         status: challenge.status,
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
+        startedAt: challenge.startedAt,
       },
     });
   } catch (error) {
@@ -438,6 +439,58 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         duration: challenge.duration,
       },
       assignments: Object.values(grouped),
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+router.get('/challenges/:challengeId/status', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
+
+    const studentId = Number(req.query.studentId);
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid studentId',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    // check the student actually joined
+    const participation = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+
+    if (!participation) {
+      return res.status(403).json({
+        success: false,
+        error: 'Student has not joined this challenge',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: challenge.id,
+        status: challenge.status,
+        startDatetime: challenge.startDatetime,
+        duration: challenge.duration,
+        startedAt: challenge.startedAt,
+      },
     });
   } catch (error) {
     handleException(res, error);
