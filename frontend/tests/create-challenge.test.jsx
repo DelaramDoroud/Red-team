@@ -4,6 +4,22 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import NewChallengePage from '../app/new-challenge/page';
 
+// Helper function to get a future datetime string in the format required by datetime-local input
+const getFutureDateTime = (hoursFromNow = 1) => {
+  const date = new Date();
+  date.setHours(date.getHours() + hoursFromNow);
+  date.setMinutes(0);
+  date.setSeconds(0);
+  date.setMilliseconds(0);
+  // Format as YYYY-MM-DDTHH:mm for datetime-local input
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -72,11 +88,14 @@ describe('Create Challenge Page', () => {
 
     await user.type(screen.getByLabelText(/Challenge Name/i), 'Test Challenge');
 
+    const startDateTime = getFutureDateTime(1); // 1 hour from now
+    const endDateTime = getFutureDateTime(3); // 3 hours from now
+
     fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
-      target: { value: '2025-12-01T10:00' },
+      target: { value: startDateTime },
     });
     fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
-      target: { value: '2025-12-01T12:00' },
+      target: { value: endDateTime },
     });
 
     await user.clear(screen.getByLabelText('Duration (min)'));
@@ -106,11 +125,14 @@ describe('Create Challenge Page', () => {
       'Valid Challenge'
     );
 
+    const startDateTime = getFutureDateTime(1); // 1 hour from now
+    const endDateTime = getFutureDateTime(3); // 3 hours from now
+
     fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
-      target: { value: '2025-12-01T10:00' },
+      target: { value: startDateTime },
     });
     fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
-      target: { value: '2025-12-01T12:00' },
+      target: { value: endDateTime },
     });
 
     await user.clear(screen.getByLabelText('Duration (min)'));
@@ -131,8 +153,8 @@ describe('Create Challenge Page', () => {
         durationPeerReview: 60,
         matchSettingIds: [1],
         status: 'public',
-        startDatetime: expect.stringContaining('2025-12-01'),
-        endDatetime: expect.stringContaining('2025-12-01'),
+        startDatetime: expect.any(String),
+        endDatetime: expect.any(String),
       })
     );
 
@@ -152,11 +174,14 @@ describe('Create Challenge Page', () => {
     const user = userEvent.setup();
     render(<NewChallengePage />);
 
+    await screen.findByText('Ready Problem 1');
+
+    await user.type(screen.getByLabelText(/Challenge Name/i), 'Test Challenge');
+
+    const startDateTime = getFutureDateTime(1); // 1 hour from now
+
     fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
-      target: { value: '2025-12-01T10:00' },
-    });
-    fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
-      target: { value: '2025-12-01T11:00' },
+      target: { value: startDateTime },
     });
 
     await user.clear(screen.getByLabelText('Duration (min)'));
@@ -165,15 +190,27 @@ describe('Create Challenge Page', () => {
     await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
     await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
 
+    // Set endDatetime LAST, after all other fields, so it doesn't get auto-updated
+    // End time is only 1 hour after start, but we need 2 hours (60min challenge + 60min review)
+    // So it should fail validation (needs start + 2 hours minimum)
+    const invalidEndDateTime = getFutureDateTime(2); // Only 2 hours from now (1 hour after start)
+    fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
+      target: { value: invalidEndDateTime },
+    });
+
     const checkbox = await screen.findAllByLabelText('select setting');
     await user.click(checkbox[0]);
 
-    await user.click(screen.getByTestId('create-challenge-button'));
+    fireEvent.submit(screen.getByTestId('challenge-form'));
 
-    mockCreateChallenge.mockResolvedValue({
-      success: false,
-      message:
-        'End date/time must accommodate challenge and peer review durations',
-    });
+    // Wait for the error message to appear (client-side validation)
+    expect(
+      await screen.findByText(
+        /End date\/time must accommodate challenge and peer review durations/i
+      )
+    ).toBeInTheDocument();
+
+    // Verify the API was not called due to client-side validation
+    expect(mockCreateChallenge).not.toHaveBeenCalled();
   });
 });
