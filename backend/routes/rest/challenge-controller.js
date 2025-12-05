@@ -13,6 +13,8 @@ import {
   joinChallenge,
 } from '#root/services/challenge-participant.js';
 import assignMatches from '#root/services/assign-matches.js';
+import startChallengeService from '#root/services/start-challenge.js';
+
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -273,6 +275,90 @@ router.post('/challenges/:challengeId/assign', async (req, res) => {
     }
 
     return res.json({ success: true, ...result });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+router.post('/challenges/:challengeId/start', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const result = await startChallengeService({ challengeId });
+
+    if (result.status === 'challenge_not_found') {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (result.status === 'invalid_status') {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge must be assigned before it can be started.',
+        currentStatus: result.challengeStatus,
+      });
+    }
+
+    if (result.status === 'too_early') {
+      return res.status(400).json({
+        success: false,
+        error: 'Challenge cannot be started before its start time.',
+      });
+    }
+
+    if (result.status === 'no_participants') {
+      return res.status(400).json({
+        success: false,
+        error: 'No participants joined. Challenge cannot be started.',
+      });
+    }
+
+    if (result.status === 'no_matches') {
+      return res.status(400).json({
+        success: false,
+        error: 'No matches assigned. Challenge cannot be started.',
+      });
+    }
+
+    if (result.status === 'already_started') {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge already started.',
+      });
+    }
+
+    if (result.status === 'participants_error') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to load participants.',
+      });
+    }
+
+    if (result.status !== 'ok') {
+      //for any unexpected status that we dont know
+      return res.status(500).json({
+        success: false,
+        error: 'Unknown error starting challenge.',
+      });
+    }
+
+    const { challenge } = result;
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: challenge.id,
+        title: challenge.title,
+        status: challenge.status,
+        startDatetime: challenge.startDatetime,
+        duration: challenge.duration,
+      },
+    });
   } catch (error) {
     handleException(res, error);
   }
