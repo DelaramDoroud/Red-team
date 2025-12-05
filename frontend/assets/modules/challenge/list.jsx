@@ -104,6 +104,7 @@ export default function ChallengeList() {
               newCounts[challenge.id] = 0;
             }
           } catch (err) {
+            // eslint-disable-next-line no-console
             console.error(err);
             newCounts[challenge.id] = 0;
           }

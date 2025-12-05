@@ -9,10 +9,15 @@ export default function ToggleSwitch({ checked, onChange, label }) {
   return (
     <div className={styles.switchWrapper}>
       <div className={styles.switch}>
-        <input id={id} type="checkbox" checked={checked} onChange={onChange} className={styles.input}/>
+        <input
+          id={id}
+          type='checkbox'
+          checked={checked}
+          onChange={onChange}
+          className={styles.input}
+        />
         <span className={styles.slider} />
       </div>
-
       <label htmlFor={id} className={styles.labelText}>
         {label}
       </label>
