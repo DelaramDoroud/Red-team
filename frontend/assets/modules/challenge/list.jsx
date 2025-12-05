@@ -154,7 +154,10 @@ export default function ChallengeList() {
       <div className={styles.grid}>
         {currentItems.map((challenge) => {
           const studentCount = participantsMap[challenge.id] || 0;
-
+          const hasStudents = studentCount > 0;
+          const now = new Date();
+          const canStartNow =
+            challenge.startDatetime && new Date(challenge.startDatetime) <= now;
           return (
             <ChallengeCard
               key={challenge.id ?? challenge.title}
@@ -162,10 +165,21 @@ export default function ChallengeList() {
               href={`/challenges/${challenge.id}`}
               actions={
                 // eslint-disable-next-line no-nested-ternary
-                challenge.status === ChallengeStatus.PUBLIC ? (
+                challenge.status === ChallengeStatus.PUBLIC && canStartNow ? (
                   <Button
                     onClick={(e) => {
                       e.preventDefault();
+                      if (!hasStudents) {
+                        setError('No students have joined this challenge yet.');
+                        return;
+                      }
+
+                      if (!canStartNow) {
+                        setError(
+                          'The challenge start time has not been reached yet.'
+                        );
+                        return;
+                      }
                       handleAssign(challenge.id);
                     }}
                     disabled={pending[challenge.id]?.assign}
@@ -176,7 +190,7 @@ export default function ChallengeList() {
                       : 'Assign students'}
                   </Button>
                 ) : challenge.status === ChallengeStatus.ASSIGNED ? (
-                  <Button variant='secondary' disabled size='sm'>
+                  <Button variant='secondary' size='sm'>
                     Start
                   </Button>
                 ) : null
