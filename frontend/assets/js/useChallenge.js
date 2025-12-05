@@ -71,6 +71,13 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const startChallenge = useCallback(
+    async (challengeId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/start`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
   const unpublishChallenge = useCallback(
     async (id) => {
       const url = `${API_BASE}/challenges/${id}/unpublish`;
@@ -89,5 +96,6 @@ export default function useChallenge() {
     publishChallenge,
     assignChallenge,
     unpublishChallenge,
+    startChallenge,
   };
 }
