@@ -248,6 +248,12 @@ router.post('/challenges/:challengeId/assign', async (req, res) => {
         .status(404)
         .json({ success: false, error: 'Challenge not found' });
     }
+    if (result.status === 'too_early') {
+      return res.status(400).json({
+        success: false,
+        error: 'The challenge start time has not been reached yet.',
+      });
+    }
     if (result.status === 'no_match_settings') {
       return res.status(400).json({
         success: false,
