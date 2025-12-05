@@ -1,6 +1,8 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 'use client';
 
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import useChallenge from '#js/useChallenge';
 import { ChallengeStatus } from '#js/constants';
 import ChallengeCard from '#components/challenge/ChallengeCard';
@@ -21,6 +23,13 @@ export default function ChallengeList() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
   const totalPages = Math.ceil(challenges.length / pageSize);
+
+  // Store getChallengeParticipants in a ref to avoid infinite loops
+  const getChallengeParticipantsRef = useRef(getChallengeParticipants);
+
+  useEffect(() => {
+    getChallengeParticipantsRef.current = getChallengeParticipants;
+  }, [getChallengeParticipants]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -97,7 +106,7 @@ export default function ChallengeList() {
       await Promise.all(
         itemsToFetch.map(async (challenge) => {
           try {
-            const res = await getChallengeParticipants(challenge.id);
+            const res = await getChallengeParticipantsRef.current(challenge.id);
             if (res?.success && Array.isArray(res.data)) {
               newCounts[challenge.id] = res.data.length;
             } else {
@@ -115,7 +124,10 @@ export default function ChallengeList() {
     };
 
     fetchParticipantsForPage();
-  }, [currentItems, getChallengeParticipants, participantsMap]);
+    // participantsMap is intentionally excluded to prevent infinite loop:
+    // - We read from it to filter items, but updating it would retrigger this effect
+    // - The effect should only run when currentItems changes (new challenges to fetch)
+  }, [currentItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !challenges.length && !error) {
     return (
