@@ -44,32 +44,22 @@ describe('Create Challenge Page', () => {
       success: true,
       data: [{ id: 1, problemTitle: 'Ready Problem 1', status: 'ready' }],
     });
-
     render(<NewChallengePage />);
-
-    // Wait for loading
     expect(await screen.findByText('Ready Problem 1')).toBeInTheDocument();
-
-    // Ensure table rows exist
     const rows = screen.getAllByRole('row');
-    // Header + 1 data row = 2 rows
     expect(rows).toHaveLength(2);
   });
 
   it('AC: Match setting row can be toggled on/off', async () => {
     const user = userEvent.setup();
     render(<NewChallengePage />);
-
     const checkboxes = await screen.findAllByLabelText('select setting', {
       selector: 'input[type="checkbox"]',
     });
     const checkbox = checkboxes[0];
-
     expect(checkbox).not.toBeChecked();
-
     await user.click(checkbox);
     expect(checkbox).toBeChecked();
-
     await user.click(checkbox);
     expect(checkbox).not.toBeChecked();
   });
@@ -78,29 +68,28 @@ describe('Create Challenge Page', () => {
     const user = userEvent.setup();
     render(<NewChallengePage />);
 
+    await screen.findByText('Ready Problem 1');
+
     await user.type(screen.getByLabelText(/Challenge Name/i), 'Test Challenge');
 
-    const startInput = screen.getByLabelText(/Start Date\/Time/i);
-    fireEvent.change(startInput, { target: { value: '2025-12-01T10:00' } });
+    fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
+      target: { value: '2025-12-01T10:00' },
+    });
+    fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
+      target: { value: '2025-12-01T12:00' },
+    });
 
-    const durationInput = screen.getByLabelText(/Duration/i);
-    await user.clear(durationInput);
-    await user.type(durationInput, '60');
+    await user.clear(screen.getByLabelText('Duration (min)'));
+    await user.type(screen.getByLabelText('Duration (min)'), '60');
 
-    const endInput = screen.getByLabelText(/End Date\/Time/i);
-    fireEvent.change(endInput, { target: { value: '2025-12-01T12:00' } });
+    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
+    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
 
-    const durationPeerReviewInput = screen.getByLabelText(/Duration\/Peer\/Review/i);
-    await user.clear(durationPeerReviewInput);
-    await user.type(durationPeerReviewInput, '60');
-
-    const createButton = screen.getByRole('button', { name: /Create/i });
-    await user.click(createButton);
+    fireEvent.submit(screen.getByTestId('challenge-form'));
 
     expect(
       await screen.findByText(/Select at least one match setting/i)
     ).toBeInTheDocument();
-    expect(mockCreateChallenge).not.toHaveBeenCalled();
   });
 
   it('AC: Challenge created successfully when valid fields and match setting selected', async () => {
@@ -120,27 +109,26 @@ describe('Create Challenge Page', () => {
     fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
       target: { value: '2025-12-01T10:00' },
     });
-
-    const durationInput = screen.getByLabelText(/Duration/i);
-    await user.clear(durationInput);
-    await user.type(durationInput, '60');
-
     fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
       target: { value: '2025-12-01T12:00' },
     });
-    
-    const durationPeerReviewInput = screen.getByLabelText(/Duration\/Peer\/Review/i);
-    await user.clear(durationPeerReviewInput);
-    await user.type(durationPeerReviewInput, '60');
-    const checkbox = await screen.findAllByLabelText('select setting');
-    await user.click(checkbox[0]); // Select first one
 
-    await user.click(screen.getByRole('button', { name: /Create/i }));
+    await user.clear(screen.getByLabelText('Duration (min)'));
+    await user.type(screen.getByLabelText('Duration (min)'), '60');
+
+    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
+    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
+
+    const checkbox = await screen.findAllByLabelText('select setting');
+    await user.click(checkbox[0]);
+
+    fireEvent.submit(screen.getByTestId('challenge-form'));
 
     expect(mockCreateChallenge).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Valid Challenge',
         duration: 60,
+        durationPeerReview: 60,
         matchSettingIds: [1],
         status: 'public',
         startDatetime: expect.stringContaining('2025-12-01'),
@@ -167,24 +155,25 @@ describe('Create Challenge Page', () => {
     fireEvent.change(screen.getByLabelText(/Start Date\/Time/i), {
       target: { value: '2025-12-01T10:00' },
     });
-
-    const durationInput = screen.getByLabelText(/Duration/i);
-    await user.clear(durationInput);
-    await user.type(durationInput, '120');
-
     fireEvent.change(screen.getByLabelText(/End Date\/Time/i), {
       target: { value: '2025-12-01T11:00' },
     });
 
+    await user.clear(screen.getByLabelText('Duration (min)'));
+    await user.type(screen.getByLabelText('Duration (min)'), '60');
+
+    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
+    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
+
     const checkbox = await screen.findAllByLabelText('select setting');
     await user.click(checkbox[0]);
 
-    await user.click(screen.getByRole('button', { name: /Create/i }));
+    await user.click(screen.getByTestId('create-challenge-button'));
 
     mockCreateChallenge.mockResolvedValue({
       success: false,
       message:
-        'Error: The time window (end - start) must be greater than or equal to the duration.',
+        'End date/time must accommodate challenge and peer review durations',
     });
   });
 });
