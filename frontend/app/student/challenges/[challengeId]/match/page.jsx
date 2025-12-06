@@ -1,1 +1,3 @@
-export default function StudentAssignedMatch() {}
+'use client';
+
+export default function MatchPage() {}
