@@ -134,7 +134,7 @@ export default function StudentChallengesPage() {
         }
 
         if (remaining <= 0) {
-          router.push(`/challenges/${challenge.id}/match`);
+          router.push(`/student/challenges/${challenge.id}/match`);
         } else {
           setCountdown((prev) =>
             prev && prev.challengeId === challenge.id
@@ -159,7 +159,9 @@ export default function StudentChallengesPage() {
     if (!countdown) return () => {};
 
     if (countdown.value <= 0) {
-      router.push(`/newchallenge`);
+      const { challengeId } = countdown.challengeId;
+      setCountdown(null);
+      router.push(`/challenges/${challengeId}/match`);
       return () => {};
     }
 
