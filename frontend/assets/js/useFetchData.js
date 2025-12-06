@@ -19,7 +19,9 @@ const useFetchData = () => {
       }
       return response.json();
     },
-    [dispatch]
+    // dispatch is stable from Redux and doesn't need to be in dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const fetchData = useCallback(
