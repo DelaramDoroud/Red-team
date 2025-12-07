@@ -31,7 +31,8 @@ const formatDateTime = (value) => {
 };
 
 export default function StudentChallengesPage() {
-  const { getChallenges, joinChallenge, getChallengeStatus } = useChallenge();
+  const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
+    useChallenge();
   const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [error, setError] = useState(null);
@@ -90,7 +91,10 @@ export default function StudentChallengesPage() {
 
     async function checkJoined() {
       try {
-        const res = await getChallengeStatus(challenge.id, STUDENT_ID);
+        const res = await getChallengeForJoinedStudent(
+          challenge.id,
+          STUDENT_ID
+        );
         if (!cancelled && res?.success && res.data) {
           setJoinedChallenges((prev) => ({
             ...prev,
@@ -107,7 +111,7 @@ export default function StudentChallengesPage() {
     return () => {
       cancelled = true;
     };
-  }, [visibleChallenges, getChallengeStatus]);
+  }, [visibleChallenges, getChallengeForJoinedStudent]);
 
   useEffect(() => {
     if (!visibleChallenges.length) return () => {};
@@ -119,7 +123,7 @@ export default function StudentChallengesPage() {
     let intervalId;
 
     const pollStatus = async () => {
-      const res = await getChallengeStatus(challenge.id, STUDENT_ID);
+      const res = await getChallengeForJoinedStudent(challenge.id, STUDENT_ID);
       if (!res?.success || !res.data) return;
 
       const { status, startedAt } = res.data;
@@ -153,7 +157,12 @@ export default function StudentChallengesPage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [visibleChallenges, joinedChallenges, getChallengeStatus, router]);
+  }, [
+    visibleChallenges,
+    joinedChallenges,
+    getChallengeForJoinedStudent,
+    router,
+  ]);
 
   useEffect(() => {
     if (!countdown) return () => {};
