@@ -36,7 +36,7 @@ export default function MatchView({
   // loading
   if (loading) {
     return (
-      <div className='max-w-5xl mx-auto py-10'>
+      <div className='max-w-2xl mx-auto py-10'>
         <Card>
           <CardContent className='py-10 text-center text-sm text-muted-foreground'>
             Loading your match...
@@ -88,7 +88,7 @@ export default function MatchView({
         <Timer duration={duration} />
       </div>
       <div className=' my-2 flex justify-normal gap-x-2 '>
-        <div className='flex flex-col gap-y-2'>
+        <div className='space-y-2 w-1/3'>
           {/* problem description */}
           <Card>
             <CardHeader>
@@ -146,7 +146,7 @@ export default function MatchView({
             </CardContent>
           </Card>
         </div>
-        <div className='space-y-6 flex-1 '>
+        <div className='space-y-6 w-2/3'>
           {/* editor + controls + result panel */}
           <Card>
             <CardHeader>
