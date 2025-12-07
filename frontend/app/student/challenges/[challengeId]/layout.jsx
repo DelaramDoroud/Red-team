@@ -16,7 +16,7 @@ import Timer from './(components)/Timer';
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const { getChallengeStatus } = useChallenge();
+  const { getChallengeForJoinedStudent } = useChallenge();
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,10 +32,13 @@ export default function ChallengeLayout({ children }) {
       setError(null);
 
       try {
-        const data = await getChallengeStatus(challengeId, studentId);
+        const { data } = await getChallengeForJoinedStudent(
+          challengeId,
+          studentId
+        );
 
         if (!cancelled) {
-          setchallengeData(data.data);
+          setchallengeData(data);
         }
       } catch (e) {
         if (!cancelled) {
@@ -56,15 +59,12 @@ export default function ChallengeLayout({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [challengeId, studentId, getChallengeStatus]);
-
-  //   const title =
-  //     challengeData?.challengeTitle || challengeData?.challenge?.title;
-
-  function getPhaseLabel(status) {
+  }, [challengeId, studentId, getChallengeForJoinedStudent]);
+  const { status, title, duration } = challengeData || {};
+  const phaseLabel = () => {
     switch (status) {
       case 'started':
-        return 'Phase 1';
+        return 'Coding Phase';
       // here we can add also scoring phase and peer revirew phase(third sprint)
       case '':
         return '';
@@ -72,23 +72,18 @@ export default function ChallengeLayout({ children }) {
       default:
         return status || 'Unknown';
     }
-  }
-  const status = challengeData?.status;
-  const phaseLabel = getPhaseLabel(status);
-
+  };
   return (
-    <div className='max-w-5xl mx-auto py-8 space-y-6'>
+    <div className='max-w-7xl mx-auto py-1 space-y-1 '>
       <Card>
         <CardHeader>
           <CardTitle>
-            challenge title
-            {loading ? 'Loading challenge...' : ''}
+            {loading ? 'Loading challenge...' : title}-{' '}
+            <span>{phaseLabel()}</span>
           </CardTitle>
 
-          <CardDescription className='flex items-center gap-2'>
-            <span>Phase: {phaseLabel}</span>
-
-            <Timer duration={challengeData?.duration || 'error'} />
+          <CardDescription className='flex justify-end'>
+            <Timer duration={duration} />
           </CardDescription>
         </CardHeader>
 

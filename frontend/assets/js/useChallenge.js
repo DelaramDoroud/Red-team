@@ -78,14 +78,20 @@ export default function useChallenge() {
     },
     [fetchData]
   );
-  const getChallengeStatus = useCallback(
+  const getChallengeForJoinedStudent = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/status?studentId=${studentId}`;
+      const url = `${API_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
       return fetchData(url);
     },
     [fetchData]
   );
-
+  const getStudentAssignedMatchSetting = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/matchSetting?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
   const unpublishChallenge = useCallback(
     async (id) => {
       const url = `${API_BASE}/challenges/${id}/unpublish`;
@@ -105,6 +111,7 @@ export default function useChallenge() {
     assignChallenge,
     unpublishChallenge,
     startChallenge,
-    getChallengeStatus,
+    getChallengeForJoinedStudent,
+    getStudentAssignedMatchSetting,
   };
 }
