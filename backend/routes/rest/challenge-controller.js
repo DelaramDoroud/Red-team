@@ -444,7 +444,8 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
     handleException(res, error);
   }
 });
-router.get('/challenges/:challengeId/status', async (req, res) => {
+//read challenge data for joind student
+router.get('/challenges/:challengeId/for-student', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);
     if (!Number.isInteger(challengeId) || challengeId < 1) {
@@ -462,6 +463,16 @@ router.get('/challenges/:challengeId/status', async (req, res) => {
       });
     }
 
+    // check the student actually joined
+    const participation = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+    if (!participation) {
+      return res.status(403).json({
+        success: false,
+        error: 'Student has not joined this challenge',
+      });
+    }
     const challenge = await Challenge.findByPk(challengeId);
     if (!challenge) {
       return res.status(404).json({
@@ -469,19 +480,6 @@ router.get('/challenges/:challengeId/status', async (req, res) => {
         error: 'Challenge not found',
       });
     }
-
-    // check the student actually joined
-    const participation = await ChallengeParticipant.findOne({
-      where: { challengeId, studentId },
-    });
-
-    if (!participation) {
-      return res.status(403).json({
-        success: false,
-        error: 'Student has not joined this challenge',
-      });
-    }
-
     return res.json({
       success: true,
       data: {
@@ -490,11 +488,76 @@ router.get('/challenges/:challengeId/status', async (req, res) => {
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
         startedAt: challenge.startedAt,
+        title: challenge.title,
       },
     });
   } catch (error) {
     handleException(res, error);
   }
 });
+//read Match(assigned matchsettng for joind student)
+router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    const studentId = Number(req.query.studentId);
 
+    if (!challengeId || !studentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'challengeId and studentId are required',
+      });
+    }
+
+    const participant = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant not found for this challenge and student',
+      });
+    }
+
+    const match = await Match.findOne({
+      where: { challengeParticipantId: participant.id },
+    });
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found for the given participant',
+      });
+    }
+    const challengeMatchSetting = await ChallengeMatchSetting.findOne({
+      where: {
+        id: match.challengeMatchSettingId,
+      },
+    });
+
+    if (!challengeMatchSetting) {
+      return res.status(404).json({
+        success: false,
+        message: 'ChallengeMatchSetting not found for the given match',
+      });
+    }
+
+    const matchSetting = await MatchSetting.findOne({
+      where: { id: challengeMatchSetting.matchSettingId },
+    });
+
+    if (!matchSetting) {
+      return res.status(404).json({
+        success: false,
+        message: 'MatchSetting not found for the given match',
+      });
+    }
+    return res.json({
+      success: true,
+      data: matchSetting,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
 export default router;
