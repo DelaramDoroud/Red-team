@@ -6,11 +6,11 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
-import Timer from './(components)/Timer';
+
+import { DurationProvider } from './(context)/DurationContext';
 
 // shared layout for both /match and /result
 export default function ChallengeLayout({ children }) {
@@ -81,10 +81,6 @@ export default function ChallengeLayout({ children }) {
             {loading ? 'Loading challenge...' : title}-{' '}
             <span>{phaseLabel()}</span>
           </CardTitle>
-
-          <CardDescription className='flex justify-end'>
-            <Timer duration={duration} />
-          </CardDescription>
         </CardHeader>
 
         {error && (
@@ -95,8 +91,7 @@ export default function ChallengeLayout({ children }) {
           </CardContent>
         )}
       </Card>
-
-      {children}
+      <DurationProvider value={{ duration }}>{children}</DurationProvider>
     </div>
   );
 }

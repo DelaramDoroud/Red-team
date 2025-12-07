@@ -17,6 +17,8 @@ import {
   TableHead,
 } from '#components/common/Table';
 import CppEditor from './CppEditor';
+import Timer from './Timer';
+import { useDuration } from '../(context)/DurationContext';
 
 export default function MatchView({
   loading,
@@ -30,6 +32,7 @@ export default function MatchView({
   onRun,
   onSubmit,
 }) {
+  const { duration } = useDuration();
   // loading
   if (loading) {
     return (
@@ -80,95 +83,100 @@ export default function MatchView({
   const { problemTitle, problemDescription, publicTests = [] } = matchData;
 
   return (
-    <div className='max-w-7xl h-full my-2 flex justify-normal gap-x-2 '>
-      <div className='flex flex-col gap-y-2'>
-        {/* problem description */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{problemTitle}</CardTitle>
-            <CardDescription>Read carefully before coding.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CardTitle>Problem Description:</CardTitle>
-            <p className='whitespace-pre-wrap text-sm leading-relaxed'>
-              {problemDescription}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* public tests */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Public tests</CardTitle>
-            <CardDescription>
-              These are sample cases your C++ solution should handle.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {publicTests && publicTests.length > 0 ? (
-              <div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Input</TableHead>
-                      <TableHead>Expected Output</TableHead>
-                      <TableHead>Your Output</TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {publicTests.map((test) => (
-                      <TableRow key={JSON.stringify(test)}>
-                        <TableCell className=''>
-                          {JSON.stringify(test.input)}
-                        </TableCell>
-
-                        <TableCell>{JSON.stringify(test.output)}</TableCell>
-
-                        <TableCell>{/* for actual output */}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className='text-sm text-red-500'>
-                No public tests available for this match.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+    <div className='max-w-7xl h-full my-2 '>
+      <div className='flex justify-end text-lg font-bold'>
+        <Timer duration={duration} />
       </div>
-      <div className='space-y-6 flex-1 '>
-        {/* editor + controls + result panel */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Code editor</CardTitle>
-            <CardDescription>Language: C++</CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4 '>
-            <CppEditor value={code} onChange={setCode} />
-            <div className='mt-2'>
-              <h2 className='text-sm font-medium mb-1'>Result</h2>
-              <div className='min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs'>
-                {runResult ??
-                  'Run your code to see compilation and test results.'}
+      <div className=' my-2 flex justify-normal gap-x-2 '>
+        <div className='flex flex-col gap-y-2'>
+          {/* problem description */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{problemTitle}</CardTitle>
+              <CardDescription>Read carefully before coding.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CardTitle>Problem Description:</CardTitle>
+              <p className='whitespace-pre-wrap text-sm leading-relaxed'>
+                {problemDescription}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* public tests */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Public tests</CardTitle>
+              <CardDescription>
+                These are sample cases your C++ solution should handle.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {publicTests && publicTests.length > 0 ? (
+                <div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Input</TableHead>
+                        <TableHead>Expected Output</TableHead>
+                        <TableHead>Your Output</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {publicTests.map((test) => (
+                        <TableRow key={JSON.stringify(test)}>
+                          <TableCell className=''>
+                            {JSON.stringify(test.input)}
+                          </TableCell>
+
+                          <TableCell>{JSON.stringify(test.output)}</TableCell>
+
+                          <TableCell>{/* for actual output */}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className='text-sm text-red-500'>
+                  No public tests available for this match.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        <div className='space-y-6 flex-1 '>
+          {/* editor + controls + result panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Code editor</CardTitle>
+              <CardDescription>Language: C++</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4 '>
+              <CppEditor value={code} onChange={setCode} />
+              <div className='mt-2'>
+                <h2 className='text-sm font-medium mb-1'>Result</h2>
+                <div className='min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs'>
+                  {runResult ??
+                    'Run your code to see compilation and test results.'}
+                </div>
               </div>
-            </div>
-            <div className='flex gap-3'>
-              <Button onClick={onRun} disabled={isRunning || isSubmitting}>
-                {isRunning ? 'Running…' : 'Run'}
-              </Button>
-              <Button
-                variant='primary'
-                onClick={onSubmit}
-                disabled={isSubmitting || isRunning}
-              >
-                {isSubmitting ? 'Submitting…' : 'Submit'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className='flex gap-3'>
+                <Button onClick={onRun} disabled={isRunning || isSubmitting}>
+                  {isRunning ? 'Running…' : 'Run'}
+                </Button>
+                <Button
+                  variant='primary'
+                  onClick={onSubmit}
+                  disabled={isSubmitting || isRunning}
+                >
+                  {isSubmitting ? 'Submitting…' : 'Submit'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
