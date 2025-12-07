@@ -91,7 +91,7 @@ export default function ChallengeLayout({ children }) {
           </CardContent>
         )}
       </Card>
-      <DurationProvider value={{ duration }}>{children}</DurationProvider>
+      <DurationProvider value={{ duration, challengeId }}>{children}</DurationProvider>
     </div>
   );
 }
