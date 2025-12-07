@@ -1,6 +1,6 @@
 module.exports = {
   extends: ['airbnb', 'airbnb/hooks', 'prettier'],
-  plugins: ['import', 'prettier', 'plugin:react/recommended'],
+  plugins: ['import', 'prettier'],
   rules: {
     'prettier/prettier': 'error',
     'react/react-in-jsx-scope': 'off',
