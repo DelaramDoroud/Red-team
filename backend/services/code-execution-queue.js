@@ -1,4 +1,5 @@
 import { PgBoss } from 'pg-boss';
+import { randomUUID } from 'crypto';
 import databaseConfig from '#root/config/database.js';
 
 const getConnectionString = () => {
@@ -55,9 +56,8 @@ export async function enqueueCodeExecution(jobData, options = {}) {
     priority = 0,
   } = jobData;
 
-  const jobId =
-    submissionId ||
-    `code-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  // Generate valid UUID for job ID (pg-boss requires UUID format)
+  const jobId = submissionId || randomUUID();
 
   const job = await codeExecutionQueue.send(
     'execute-code',
