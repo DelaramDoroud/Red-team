@@ -69,6 +69,11 @@ const Challenge = sequelize.define(
       allowNull: false,
       defaultValue: 'private',
     },
+    startedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'started_at',
+    },
   },
   {
     tableName: 'challenge',
