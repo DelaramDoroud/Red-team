@@ -45,6 +45,16 @@ if (process.env.ENABLE_CODE_EXECUTION_QUEUE !== 'false') {
   }
 }
 
+if (process.env.ENABLE_CODE_EXECUTION_WORKER !== 'false') {
+  try {
+    const { startWorker } =
+      await import('#root/services/code-execution-worker.js');
+    await startWorker();
+  } catch (error) {
+    console.error('Failed to start code execution worker:', error);
+  }
+}
+
 errorInit(app);
 
 export default app;

@@ -20,11 +20,15 @@ export async function initializeQueue() {
   codeExecutionQueue = new PgBoss({
     connectionString: getConnectionString(),
     schema: 'pgboss',
-    retryLimit: 3,
-    retryDelay: 2000,
-    retryBackoff: true,
-    deleteAfterHours: 1,
-    deleteAfterHoursArchived: 24,
+    retryLimit: parseInt(process.env.QUEUE_RETRY_LIMIT || '3', 10),
+    retryDelay: parseInt(process.env.QUEUE_RETRY_DELAY || '2000', 10),
+    retryBackoff: process.env.QUEUE_RETRY_BACKOFF !== 'false',
+    deleteAfterHours: parseFloat(
+      process.env.QUEUE_DELETE_AFTER_HOURS || '0.25'
+    ), // Default: 15 minutes
+    deleteAfterHoursArchived: parseFloat(
+      process.env.QUEUE_DELETE_ARCHIVED_HOURS || '0.5'
+    ), // Default: 30 minutes
   });
 
   await codeExecutionQueue.start();
@@ -73,4 +77,8 @@ export async function enqueueCodeExecution(jobData, options = {}) {
   );
 
   return { id: job };
+}
+
+export function getQueue() {
+  return codeExecutionQueue;
 }
