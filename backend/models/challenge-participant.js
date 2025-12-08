@@ -51,7 +51,7 @@ ChallengeParticipant.initializeRelations = (models) => {
     as: 'match',
     foreignKey: 'challengeParticipantId',
   });
-  ChallengeParticipant.hasMany(models.MatchSubmission, {
+  ChallengeParticipant.hasMany(models.Submission, {
     as: 'submissions',
     foreignKey: 'challengeParticipantId',
     onDelete: 'CASCADE',

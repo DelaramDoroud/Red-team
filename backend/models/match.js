@@ -61,7 +61,7 @@ Match.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
-  Match.hasMany(models.MatchSubmission, {
+  Match.hasMany(models.Submission, {
     as: 'submissions',
     foreignKey: 'matchId',
     onDelete: 'CASCADE',
