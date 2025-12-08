@@ -1,0 +1,64 @@
+import { registerWrapper } from './index.js';
+import { readdir } from 'fs/promises';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export async function loadWrappers() {
+  const implementationsDir = join(__dirname, 'implementations');
+
+  try {
+    const files = await readdir(implementationsDir);
+
+    const wrapperFiles = files.filter(
+      (file) => file.endsWith('.js') && !file.startsWith('.')
+    );
+
+    const loadPromises = wrapperFiles.map(async (file) => {
+      try {
+        const filePath = join(implementationsDir, file);
+        const module = await import(`file://${filePath}`);
+
+        const wrapperFunction = Object.values(module).find(
+          (exported) =>
+            typeof exported === 'function' &&
+            exported.name.startsWith('wrap') &&
+            exported.name.endsWith('Code')
+        );
+
+        const metadata = Object.values(module).find(
+          (exported) =>
+            typeof exported === 'object' &&
+            exported !== null &&
+            !Array.isArray(exported) &&
+            Array.isArray(exported.supportedLanguages)
+        );
+
+        if (wrapperFunction && metadata) {
+          registerWrapper(
+            metadata.supportedLanguages,
+            wrapperFunction,
+            metadata
+          );
+          console.log(
+            `✓ Loaded wrapper: ${metadata.supportedLanguages.join(', ')} (${file})`
+          );
+        } else {
+          console.warn(
+            `⚠ Skipping ${file}: Missing wrapper function or metadata`
+          );
+        }
+      } catch (error) {
+        console.error(`✗ Failed to load wrapper from ${file}:`, error.message);
+      }
+    });
+
+    await Promise.all(loadPromises);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('Error loading wrappers:', error);
+    }
+  }
+}

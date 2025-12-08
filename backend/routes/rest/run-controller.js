@@ -3,6 +3,7 @@ import MatchSetting from '#root/models/match-setting.js';
 import { handleException } from '#root/services/error.js';
 import { enqueueCodeExecution } from '#root/services/code-execution-queue.js';
 import { getJobStatus } from '#root/services/code-execution-queue.js';
+import { wrapCode } from '#root/services/wrappers/index.js';
 
 const router = Router();
 
@@ -57,18 +58,36 @@ router.post('/run', async (req, res) => {
       const testCase = publicTests[i];
       const { input, output: expectedOutput } = testCase;
 
+      let wrappedCode;
       let inputString = '';
-      if (input !== undefined && input !== null) {
-        if (Array.isArray(input)) {
+
+      try {
+        wrappedCode = wrapCode(language, code);
+        if (input !== undefined && input !== null) {
           inputString = JSON.stringify(input);
+        }
+      } catch (error) {
+        if (
+          error.message.includes('No wrapper registered') ||
+          error.message.includes('not yet implemented') ||
+          error.message.includes('Unsupported language')
+        ) {
+          if (input !== undefined && input !== null) {
+            if (Array.isArray(input)) {
+              inputString = JSON.stringify(input);
+            } else {
+              inputString = String(input);
+            }
+          }
+          wrappedCode = code;
         } else {
-          inputString = String(input);
+          throw error;
         }
       }
 
       const job = await enqueueCodeExecution(
         {
-          code,
+          code: wrappedCode,
           language,
           input: inputString,
           userId: req.user?.id,
