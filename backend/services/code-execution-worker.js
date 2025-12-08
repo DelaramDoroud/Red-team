@@ -16,6 +16,28 @@ export async function startWorker() {
 
   const queue = await initializeQueue();
 
+  // Set up event listeners before starting work (if available)
+  if (typeof queue.onComplete === 'function') {
+    queue.onComplete('execute-code', (job) => {
+      console.log(`Job ${job.id} completed successfully`);
+    });
+  }
+
+  if (typeof queue.onFail === 'function') {
+    queue.onFail('execute-code', (job) => {
+      console.error(
+        `Job ${job.id} failed:`,
+        job.output?.message || 'Unknown error'
+      );
+    });
+  }
+
+  if (typeof queue.onError === 'function') {
+    queue.onError((error) => {
+      console.error('Queue error:', error);
+    });
+  }
+
   await queue.work(
     'execute-code',
     {
@@ -27,7 +49,6 @@ export async function startWorker() {
       const startTime = Date.now();
 
       try {
-        // Validate required fields
         if (!code || !language) {
           throw new Error('Code and language are required');
         }
@@ -60,21 +81,6 @@ export async function startWorker() {
   console.log(
     `✓ Code execution worker started with concurrency: ${WORKER_CONCURRENCY}`
   );
-
-  queue.onComplete('execute-code', (job) => {
-    console.log(`Job ${job.id} completed successfully`);
-  });
-
-  queue.onFail('execute-code', (job) => {
-    console.error(
-      `Job ${job.id} failed:`,
-      job.output?.message || 'Unknown error'
-    );
-  });
-
-  queue.onError((error) => {
-    console.error('Queue error:', error);
-  });
 }
 
 export async function stopWorker() {

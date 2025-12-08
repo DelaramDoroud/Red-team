@@ -32,6 +32,9 @@ export async function initializeQueue() {
   });
 
   await codeExecutionQueue.start();
+
+  await codeExecutionQueue.createQueue('execute-code');
+
   console.log('✓ Code execution queue initialized (pg-boss)');
 
   return codeExecutionQueue;
