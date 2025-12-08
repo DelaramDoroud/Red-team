@@ -85,3 +85,49 @@ export async function enqueueCodeExecution(jobData, options = {}) {
 export function getQueue() {
   return codeExecutionQueue;
 }
+
+/**
+ * Get job status
+ * @param {string} jobId - Job ID
+ * @returns {Promise<Object>} - Job status
+ */
+export async function getJobStatus(jobId) {
+  if (!codeExecutionQueue) {
+    await initializeQueue();
+  }
+
+  const job = await codeExecutionQueue.getJobById(jobId);
+
+  if (!job) {
+    return {
+      status: 'not_found',
+      message: 'Job not found',
+    };
+  }
+
+  // Map pg-boss job state to our status
+  const stateMap = {
+    created: 'queued',
+    retry: 'queued',
+    active: 'processing',
+    completed: 'completed',
+    expired: 'failed',
+    cancelled: 'cancelled',
+    failed: 'failed',
+  };
+
+  const status = stateMap[job.state] || job.state;
+
+  return {
+    status,
+    jobId: job.id,
+    result: job.output || null,
+    error:
+      job.state === 'failed'
+        ? { message: job.output?.message || 'Job failed' }
+        : null,
+    createdOn: job.createdon,
+    startedOn: job.startedon,
+    completedOn: job.completedon,
+  };
+}

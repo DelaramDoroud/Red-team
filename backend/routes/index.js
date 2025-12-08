@@ -4,6 +4,7 @@ import configRouter from '#root/routes/api/config-controller.js';
 import challengeRouter from '#root/routes/rest/challenge-controller.js';
 import matchSettingRouter from '#root/routes/rest/match-setting-controller.js';
 import schemaRouter from '#root/routes/rest/schema-controller.js';
+import runRouter from '#root/routes/rest/run-controller.js';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ const restApiPrefix = '/api/rest';
 router.use(restApiPrefix, challengeRouter);
 router.use(restApiPrefix, matchSettingRouter);
 router.use(restApiPrefix, schemaRouter);
+router.use(restApiPrefix, runRouter);
 
 router.all(/\/api\/(.*)/, (_req, res) => {
   res.status(404);
