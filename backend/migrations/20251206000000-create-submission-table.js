@@ -23,6 +23,17 @@ export async function up({ context: queryInterface }) {
           onUpdate: 'CASCADE',
           onDelete: 'CASCADE',
         },
+        challengeParticipantId: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          field: 'challenge_participant_id',
+          references: {
+            model: 'challenge_participant',
+            key: 'id',
+          },
+          onUpdate: 'CASCADE',
+          onDelete: 'CASCADE',
+        },
         code: {
           type: DataTypes.TEXT,
           allowNull: false,

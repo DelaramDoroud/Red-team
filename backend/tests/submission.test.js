@@ -177,6 +177,7 @@ describe('Submission API', () => {
     it('should update existing submission and increment submissions_count', async () => {
       const initialSubmission = await Submission.create({
         matchId: match.id,
+        challengeParticipantId: participant.id,
         code: 'int main() { return 1; }',
         submissions_count: 1,
       });
@@ -226,6 +227,7 @@ describe('Submission API', () => {
     it('should return submission by ID', async () => {
       const submission = await Submission.create({
         matchId: match.id,
+        challengeParticipantId: participant.id,
         code: 'int main() { return 0; }',
         submissions_count: 1,
       });

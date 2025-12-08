@@ -109,6 +109,7 @@ router.post('/submissions', async (req, res) => {
             submission: {
               id: submission.id,
               matchId: submission.matchId,
+              challengeParticipantId: submission.challengeParticipantId,
               code: submission.code,
               submissionsCount: submission.submissions_count,
               createdAt: submission.createdAt,
@@ -121,6 +122,7 @@ router.post('/submissions', async (req, res) => {
         submission = await Submission.create(
           {
             matchId,
+            challengeParticipantId: match.challengeParticipantId,
             code,
             submissions_count: 1,
           },
@@ -137,6 +139,7 @@ router.post('/submissions', async (req, res) => {
             submission: {
               id: submission.id,
               matchId: submission.matchId,
+              challengeParticipantId: submission.challengeParticipantId,
               code: submission.code,
               submissionsCount: submission.submissions_count,
               createdAt: submission.createdAt,

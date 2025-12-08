@@ -14,6 +14,11 @@ const Submission = sequelize.define(
       allowNull: false,
       field: 'match_id',
     },
+    challengeParticipantId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'challenge_participant_id',
+    },
     code: {
       type: DataTypes.TEXT,
       allowNull: false,
@@ -46,6 +51,12 @@ Submission.initializeRelations = (models) => {
   Submission.belongsTo(models.Match, {
     as: 'match',
     foreignKey: 'matchId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+  Submission.belongsTo(models.ChallengeParticipant, {
+    as: 'challengeParticipant',
+    foreignKey: 'challengeParticipantId',
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
