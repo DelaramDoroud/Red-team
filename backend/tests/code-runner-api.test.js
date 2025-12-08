@@ -1,29 +1,55 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import MatchSetting from '#root/models/match-setting.js';
+import { MatchSettingStatus } from '#root/models/enum/enums.js';
 import sequelize from '#root/services/sequelize.js';
 
 let app;
-const testMatchSettingId = 1;
+let testMatchSettingId;
 
 beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   app = appModule.default;
 
-  const matchSetting = await MatchSetting.findByPk(testMatchSettingId);
-  if (!matchSetting) {
-    throw new Error(
-      `Match setting with id ${testMatchSettingId} not found. Please ensure it exists.`
-    );
-  }
+  // Try to find existing match setting with public tests
+  let matchSetting = await MatchSetting.findOne({
+    where: {
+      status: MatchSettingStatus.READY,
+    },
+    order: [['id', 'ASC']],
+  });
+
+  // If no match setting exists or it has no public tests, create one
   if (
+    !matchSetting ||
     !Array.isArray(matchSetting.publicTests) ||
     matchSetting.publicTests.length === 0
   ) {
-    throw new Error(
-      `Match setting with id ${testMatchSettingId} has no public tests.`
-    );
+    matchSetting = await MatchSetting.create({
+      problemTitle: 'Two Sum',
+      problemDescription:
+        'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+      referenceSolution: `function twoSum(nums, target) {
+  const map = new Map();
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i];
+    if (map.has(complement)) {
+      return [map.get(complement), i];
+    }
+    map.set(nums[i], i);
   }
+  return [];
+}`,
+      publicTests: [
+        { input: [[2, 7, 11, 15], 9], output: [0, 1] },
+        { input: [[3, 2, 4], 6], output: [1, 2] },
+      ],
+      privateTests: [{ input: [[3, 3], 6], output: [0, 1] }],
+      status: MatchSettingStatus.READY,
+    });
+  }
+
+  testMatchSettingId = matchSetting.id;
 });
 
 afterAll(async () => {
