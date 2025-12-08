@@ -102,8 +102,14 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    const maxWaitTime = 30000;
-    const pollInterval = 500;
+    const maxWaitTime = parseInt(
+      process.env.RUN_API_MAX_WAIT_TIME || '30000',
+      10
+    );
+    const pollInterval = parseInt(
+      process.env.RUN_API_POLL_INTERVAL || '500',
+      10
+    );
 
     const jobStatusPromises = jobPromises.map(async (jobInfo) => {
       let jobStatus = null;
