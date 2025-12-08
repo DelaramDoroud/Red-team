@@ -10,7 +10,7 @@ services:
     volumes:
       - ${FRONTEND_FOLDER}:/usr/app
   backend:
-    user: ${USERID}:${GROUPID}
+    # Run as root initially so entrypoint can fix permissions, then it switches to the user
     build:
       context: ${BACKEND_FOLDER}
       dockerfile: ${BACKEND_FOLDER}/dev.Dockerfile
@@ -19,6 +19,18 @@ services:
         GROUPID: ${GROUPID}
     environment:
         DB_HOST: test-db
+        DB_PORT: 5432
+        DB_NAME: codymatch
+        DB_USER: codymatch
+        DB_PASSWORD: ${DB_PASSWORD:-codymatch}
         NODE_ENV: test
+        CODE_RUNNER_TEMP_DIR: /tmp/code-runner
+        USERID: ${USERID}
+        GROUPID: ${GROUPID}
     volumes:
       - ${BACKEND_FOLDER}:/usr/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - code_runner_temp:/tmp/code-runner
+
+volumes:
+  code_runner_temp:

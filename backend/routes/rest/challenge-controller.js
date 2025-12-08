@@ -74,6 +74,23 @@ router.post('/challenges', async (req, res) => {
       });
     }
 
+    // Validate matchSettingIds before checking overlaps
+    // This ensures we return the correct error for invalid matchSettingIds
+    const settings = await MatchSetting.findAll({
+      where: { id: matchSettingIds },
+    });
+    if (settings.length !== matchSettingIds.length) {
+      const foundIds = settings.map((s) => s.id);
+      const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'One or more match settings not found.',
+          missingIds,
+        },
+      });
+    }
+
     // Check for overlapping challenges
     const overlappingChallenge = await Challenge.findOne({
       where: {
@@ -93,27 +110,7 @@ router.post('/challenges', async (req, res) => {
 
     transaction = await sequelize.transaction();
     const challenge = await Challenge.create(payload, { transaction });
-    if (matchSettingIds.length > 0) {
-      const settings = await MatchSetting.findAll({
-        where: { id: matchSettingIds },
-        transaction,
-      });
-      if (settings.length !== matchSettingIds.length) {
-        await transaction.rollback();
-        const foundIds = settings.map((s) => s.id);
-        const missingIds = matchSettingIds.filter(
-          (id) => !foundIds.includes(id)
-        );
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'One or more match settings not found.',
-            missingIds,
-          },
-        });
-      }
-      await challenge.addMatchSettings(settings, { transaction });
-    }
+    await challenge.addMatchSettings(settings, { transaction });
     await transaction.commit();
     const createdChallenge = await Challenge.findByPk(challenge.id, {
       include: [
