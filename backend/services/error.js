@@ -43,9 +43,26 @@ export const unverificationErrors = [
 ];
 
 export function handleException(res, error, errorsGroup = [], code = 400) {
-  if (errorsGroup.includes(error.type)) {
-    res.status(code).json({ success: false, error });
+  // Ensure error is serializable
+  const errorResponse = {
+    message: error?.message || error?.toString() || 'An error occurred',
+  };
+
+  if (error?.type) {
+    errorResponse.type = error.type;
+  }
+
+  if (error?.name) {
+    errorResponse.name = error.name;
+  }
+
+  if (process.env.NODE_ENV === 'development' && error?.stack) {
+    errorResponse.stack = error.stack;
+  }
+
+  if (errorsGroup.includes(error?.type)) {
+    res.status(code).json({ success: false, error: errorResponse });
   } else {
-    res.status(500).json({ success: false, error });
+    res.status(500).json({ success: false, error: errorResponse });
   }
 }

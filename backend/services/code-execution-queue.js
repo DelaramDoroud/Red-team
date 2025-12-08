@@ -1,5 +1,4 @@
 import { PgBoss } from 'pg-boss';
-import { randomUUID } from 'crypto';
 import databaseConfig from '#root/config/database.js';
 
 const getConnectionString = () => {
@@ -56,8 +55,20 @@ export async function enqueueCodeExecution(jobData, options = {}) {
     priority = 0,
   } = jobData;
 
-  // Generate valid UUID for job ID (pg-boss requires UUID format)
-  const jobId = submissionId || randomUUID();
+  const sendOptions = {
+    priority,
+    retryLimit: options.retryLimit || 3,
+    retryDelay: options.retryDelay || 2000,
+    ...options,
+  };
+
+  if (submissionId) {
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(submissionId)) {
+      sendOptions.id = submissionId;
+    }
+  }
 
   const job = await codeExecutionQueue.send(
     'execute-code',
@@ -70,13 +81,7 @@ export async function enqueueCodeExecution(jobData, options = {}) {
       matchId,
       timestamp: new Date().toISOString(),
     },
-    {
-      id: jobId,
-      priority,
-      retryLimit: options.retryLimit || 3,
-      retryDelay: options.retryDelay || 2000,
-      ...options,
-    }
+    sendOptions
   );
 
   return { id: job };
@@ -86,17 +91,12 @@ export function getQueue() {
   return codeExecutionQueue;
 }
 
-/**
- * Get job status
- * @param {string} jobId - Job ID
- * @returns {Promise<Object>} - Job status
- */
 export async function getJobStatus(jobId) {
   if (!codeExecutionQueue) {
     await initializeQueue();
   }
 
-  const job = await codeExecutionQueue.getJobById(jobId);
+  const job = await codeExecutionQueue.getJobById('execute-code', jobId);
 
   if (!job) {
     return {
@@ -105,7 +105,6 @@ export async function getJobStatus(jobId) {
     };
   }
 
-  // Map pg-boss job state to our status
   const stateMap = {
     created: 'queued',
     retry: 'queued',

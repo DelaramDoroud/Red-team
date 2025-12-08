@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import MatchSetting from '#root/models/match-setting.js';
-import { handleException } from '#root/services/error.js';
 import { enqueueCodeExecution } from '#root/services/code-execution-queue.js';
 import { getJobStatus } from '#root/services/code-execution-queue.js';
 import { wrapCode } from '#root/services/wrappers/index.js';
@@ -183,7 +182,41 @@ router.post('/run', async (req, res) => {
       results: testResults,
     });
   } catch (error) {
-    handleException(res, error);
+    // Extract error message - try multiple methods to ensure we get something
+    let errorMessage = 'An error occurred while processing the request';
+
+    if (error?.message) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error?.toString && error.toString() !== '[object Object]') {
+      errorMessage = error.toString();
+    } else if (error?.name) {
+      errorMessage = `${error.name}: An error occurred`;
+    }
+
+    const errorResponse = {
+      message: errorMessage,
+    };
+
+    // Add additional details in development
+    if (process.env.NODE_ENV === 'development') {
+      if (error?.stack) {
+        errorResponse.stack = error.stack;
+      }
+      if (error?.name) {
+        errorResponse.name = error.name;
+      }
+      if (error?.code) {
+        errorResponse.code = error.code;
+      }
+    }
+
+    // Always send a proper error response
+    res.status(500).json({
+      success: false,
+      error: errorResponse,
+    });
   }
 });
 
