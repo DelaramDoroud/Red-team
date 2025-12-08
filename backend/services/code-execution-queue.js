@@ -31,9 +31,13 @@ export async function initializeQueue() {
     ), // Default: 30 minutes
   });
 
+  console.log('[QUEUE] Starting pg-boss...');
   await codeExecutionQueue.start();
+  console.log('[QUEUE] pg-boss started');
 
+  console.log('[QUEUE] Creating queue: execute-code');
   await codeExecutionQueue.createQueue('execute-code');
+  console.log('[QUEUE] Queue created');
 
   console.log('✓ Code execution queue initialized (pg-boss)');
 
@@ -70,6 +74,12 @@ export async function enqueueCodeExecution(jobData, options = {}) {
     }
   }
 
+  console.log('[QUEUE] Sending job to queue execute-code with options:', {
+    priority: sendOptions.priority,
+    retryLimit: sendOptions.retryLimit,
+    hasId: !!sendOptions.id,
+  });
+
   const job = await codeExecutionQueue.send(
     'execute-code',
     {
@@ -83,6 +93,8 @@ export async function enqueueCodeExecution(jobData, options = {}) {
     },
     sendOptions
   );
+
+  console.log('[QUEUE] Job sent, job ID:', job);
 
   return { id: job };
 }
