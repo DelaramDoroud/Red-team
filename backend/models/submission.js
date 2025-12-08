@@ -18,6 +18,10 @@ const Submission = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    submissions_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   {
     tableName: 'submission',

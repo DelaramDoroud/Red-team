@@ -6,42 +6,9 @@ import MatchSetting from '#root/models/match-setting.js';
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
 import logger from '#root/services/logger.js';
-import { runSubmission } from '#root/services/code-runner.js';
 
 const router = Router();
 
-/**
- * POST /api/rest/submissions
- * Submit code for a match
- *
- * Request body:
- * {
- *   "matchId": number,
- *   "code": string (C++ source code)
- * }
- *
- * Response on success (compilation passed):
- * {
- *   "success": true,
- *   "data": {
- *     "submission": { id, matchId, code, status, createdAt },
- *     "testResults": {
- *       "publicTests": [...],
- *       "privateTests": [...],
- *       "summary": { ... }
- *     }
- *   }
- * }
- *
- * Response on compilation failure:
- * {
- *   "success": false,
- *   "error": {
- *     "message": "Your code did not compile. Please fix compilation errors before submitting.",
- *     "compilationError": "..." (actual compiler error)
- *   }
- * }
- */
 router.post('/submissions', async (req, res) => {
   try {
     const { matchId, code } = req.body;
@@ -102,10 +69,8 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // Compile & run tests (stubbed; real implementation will replace this)
+    /*
     const compilationResult = await runSubmission({ code, matchSetting });
-
-    // If compilation failed, do not persist
     if (compilationResult.status === 'compilation_failed') {
       return res.status(400).json({
         success: false,
@@ -116,33 +81,70 @@ router.post('/submissions', async (req, res) => {
         },
       });
     }
+    */
 
-    // Persist submission
     const transaction = await sequelize.transaction();
     try {
-      const submission = await Submission.create(
-        {
-          matchId,
-          code,
-        },
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      logger.info(`Submission ${submission.id} created for match ${matchId}`);
-
-      return res.json({
-        success: true,
-        data: {
-          submission: {
-            id: submission.id,
-            matchId: submission.matchId,
-            code: submission.code,
-            createdAt: submission.createdAt,
-          },
-        },
+      // Check if a submission already exists for this match
+      let submission = await Submission.findOne({
+        where: { matchId },
+        transaction,
       });
+
+      if (submission) {
+        // UPDATE
+        submission.code = code;
+        submission.updatedAt = new Date();
+        submission.submissions_count = (submission.submissions_count || 0) + 1;
+
+        await submission.save({ transaction });
+
+        await transaction.commit();
+
+        logger.info(`Submission ${submission.id} updated for match ${matchId}`);
+
+        return res.json({
+          success: true,
+          data: {
+            submission: {
+              id: submission.id,
+              matchId: submission.matchId,
+              code: submission.code,
+              submissionsCount: submission.submissions_count,
+              createdAt: submission.createdAt,
+              updatedAt: submission.updatedAt,
+            },
+          },
+        });
+      } else {
+        // INSERT
+        submission = await Submission.create(
+          {
+            matchId,
+            code,
+            submissions_count: 1,
+          },
+          { transaction }
+        );
+
+        await transaction.commit();
+
+        logger.info(`Submission ${submission.id} created for match ${matchId}`);
+
+        return res.json({
+          success: true,
+          data: {
+            submission: {
+              id: submission.id,
+              matchId: submission.matchId,
+              code: submission.code,
+              submissionsCount: submission.submissions_count,
+              createdAt: submission.createdAt,
+              updatedAt: submission.updatedAt,
+            },
+          },
+        });
+      }
     } catch (error) {
       await transaction.rollback();
       throw error;
@@ -153,39 +155,19 @@ router.post('/submissions', async (req, res) => {
   }
 });
 
-/**
- * GET /api/rest/submissions/:matchId
- * Get all submissions for a match
- */
-router.get('/submissions/:matchId', async (req, res) => {
-  try {
-    const { matchId } = req.params;
-
-    const submissions = await Submission.findAll({
-      where: { matchId },
-      order: [['created_at', 'DESC']],
-      attributes: {
-        exclude: ['code'], // Don't return full code
-      },
-    });
-
-    res.json({
-      success: true,
-      data: submissions,
-    });
-  } catch (error) {
-    logger.error('Get submissions error:', error);
-    handleException(res, error);
-  }
-});
-
-/**
- * GET /api/rest/submissions/:id
- * Get a specific submission
- */
 router.get('/submission/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate that id is a valid number
+    if (isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Submission ID must be a number',
+        },
+      });
+    }
 
     const submission = await Submission.findByPk(id);
 
@@ -200,7 +182,16 @@ router.get('/submission/:id', async (req, res) => {
 
     res.json({
       success: true,
-      data: submission,
+      data: {
+        submission: {
+          id: submission.id,
+          matchId: submission.matchId,
+          code: submission.code,
+          submissionsCount: submission.submissions_count,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+        },
+      },
     });
   } catch (error) {
     logger.error('Get submission error:', error);

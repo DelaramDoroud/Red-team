@@ -27,6 +27,10 @@ export async function up({ context: queryInterface }) {
           type: DataTypes.TEXT,
           allowNull: false,
         },
+        submissions_count: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        },
         createdAt: {
           type: DataTypes.DATE,
           allowNull: false,
