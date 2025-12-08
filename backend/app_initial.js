@@ -35,6 +35,16 @@ app.use(apiRouter);
 
 await models.init();
 
+if (process.env.ENABLE_CODE_EXECUTION_QUEUE !== 'false') {
+  try {
+    const { initializeQueue } =
+      await import('#root/services/code-execution-queue.js');
+    await initializeQueue();
+  } catch (error) {
+    console.error('Failed to initialize code execution queue:', error);
+  }
+}
+
 errorInit(app);
 
 export default app;
