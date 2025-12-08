@@ -7,13 +7,6 @@ import { wrapCode } from '#root/services/wrappers/index.js';
 const router = Router();
 
 router.post('/run', async (req, res) => {
-  console.log('[RUN API] Request received:', {
-    matchSettingId: req.body.matchSettingId,
-    language: req.body.language,
-    codeLength: req.body.code?.length,
-    timestamp: new Date().toISOString(),
-  });
-
   try {
     const { matchSettingId, code, language } = req.body;
 
@@ -38,11 +31,9 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    console.log('[RUN API] Fetching match setting:', matchSettingId);
     const matchSetting = await MatchSetting.findByPk(matchSettingId);
 
     if (!matchSetting) {
-      console.log('[RUN API] Match setting not found:', matchSettingId);
       return res.status(404).json({
         success: false,
         error: { message: 'Match setting not found' },
@@ -50,10 +41,6 @@ router.post('/run', async (req, res) => {
     }
 
     const publicTests = matchSetting.publicTests;
-    console.log(
-      '[RUN API] Match setting found, public tests count:',
-      publicTests?.length || 0
-    );
 
     if (!Array.isArray(publicTests) || publicTests.length === 0) {
       return res.status(400).json({
@@ -65,14 +52,9 @@ router.post('/run', async (req, res) => {
     const testResults = [];
     const jobPromises = [];
 
-    console.log('[RUN API] Processing', publicTests.length, 'test cases');
     for (let i = 0; i < publicTests.length; i++) {
       const testCase = publicTests[i];
       const { input, output: expectedOutput } = testCase;
-      console.log(`[RUN API] Processing test case ${i}:`, {
-        input,
-        expectedOutput,
-      });
 
       let wrappedCode;
       let inputString = '';
@@ -101,9 +83,6 @@ router.post('/run', async (req, res) => {
         }
       }
 
-      console.log(
-        `[RUN API] Enqueuing job for test case ${i}, language: ${language}`
-      );
       const job = await enqueueCodeExecution(
         {
           code: wrappedCode,
@@ -115,8 +94,6 @@ router.post('/run', async (req, res) => {
           priority: 0,
         }
       );
-
-      console.log(`[RUN API] Job enqueued for test case ${i}, jobId:`, job.id);
       jobPromises.push({
         jobId: job.id,
         testIndex: i,
@@ -125,51 +102,21 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    console.log('[RUN API] All jobs enqueued, total:', jobPromises.length);
-
     const maxWaitTime = 120000;
     const pollInterval = 500;
 
-    console.log(
-      '[RUN API] Starting parallel polling for',
-      jobPromises.length,
-      'jobs'
-    );
     const jobStatusPromises = jobPromises.map(async (jobInfo) => {
       let jobStatus = null;
       const jobStartTime = Date.now();
-      let pollCount = 0;
 
-      console.log(
-        `[RUN API] Polling job ${jobInfo.jobId} for test case ${jobInfo.testIndex}`
-      );
       while (Date.now() - jobStartTime < maxWaitTime) {
-        pollCount++;
         jobStatus = await getJobStatus(jobInfo.jobId);
 
-        if (pollCount % 10 === 0) {
-          console.log(
-            `[RUN API] Job ${jobInfo.jobId} status:`,
-            jobStatus.status,
-            `(poll #${pollCount})`
-          );
-        }
-
         if (jobStatus.status === 'completed' || jobStatus.status === 'failed') {
-          console.log(
-            `[RUN API] Job ${jobInfo.jobId} finished with status:`,
-            jobStatus.status
-          );
           break;
         }
 
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      }
-
-      if (jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed') {
-        console.log(
-          `[RUN API] Job ${jobInfo.jobId} timed out after ${maxWaitTime}ms`
-        );
       }
 
       return { jobInfo, jobStatus };
@@ -193,13 +140,6 @@ router.post('/run', async (req, res) => {
           JSON.stringify(parsedOutput) ===
           JSON.stringify(jobInfo.expectedOutput);
 
-        console.log(`[RUN API] Test case ${jobInfo.testIndex} result:`, {
-          passed,
-          exitCode: result.exitCode,
-          executionTime: result.executionTime,
-          hasStdout: !!result.stdout,
-          hasStderr: !!result.stderr,
-        });
         testResults.push({
           testIndex: jobInfo.testIndex,
           input: jobInfo.input,
@@ -212,13 +152,6 @@ router.post('/run', async (req, res) => {
           executionTime: result.executionTime,
         });
       } else {
-        console.log(
-          `[RUN API] Test case ${jobInfo.testIndex} failed or timed out:`,
-          {
-            status: jobStatus?.status,
-            stderr: jobStatus?.result?.stderr || jobStatus?.error?.message,
-          }
-        );
         testResults.push({
           testIndex: jobInfo.testIndex,
           input: jobInfo.input,
@@ -267,15 +200,6 @@ router.post('/run', async (req, res) => {
     // Get the first error message for quick display (if any)
     const firstError = errors.length > 0 ? errors[0].error : null;
 
-    console.log('[RUN API] Final summary:', {
-      total: totalCount,
-      passed: passedCount,
-      failed: totalCount - passedCount,
-      isCompiled,
-      isPassed,
-      hasErrors: errors.length > 0,
-    });
-
     const response = {
       success: true,
       matchSettingId,
@@ -295,7 +219,6 @@ router.post('/run', async (req, res) => {
       results: testResults,
     };
 
-    console.log('[RUN API] Sending response');
     res.json(response);
   } catch (error) {
     let errorMessage = 'An error occurred while processing the request';

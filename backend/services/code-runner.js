@@ -41,13 +41,6 @@ const getTempBase = () => {
 };
 
 export async function runCode(code, language, input = '') {
-  console.log('[CODE RUNNER] Starting code execution:', {
-    language,
-    codeLength: code.length,
-    inputLength: input.length,
-    timestamp: new Date().toISOString(),
-  });
-
   const config = LANGUAGE_CONFIGS[language.toLowerCase()];
   if (!config) {
     console.error('[CODE RUNNER] Unsupported language:', language);
@@ -55,12 +48,6 @@ export async function runCode(code, language, input = '') {
       `Unsupported language: ${language}. Supported: ${Object.keys(LANGUAGE_CONFIGS).join(', ')}`
     );
   }
-
-  console.log('[CODE RUNNER] Language config:', {
-    command: config.command,
-    timeout: config.timeout,
-    compileFirst: config.compileFirst || false,
-  });
 
   const tempBase = getTempBase();
   const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -95,11 +82,9 @@ export async function runCode(code, language, input = '') {
           const killProcess = spawnKill('docker', ['kill', containerId], {
             stdio: 'ignore',
           });
-          killProcess.on('error', () => {
-            // Ignore errors when killing container - it may already be stopped
-          });
+          killProcess.on('error', () => {});
         } catch {
-          // Ignore errors - container may not exist or already be killed
+          // Ignore errors - container already removed, which is expected
         }
       };
 
@@ -145,23 +130,11 @@ export async function runCode(code, language, input = '') {
 
       dockerArgs.push(execCommand);
 
-      console.log('[CODE RUNNER] Spawning Docker container:', {
-        image: DOCKER_IMAGE,
-        command: execCommand.substring(0, 100) + '...',
-        uniqueId,
-      });
-
       const dockerProcess = spawn('docker', dockerArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      console.log(
-        '[CODE RUNNER] Docker process spawned, PID:',
-        dockerProcess.pid
-      );
-
       dockerProcess.stdin.write(code, 'utf8', () => {
-        console.log('[CODE RUNNER] Code written to stdin, closing stdin');
         dockerProcess.stdin.end();
       });
 
@@ -178,7 +151,6 @@ export async function runCode(code, language, input = '') {
 
       timeoutId = setTimeout(async () => {
         if (!resolved) {
-          console.log('[CODE RUNNER] Timeout reached, killing container');
           resolved = true;
           if (!dockerProcess.stdin.destroyed) {
             dockerProcess.stdin.destroy();
@@ -201,40 +173,22 @@ export async function runCode(code, language, input = '') {
       }, config.timeout);
 
       dockerProcess.stdout.on('data', (data) => {
-        const output = data.toString();
-        stdout += output;
-        console.log(
-          '[CODE RUNNER] Received stdout chunk:',
-          output.substring(0, 100)
-        );
+        stdout += data.toString();
       });
 
       dockerProcess.stderr.on('data', (data) => {
-        const output = data.toString();
-        stderr += output;
-        console.log(
-          '[CODE RUNNER] Received stderr chunk:',
-          output.substring(0, 100)
-        );
+        stderr += data.toString();
       });
 
       dockerProcess.on('close', async (code) => {
         if (resolved) {
-          console.log(
-            '[CODE RUNNER] Container already resolved, ignoring close event'
-          );
           return;
         }
         resolved = true;
         clearTimeout(timeoutId);
 
-        console.log('[CODE RUNNER] Container closed with exit code:', code);
-        console.log('[CODE RUNNER] Final stdout length:', stdout.length);
-        console.log('[CODE RUNNER] Final stderr length:', stderr.length);
-
         const containerId = await getContainerId();
         if (containerId) {
-          console.log('[CODE RUNNER] Container ID:', containerId);
           setTimeout(async () => {
             try {
               const { execSync } = await import('child_process');
@@ -258,13 +212,6 @@ export async function runCode(code, language, input = '') {
           exitCode: code || 0,
         };
 
-        console.log('[CODE RUNNER] Execution completed:', {
-          success: result.success,
-          exitCode: result.exitCode,
-          stdoutLength: result.stdout.length,
-          stderrLength: result.stderr.length,
-        });
-
         resolve(result);
       });
 
@@ -278,7 +225,6 @@ export async function runCode(code, language, input = '') {
           dockerProcess.stdin.destroy();
         }
 
-        // Try to kill container on error
         const containerId = await getContainerId();
         if (containerId) {
           await killContainer(containerId);
