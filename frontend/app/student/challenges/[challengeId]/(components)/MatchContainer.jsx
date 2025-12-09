@@ -32,7 +32,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
   const [runResult, setRunResult] = useState(null);
-  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
+  const [isChallengeFinished] = useState(false); // setIsChallengeFinished
 
   // load StudentAssignedMatchSetting(Mtach)
   useEffect(() => {
@@ -97,6 +97,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   // handlers: run + submit
   const handleRun = useCallback(() => {
     setRunResult();
+    setMessage(null);
     setIsRunning(true);
     setIsSubmittingActive(true);
   }, []);
@@ -140,7 +141,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
   const handleTimerFinish = useCallback(async () => {
-    setIsChallengeFinished(true);
+    // setIsChallengeFinished(true);
 
     try {
       await handleSubmit();
