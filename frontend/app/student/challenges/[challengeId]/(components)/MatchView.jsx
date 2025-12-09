@@ -23,11 +23,13 @@ import { useDuration } from '../(context)/DurationContext';
 export default function MatchView({
   loading,
   error,
+  message,
   matchData,
   code,
   setCode,
   isRunning,
   isSubmitting,
+  isSubmittingActive,
   runResult,
   onRun,
   onSubmit,
@@ -170,11 +172,16 @@ export default function MatchView({
                 <Button
                   variant='primary'
                   onClick={onSubmit}
-                  disabled={isSubmitting || isRunning}
+                  disabled={!isSubmittingActive}
                 >
                   {isSubmitting ? 'Submitting…' : 'Submit'}
                 </Button>
               </div>
+              {message && (
+                <p className='text-sm text-green-600 dark:text-green-400'>
+                  {message}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

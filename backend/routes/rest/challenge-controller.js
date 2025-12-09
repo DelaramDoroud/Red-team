@@ -560,4 +560,46 @@ router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
     handleException(res, error);
   }
 });
+
+//read Match(assigned match for joind student)
+router.get('/challenges/:challengeId/match', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    const studentId = Number(req.query.studentId);
+    if (!challengeId || !studentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'challengeId and studentId are required',
+      });
+    }
+
+    const participant = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant not found for this challenge and student',
+      });
+    }
+
+    const match = await Match.findOne({
+      where: { challengeParticipantId: participant.id },
+    });
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found for the given participant',
+      });
+    }
+    return res.json({
+      success: true,
+      data: match,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
 export default router;

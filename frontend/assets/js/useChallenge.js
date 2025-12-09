@@ -92,10 +92,28 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const getStudentAssignedMatch = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/match?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
   const unpublishChallenge = useCallback(
     async (id) => {
       const url = `${API_BASE}/challenges/${id}/unpublish`;
       return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
+  const submitSubmission = useCallback(
+    async ({ matchId, code }) => {
+      const url = `${API_BASE}/submissions`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, code }),
+      });
     },
     [fetchData]
   );
@@ -113,5 +131,7 @@ export default function useChallenge() {
     startChallenge,
     getChallengeForJoinedStudent,
     getStudentAssignedMatchSetting,
+    getStudentAssignedMatch,
+    submitSubmission,
   };
 }

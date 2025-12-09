@@ -16,15 +16,21 @@ int main() {
 `;
 
 export default function MatchContainer({ challengeId, studentId }) {
-  const { getStudentAssignedMatchSetting } = useChallenge();
+  const {
+    getStudentAssignedMatchSetting,
+    getStudentAssignedMatch,
+    submitSubmission,
+  } = useChallenge();
 
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState(null);
   const [error, setError] = useState(null);
+  const [message, setMessage] = useState(null);
 
   const [code, setCode] = useState(CppCodeTemplate);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingActive, setIsSubmittingActive] = useState(false);
   const [runResult, setRunResult] = useState(null);
 
   // load StudentAssignedMatchSetting(Mtach)
@@ -90,24 +96,63 @@ export default function MatchContainer({ challengeId, studentId }) {
   // handlers: run + submit
   const handleRun = useCallback(() => {
     setRunResult();
-    setIsRunning();
+    setIsRunning(true);
+    setIsSubmittingActive(true);
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    setIsSubmitting();
-  }, []);
+  const handleSubmit = useCallback(async () => {
+    setIsSubmitting(true);
+    setIsRunning(false);
+
+    try {
+      const res = await getStudentAssignedMatch(challengeId, studentId);
+
+      if (res?.success && res?.data?.id) {
+        const matchId = res.data.id;
+
+        if (!code || code.trim() === '') {
+          setError({ message: 'Empty code cannot be submitted.' });
+          return;
+        }
+
+        const submissionRes = await submitSubmission({
+          matchId,
+          code,
+        });
+
+        if (submissionRes?.success) {
+          setMessage('Submission successful!');
+        } else {
+          setError({
+            message: submissionRes?.error?.message || 'Submission failed.',
+          });
+        }
+      } else {
+        setError({ message: 'No match found for submission.' });
+      }
+    } catch (_err) {
+      setError({ message: `Error: ${_err.message}` });
+    } finally {
+      setIsSubmitting(false);
+      setIsSubmittingActive(false);
+    }
+  }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
+
   const handleTimerFinish = useCallback(() => {
     // console.log('timer reaches zero');
   }, []);
+
   return (
     <MatchView
       loading={loading}
       error={error}
+      message={message}
       matchData={matchData}
       code={code}
       setCode={setCode}
       isRunning={isRunning}
       isSubmitting={isSubmitting}
+      isSubmittingActive={isSubmittingActive}
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
