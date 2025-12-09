@@ -1,7 +1,8 @@
 import httpProxy from 'http-proxy';
 import * as http from 'http';
-
 import app from '#root/app_initial.js';
+import '#root/routes/rest/cron.js';
+
 const proxy = httpProxy.createProxyServer({
   target: 'http://frontend:3000',
   ws: true,

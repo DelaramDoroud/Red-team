@@ -34,8 +34,10 @@ export default function MatchView({
   onRun,
   onSubmit,
   onTimerFinish,
+  isChallengeFinished,
 }) {
   const { duration } = useDuration();
+
   // loading
   if (loading) {
     return (
@@ -76,6 +78,19 @@ export default function MatchView({
           <CardContent>
             <p className='text-sm'>
               Something went wrong while loading this match.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  if (isChallengeFinished) {
+    return (
+      <div className='max-w-2xl mx-auto py-10'>
+        <Card>
+          <CardContent>
+            <p className='text-sm'>
+              Challenge is over. You can no longer submit your solution.
             </p>
           </CardContent>
         </Card>

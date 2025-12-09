@@ -32,6 +32,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
   const [runResult, setRunResult] = useState(null);
+  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
   // load StudentAssignedMatchSetting(Mtach)
   useEffect(() => {
@@ -138,9 +139,15 @@ export default function MatchContainer({ challengeId, studentId }) {
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
-  const handleTimerFinish = useCallback(() => {
-    // console.log('timer reaches zero');
-  }, []);
+  const handleTimerFinish = useCallback(async () => {
+    setIsChallengeFinished(true);
+
+    try {
+      await handleSubmit();
+    } catch (err) {
+      setError({ message: `Error during auto-submit: ${err.message}` });
+    }
+  }, [handleSubmit]);
 
   return (
     <MatchView
@@ -157,6 +164,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       onRun={handleRun}
       onSubmit={handleSubmit}
       onTimerFinish={handleTimerFinish}
+      isChallengeFinished={isChallengeFinished}
     />
   );
 }
