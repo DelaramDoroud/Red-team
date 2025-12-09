@@ -33,17 +33,6 @@ services:
       - ${BACKEND_FOLDER}:/usr/app
       - /var/run/docker.sock:/var/run/docker.sock
       - code_runner_temp:/tmp/code-runner
-    environment:
-      NODE_ENV: development
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME:-codymatch}
-      DB_USER: ${DB_USER:-codymatch}
-      DB_PASSWORD: ${DB_PASSWORD:-codymatch}
-      CODE_RUNNER_IMAGE: ${CODE_RUNNER_IMAGE:-judge0/compilers:latest}
-      CODE_RUNNER_TEMP_DIR: /tmp/code-runner
-      USERID: ${USERID}
-      GROUPID: ${GROUPID}
     depends_on:
       - db
       - frontend
