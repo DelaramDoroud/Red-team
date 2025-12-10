@@ -36,6 +36,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
   // load StudentAssignedMatchSetting(Mtach)
   useEffect(() => {
+    setMessage(null);
     if (!challengeId || !studentId) return () => {};
 
     let cancelled = false;
@@ -100,6 +101,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     setMessage(null);
     setIsRunning(true);
     setIsSubmittingActive(true);
+    setIsRunning(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {

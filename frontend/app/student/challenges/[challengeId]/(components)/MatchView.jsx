@@ -16,6 +16,10 @@ import {
   TableCell,
   TableHead,
 } from '#components/common/Table';
+
+import Tooltip from '#components/common/Tooltip';
+import Spinner from '#components/common/Spinner';
+
 import CppEditor from './CppEditor';
 import Timer from './Timer';
 import { useDuration } from '../(context)/DurationContext';
@@ -38,7 +42,8 @@ export default function MatchView({
 }) {
   const { duration } = useDuration();
 
-  // loading
+  const isBusy = isRunning || isSubmitting;
+
   if (loading) {
     return (
       <div className='max-w-2xl mx-auto py-10'>
@@ -84,6 +89,7 @@ export default function MatchView({
       </div>
     );
   }
+
   if (isChallengeFinished) {
     return (
       <div className='max-w-2xl mx-auto py-10'>
@@ -101,13 +107,13 @@ export default function MatchView({
   const { problemTitle, problemDescription, publicTests = [] } = matchData;
 
   return (
-    <div className='max-w-7xl h-full my-2 '>
+    <div className='max-w-7xl h-full my-2'>
       <div className='flex justify-end text-lg font-bold'>
         <Timer duration={duration} onFinish={onTimerFinish} />
       </div>
-      <div className=' my-2 flex justify-normal gap-x-2 '>
+
+      <div className='my-2 flex justify-normal gap-x-2'>
         <div className='space-y-2 w-1/3'>
-          {/* problem description */}
           <Card>
             <CardHeader>
               <CardTitle>{problemTitle}</CardTitle>
@@ -121,7 +127,6 @@ export default function MatchView({
             </CardContent>
           </Card>
 
-          {/* public tests */}
           <Card>
             <CardHeader>
               <CardTitle>Public tests</CardTitle>
@@ -144,13 +149,9 @@ export default function MatchView({
                     <TableBody>
                       {publicTests.map((test) => (
                         <TableRow key={JSON.stringify(test)}>
-                          <TableCell className=''>
-                            {JSON.stringify(test.input)}
-                          </TableCell>
-
+                          <TableCell>{JSON.stringify(test.input)}</TableCell>
                           <TableCell>{JSON.stringify(test.output)}</TableCell>
-
-                          <TableCell>{/* for actual output */}</TableCell>
+                          <TableCell>{/* your output */}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -164,15 +165,17 @@ export default function MatchView({
             </CardContent>
           </Card>
         </div>
+
         <div className='space-y-6 w-2/3'>
-          {/* editor + controls + result panel */}
           <Card>
             <CardHeader>
               <CardTitle>Code editor</CardTitle>
               <CardDescription>Language: C++</CardDescription>
             </CardHeader>
-            <CardContent className='space-y-4 '>
+
+            <CardContent className='space-y-4'>
               <CppEditor value={code} onChange={setCode} />
+
               <div className='mt-2'>
                 <h2 className='text-sm font-medium mb-1'>Result</h2>
                 <div className='min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs'>
@@ -180,18 +183,43 @@ export default function MatchView({
                     'Run your code to see compilation and test results.'}
                 </div>
               </div>
+
               <div className='flex gap-3'>
-                <Button onClick={onRun} disabled={isRunning || isSubmitting}>
-                  {isRunning ? 'Running…' : 'Run'}
-                </Button>
                 <Button
-                  variant='primary'
-                  onClick={onSubmit}
-                  disabled={!isSubmittingActive}
+                  onClick={onRun}
+                  disabled={isBusy}
+                  className='flex items-center gap-2'
                 >
-                  {isSubmitting ? 'Submitting…' : 'Submit'}
+                  {isRunning && <Spinner label='Running…' />}
+                  {!isRunning && 'Run'}
                 </Button>
+
+                {isSubmittingActive ? (
+                  <button
+                    type='button'
+                    onClick={onSubmit}
+                    disabled={isBusy}
+                    className='px-4 py-2 rounded-md bg-blue-600 text-white disabled:bg-gray-400 flex items-center gap-2'
+                  >
+                    {isSubmitting && <Spinner label='Submitting…' />}
+                    {!isSubmitting && 'Submit'}
+                  </button>
+                ) : (
+                  <Tooltip
+                    text='You cannot submit yet. Run your code first.'
+                    position='top'
+                  >
+                    <button
+                      type='button'
+                      disabled
+                      className='px-4 py-2 rounded-md bg-blue-600 text-white disabled:bg-gray-400'
+                    >
+                      Submit
+                    </button>
+                  </Tooltip>
+                )}
               </div>
+
               {message && (
                 <p className='text-sm text-green-600 dark:text-green-400'>
                   {message}
