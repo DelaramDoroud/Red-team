@@ -88,15 +88,17 @@ export default function MatchContainer({ challengeId, studentId }) {
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
   // handlers: run + submit
-  const handleRun = useCallback(async () => {
+  const handleRun = useCallback(() => {
     setRunResult();
     setIsRunning();
   }, []);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(() => {
     setIsSubmitting();
   }, []);
-
+  const handleTimerFinish = useCallback(() => {
+    // console.log('timer reaches zero');
+  }, []);
   return (
     <MatchView
       loading={loading}
@@ -109,6 +111,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
+      onTimerFinish={handleTimerFinish}
     />
   );
 }

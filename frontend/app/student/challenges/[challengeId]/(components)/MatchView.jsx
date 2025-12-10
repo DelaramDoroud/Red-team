@@ -31,6 +31,7 @@ export default function MatchView({
   runResult,
   onRun,
   onSubmit,
+  onTimerFinish,
 }) {
   const { duration } = useDuration();
   // loading
@@ -85,7 +86,7 @@ export default function MatchView({
   return (
     <div className='max-w-7xl h-full my-2 '>
       <div className='flex justify-end text-lg font-bold'>
-        <Timer duration={duration} />
+        <Timer duration={duration} onFinish={onTimerFinish} />
       </div>
       <div className=' my-2 flex justify-normal gap-x-2 '>
         <div className='space-y-2 w-1/3'>

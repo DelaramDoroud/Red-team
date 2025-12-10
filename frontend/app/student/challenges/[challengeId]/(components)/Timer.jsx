@@ -1,8 +1,8 @@
-import {useEffect, useState} from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-function Timer({ duration, challengeId }) {
+function Timer({ duration, challengeId, onFinish }) {
   const [timeLeft, setTimeLeft] = useState(null);
-
+  const hasFinishedRef = useRef(false);
   useEffect(() => {
     const durationSeconds = duration * 60; // convert minutes → seconds
 
@@ -22,7 +22,7 @@ function Timer({ duration, challengeId }) {
 
     // 3. Calculate endTime from stored start time
     const endTime = startTime + durationSeconds * 1000;
-
+    hasFinishedRef.current = false;
     // 4. Create timer interval
     const intervalId = setInterval(() => {
       const diff = Math.floor((endTime - Date.now()) / 1000);
@@ -30,6 +30,10 @@ function Timer({ duration, challengeId }) {
       if (diff <= 0) {
         setTimeLeft(0);
         clearInterval(intervalId);
+        if (!hasFinishedRef.current && typeof onFinish === 'function') {
+          hasFinishedRef.current = true;
+          onFinish();
+        }
       } else {
         setTimeLeft(diff);
       }
@@ -37,7 +41,7 @@ function Timer({ duration, challengeId }) {
 
     // cleanup
     return () => clearInterval(intervalId);
-  }, [duration, challengeId]); // rerun if challenge changes
+  }, [duration, challengeId, onFinish]); // rerun if challenge changes
 
   function formatTime(seconds) {
     if (seconds === null) return '--:--:--';
