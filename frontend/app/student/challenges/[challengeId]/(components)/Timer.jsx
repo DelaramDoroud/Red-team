@@ -49,7 +49,7 @@ function Timer({ duration, challengeId }) {
     return `${hours}:${mins}:${secs}`;
   }
 
-  return <div>Timer: {formatTime(timeLeft)}</div>;
+  return <div data-testid="timer-value">Timer: {formatTime(timeLeft)}</div>;
 }
 
 export default Timer;

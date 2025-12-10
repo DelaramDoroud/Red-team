@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ChallengeList from '#modules/challenge/list';
+import userEvent from "@testing-library/user-event";
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -31,6 +32,7 @@ const mockGetChallengeParticipants = vi.fn(async () => ({
 }));
 
 const mockAssignChallenge = vi.fn();
+const mockStartChallenge = vi.fn();
 
 // Mock useFetchData to avoid Redux dependency
 vi.mock('#js/useFetchData', () => ({
@@ -47,6 +49,7 @@ vi.mock('#js/useChallenge', () => ({
     getChallenges: mockGetChallenges,
     getChallengeParticipants: mockGetChallengeParticipants,
     assignChallenge: mockAssignChallenge,
+    startChallenge: mockStartChallenge,
   }),
 }));
 
@@ -77,3 +80,59 @@ describe('ChallengeList', () => {
     expect(screen.getByText(/Duration/i)).toBeInTheDocument();
   }, 10000);
 });
+
+describe("ChallengeList – start challenge flow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockGetChallenges.mockResolvedValue([
+      {
+        id: 1,
+        title: "Demo challenge",
+        duration: 30,
+        startDatetime: "2025-01-01T10:00:00.000Z",
+        status: "assigned",
+      },
+    ]);
+
+    mockGetChallengeParticipants.mockResolvedValue({
+      success: true,
+      data: [{ id: 99, name: "Delaram" }], // student joined
+    });
+
+    mockStartChallenge.mockResolvedValue({
+      success: true,
+      status: "started",
+    });
+  });
+
+  it("starts a challenge and updates UI accordingly", async () => {
+    render(<ChallengeList />);
+
+    // Challenge should be visible
+    expect(
+      await screen.findByText(/demo challenge/i)
+    ).toBeInTheDocument();
+
+    // Start button should be available
+    const startButton = await screen.findByRole("button", { name: /start/i });
+    expect(startButton).toBeInTheDocument();
+
+    // Teacher clicks Start
+    await userEvent.click(startButton);
+
+    // Backend mock should be called
+    expect(mockStartChallenge).toHaveBeenCalledWith(1);
+
+    // Start button should disappear
+    expect(
+      screen.queryByRole("button", { name: /start/i })
+    ).not.toBeInTheDocument();
+
+    // UI must show “challenge is in progress”
+    expect(
+      screen.getByText(/challenge is in progress/i)
+    ).toBeInTheDocument();
+  });
+});
+
