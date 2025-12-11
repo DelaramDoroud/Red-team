@@ -17,7 +17,7 @@ const statusStyles = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/15',
   [ChallengeStatus.ASSIGNED]:
     'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
-  [ChallengeStatus.STARTED]:
+  [ChallengeStatus.STARTED_PHASE_ONE]:
     'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-200',
   [ChallengeStatus.PRIVATE]:
     'bg-muted text-muted-foreground ring-1 ring-border',
@@ -128,7 +128,7 @@ export default function StudentChallengesPage() {
 
       const { status, startedAt } = res.data;
 
-      if (status === ChallengeStatus.STARTED) {
+      if (status === ChallengeStatus.STARTED_PHASE_ONE) {
         let remaining = 3;
 
         if (startedAt) {
@@ -223,7 +223,7 @@ export default function StudentChallengesPage() {
 
   const renderStudentAction = (challenge) => {
     const joined = joinedChallenges[challenge.id];
-    const started = challenge.status === ChallengeStatus.STARTED;
+    const started = challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
     const assigned = challenge.status === ChallengeStatus.ASSIGNED;
     const isJoining = pendingActions[challenge.id]?.join;
     const isCountingDown = countdown && countdown.challengeId === challenge.id;
