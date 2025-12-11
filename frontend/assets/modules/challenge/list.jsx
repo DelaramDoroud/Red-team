@@ -97,7 +97,7 @@ export default function ChallengeList() {
         setChallenges((prev) =>
           prev.map((item) =>
             item.id === challengeId
-              ? { ...item, status: ChallengeStatus.STARTED }
+              ? { ...item, status: ChallengeStatus.STARTED_PHASE_ONE }
               : item
           )
         );
@@ -228,8 +228,8 @@ export default function ChallengeList() {
       );
     }
 
-    // hide Start button if status=== STARTED and show message instead
-    if (challenge.status === ChallengeStatus.STARTED) {
+    // hide Start button if status=== STARTED_PHASE_ONE and show message instead
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
       return (
         <span className={styles.inProgress}>
           The challenge is in progress...

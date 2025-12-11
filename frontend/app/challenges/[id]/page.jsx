@@ -18,7 +18,7 @@ const statusTone = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/20',
   [ChallengeStatus.ASSIGNED]:
     'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-200',
-  [ChallengeStatus.STARTED]:
+  [ChallengeStatus.STARTED_PHASE_ONE]:
     'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-200',
   [ChallengeStatus.PRIVATE]:
     'bg-muted text-muted-foreground ring-1 ring-border',

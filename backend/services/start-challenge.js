@@ -2,6 +2,7 @@ import Challenge from '#root/models/challenge.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import { getChallengeParticipants } from '#root/services/challenge-participant.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 export default async function startChallenge({ challengeId }) {
   // 1) Verify challenge exists(same as assign)
@@ -11,7 +12,10 @@ export default async function startChallenge({ challengeId }) {
   }
 
   // 2) We only allow starting when challenge status is assigned
-  if (challenge.status !== 'assigned' && challenge.status !== 'started') {
+  if (
+    challenge.status !== ChallengeStatus.ASSIGNED &&
+    challenge.status !== ChallengeStatus.STARTED_PHASE_ONE
+  ) {
     return {
       status: 'invalid_status',
       challengeStatus: challenge.status,
@@ -52,12 +56,12 @@ export default async function startChallenge({ challengeId }) {
   }
 
   // 6) Already started?
-  if (challenge.status === 'started') {
+  if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
     return { status: 'already_started' };
   }
 
   // 7) Update status to "started"
-  challenge.status = 'started';
+  challenge.status = ChallengeStatus.STARTED_PHASE_ONE;
   challenge.startedAt = new Date();
   await challenge.save();
 

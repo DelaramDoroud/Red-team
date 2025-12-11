@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ChallengeStatus } from '#js/constants';
 import StudentChallengesPage from '../app/student/challenges/page';
 import { given, when, andThen as then } from './bdd';
 
@@ -80,7 +81,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
       title: 'Started challenge',
       duration,
       startDatetime: visibleStart,
-      status: 'started',
+      status: ChallengeStatus.STARTED_PHASE_ONE,
     },
   ];
   beforeEach(() => {

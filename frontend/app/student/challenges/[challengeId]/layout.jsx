@@ -10,6 +10,7 @@ import {
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
 
+import { ChallengeStatus } from '#js/constants';
 import { DurationProvider } from './(context)/DurationContext';
 
 // shared layout for both /match and /result
@@ -63,7 +64,7 @@ export default function ChallengeLayout({ children }) {
   const { status, title, duration } = challengeData || {};
   const phaseLabel = () => {
     switch (status) {
-      case 'started':
+      case ChallengeStatus.STARTED_PHASE_ONE:
         return 'Coding Phase';
       // here we can add also scoring phase and peer revirew phase(third sprint)
       case '':

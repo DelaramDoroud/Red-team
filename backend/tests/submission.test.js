@@ -9,6 +9,7 @@ import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 describe('Submission API', () => {
   let challenge;
@@ -56,7 +57,7 @@ describe('Submission API', () => {
           endDatetime: new Date('2025-12-20T12:00:00Z'),
           durationPeerReview: 30,
           allowedNumberOfReview: 2,
-          status: 'started',
+          status: ChallengeStatus.STARTED_PHASE_ONE,
         },
         { transaction }
       );

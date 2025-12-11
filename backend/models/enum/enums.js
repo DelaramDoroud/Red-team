@@ -7,8 +7,10 @@ export const ChallengeStatus = {
   PUBLIC: 'public',
   PRIVATE: 'private',
   ASSIGNED: 'assigned',
-  STARTED: 'started',
-  ENDED: 'ended',
+  STARTED_PHASE_ONE: 'started_phase_one',
+  ENDED_PHASE_ONE: 'ended_phase_one',
+  STARTED_PHASE_TWO: 'started_phase_two',
+  ENDED_PHASE_TWO: 'ended_phase_two',
 };
 
 export const SubmissionStatus = {
