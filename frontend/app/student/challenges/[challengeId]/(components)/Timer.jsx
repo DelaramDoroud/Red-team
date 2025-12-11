@@ -3,45 +3,46 @@ import { useEffect, useRef, useState } from 'react';
 function Timer({ duration, challengeId, onFinish }) {
   const [timeLeft, setTimeLeft] = useState(null);
   const hasFinishedRef = useRef(false);
-  useEffect(() => {
-    const durationSeconds = duration * 60; // convert minutes → seconds
+  const intervalRef = useRef(null);
 
-    // 1. Create a unique storage key for this challenge
+  useEffect(() => {
+    const durationSeconds = duration * 60;
+
+    // Storage key
     const storageKey = `challenge-start-${challengeId}`;
 
-    // 2. Check if we already have a startTime saved
+    // Get or set start time
     let startTime = localStorage.getItem(storageKey);
-
     if (!startTime) {
-      // first time entering challenge → store Date.now()
       startTime = Date.now();
       localStorage.setItem(storageKey, startTime);
     } else {
       startTime = Number(startTime);
     }
 
-    // 3. Calculate endTime from stored start time
     const endTime = startTime + durationSeconds * 1000;
+
+    // Set initial timeLeft immediately
+    const initialDiff = Math.max(Math.floor((endTime - Date.now()) / 1000), 0);
+    setTimeLeft(initialDiff);
+
     hasFinishedRef.current = false;
-    // 4. Create timer interval
-    const intervalId = setInterval(() => {
-      const diff = Math.floor((endTime - Date.now()) / 1000);
+
+    intervalRef.current = setInterval(() => {
+      const diff = Math.max(Math.floor((endTime - Date.now()) / 1000), 0);
+      setTimeLeft(diff);
 
       if (diff <= 0) {
-        setTimeLeft(0);
-        clearInterval(intervalId);
+        clearInterval(intervalRef.current);
         if (!hasFinishedRef.current && typeof onFinish === 'function') {
           hasFinishedRef.current = true;
           onFinish();
         }
-      } else {
-        setTimeLeft(diff);
       }
     }, 1000);
 
-    // cleanup
-    return () => clearInterval(intervalId);
-  }, [duration, challengeId, onFinish]); // rerun if challenge changes
+    return () => clearInterval(intervalRef.current);
+  }, [duration, challengeId, onFinish]);
 
   function formatTime(seconds) {
     if (seconds === null) return '--:--:--';

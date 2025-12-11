@@ -16,11 +16,7 @@ int main() {
 `;
 
 export default function MatchContainer({ challengeId, studentId }) {
-  const {
-    getStudentAssignedMatchSetting,
-    getStudentAssignedMatch,
-    submitSubmission,
-  } = useChallenge();
+  const { getStudentAssignedMatchSetting, getStudentAssignedMatch, submitSubmission } = useChallenge();
 
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState(null);
@@ -28,129 +24,115 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [message, setMessage] = useState(null);
 
   const [code, setCode] = useState(CppCodeTemplate);
+  const [runResult, setRunResult] = useState(null);
+
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
-  const [runResult, setRunResult] = useState(null);
-  const [isChallengeFinished] = useState(false); // setIsChallengeFinished
 
-  // load StudentAssignedMatchSetting(Mtach)
+  const [isChallengeFinished] = useState(false);
+
+  // Load match
   useEffect(() => {
-    setMessage(null);
-    if (!challengeId || !studentId) return () => {};
+    if (!challengeId || !studentId) return;
 
     let cancelled = false;
 
     async function fetchMatch() {
-      setLoading(true);
+      setMessage(null);
       setError(null);
+      setRunResult(null);
+      setIsRunning(false);
+      setIsSubmitting(false);
+      setIsSubmittingActive(false);
+      setLoading(true);
       setMatchData(null);
 
       try {
-        const res = await getStudentAssignedMatchSetting(
-          challengeId,
-          studentId
-        );
-        // console.log(res);
+        const res = await getStudentAssignedMatchSetting(challengeId, studentId);
+        if (cancelled) return;
+
         if (res?.success === false) {
-          if (!cancelled) {
-            setError({
-              message:
-                res.message || 'Unable to load your match for this challenge.',
-              code: res.code,
-            });
-          }
+          setError({
+            message: res.message || 'Unable to load your match for this challenge.',
+            code: res.code,
+          });
           return;
         }
 
         const { data } = res;
+        setMatchData(data);
 
-        if (!cancelled) {
-          setMatchData(data);
-
-          const starter =
-            data?.starterCode && data.starterCode.trim().length > 0
-              ? data.starterCode
-              : CppCodeTemplate;
-
-          setCode(starter);
-        }
-      } catch (_err) {
-        if (!cancelled) {
-          setError({
-            message: 'Network error while loading your match.try again.',
-          });
-        }
+        const starter = data?.starterCode?.trim() ? data.starterCode : CppCodeTemplate;
+        setCode(starter);
+      } catch {
+        if (!cancelled) setError({ message: 'Network error while loading your match. Try again.' });
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchMatch();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
-  // handlers: run + submit
+  // Run handler
   const handleRun = useCallback(() => {
-    setRunResult();
     setMessage(null);
+    setRunResult(null);
+    setError(null);
     setIsRunning(true);
-    setIsSubmittingActive(true);
-    setIsRunning(false);
+
+    // simulate run completion
+    setTimeout(() => {
+      setRunResult({ output: 'Run completed (mock).' });
+      setIsRunning(false);
+      setIsSubmittingActive(true);
+    }, 300);
   }, []);
 
+  // Submit handler
   const handleSubmit = useCallback(async () => {
+    setMessage(null);
+    setError(null);
     setIsSubmitting(true);
-    setIsRunning(false);
+    setIsSubmittingActive(true);
 
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
-      if (res?.success && res?.data?.id) {
-        const matchId = res.data.id;
-
-        if (!code || code.trim() === '') {
-          setError({ message: 'Empty code cannot be submitted.' });
-          return;
-        }
-
-        const submissionRes = await submitSubmission({
-          matchId,
-          code,
-        });
-
-        if (submissionRes?.success) {
-          setMessage('Submission successful!');
-        } else {
-          setError({
-            message: submissionRes?.error?.message || 'Submission failed.',
-          });
-        }
-      } else {
+      if (!res?.success || !res?.data?.id) {
         setError({ message: 'No match found for submission.' });
+        return;
       }
-    } catch (_err) {
-      setError({ message: `Error: ${_err.message}` });
+
+      const matchId = res.data.id;
+
+      if (!code.trim()) {
+        setError({ message: 'Empty code cannot be submitted.' });
+        return;
+      }
+
+      const submissionRes = await submitSubmission({ matchId, code });
+
+      if (submissionRes?.success) {
+        setMessage('Submission successful!');
+      } else {
+        setError({ message: submissionRes?.error?.message || 'Submission failed.' });
+      }
+    } catch (err) {
+      setError({ message: `Error: ${err.message}` });
     } finally {
       setIsSubmitting(false);
       setIsSubmittingActive(false);
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
-  const handleTimerFinish = useCallback(async () => {
-    // setIsChallengeFinished(true);
-
-    try {
-      await handleSubmit();
-    } catch (err) {
-      setError({ message: `Error during auto-submit: ${err.message}` });
-    }
-  }, [handleSubmit]);
+  // Timer finish handler (auto-submit disabled for now)
+  const handleTimerFinish = useCallback(() => {
+    // Auto-submit logic can be added here
+  }, []);
 
   return (
     <MatchView
@@ -168,6 +150,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       onSubmit={handleSubmit}
       onTimerFinish={handleTimerFinish}
       isChallengeFinished={isChallengeFinished}
+      challengeId={challengeId}
     />
   );
 }

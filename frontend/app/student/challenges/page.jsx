@@ -39,6 +39,7 @@ export default function StudentChallengesPage() {
   const [now, setNow] = useState(new Date());
   const [pendingActions, setPendingActions] = useState({});
   const [countdown, setCountdown] = useState(null);
+
   const load = useCallback(async () => {
     setError(null);
     const res = await getChallenges();
@@ -47,35 +48,30 @@ export default function StudentChallengesPage() {
       setError(res.message || 'Unable to load challenges');
       return;
     }
-    if (Array.isArray(res)) {
-      setChallenges(res);
-    } else if (Array.isArray(res?.data)) {
-      setChallenges(res.data);
-    } else {
-      setChallenges([]);
-    }
+    if (Array.isArray(res)) setChallenges(res);
+    else if (Array.isArray(res?.data)) setChallenges(res.data);
+    else setChallenges([]);
   }, [getChallenges]);
+
   const STUDENT_ID = 1;
   const router = useRouter();
+
   useEffect(() => {
     let isCancelled = false;
+
     async function doFetch() {
       if (isCancelled) return;
       setNow(new Date());
       await load();
     }
+
     doFetch();
-    return () => {
-      isCancelled = true;
-    };
+    return () => { isCancelled = true; };
   }, [load]);
 
   const filterChallenges = useCallback(
     (allChallenges, nowTime) =>
-      allChallenges.filter((challenge) => {
-        const start = new Date(challenge.startDatetime);
-        return nowTime >= start;
-      }),
+      allChallenges.filter((challenge) => new Date(challenge.startDatetime) <= nowTime),
     []
   );
 
@@ -83,23 +79,19 @@ export default function StudentChallengesPage() {
     const available = filterChallenges(challenges, now);
     return available.length > 0 ? [available[0]] : [];
   }, [challenges, filterChallenges, now]);
+
+  // Check if student already joined the challenge
   useEffect(() => {
-    if (!visibleChallenges.length) return () => {};
+    if (!visibleChallenges.length) return;
 
     const challenge = visibleChallenges[0];
     let cancelled = false;
 
     async function checkJoined() {
       try {
-        const res = await getChallengeForJoinedStudent(
-          challenge.id,
-          STUDENT_ID
-        );
+        const res = await getChallengeForJoinedStudent(challenge.id, STUDENT_ID);
         if (!cancelled && res?.success && res.data) {
-          setJoinedChallenges((prev) => ({
-            ...prev,
-            [challenge.id]: true,
-          }));
+          setJoinedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
         }
       } catch (_err) {
         setError(_err);
@@ -108,70 +100,50 @@ export default function StudentChallengesPage() {
 
     checkJoined();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [visibleChallenges, getChallengeForJoinedStudent]);
 
+  // Poll challenge status and manage countdown
   useEffect(() => {
-    if (!visibleChallenges.length) return () => {};
-
+    if (!visibleChallenges.length) return;
     const challenge = visibleChallenges[0];
     const joined = joinedChallenges[challenge.id];
-    if (!joined) return () => {};
+    if (!joined) return;
 
-    let intervalId;
+    const startCountdown = (startedAt) => {
+      let remaining = 3;
+      if (startedAt) {
+        const startedTime = new Date(startedAt).getTime();
+        const diffSeconds = Math.floor((Date.now() - startedTime) / 1000);
+        remaining = Math.max(3 - diffSeconds, 0);
+      }
+      setCountdown({ challengeId: challenge.id, value: remaining });
+    };
 
     const pollStatus = async () => {
       const res = await getChallengeForJoinedStudent(challenge.id, STUDENT_ID);
       if (!res?.success || !res.data) return;
 
       const { status, startedAt } = res.data;
-
       if (status === ChallengeStatus.STARTED_PHASE_ONE) {
-        let remaining = 3;
-
-        if (startedAt) {
-          const startedTime = new Date(startedAt).getTime();
-          const diffSeconds = Math.floor((Date.now() - startedTime) / 1000);
-          remaining = Math.max(3 - diffSeconds, 0);
-        }
-
-        if (remaining <= 0) {
-          router.push(`/student/challenges/${challenge.id}/match`);
-        } else {
-          setCountdown((prev) =>
-            prev && prev.challengeId === challenge.id
-              ? prev
-              : { challengeId: challenge.id, value: remaining }
-          );
-        }
-
-        if (intervalId) clearInterval(intervalId);
+        startCountdown(startedAt);
       }
     };
 
     pollStatus();
-    intervalId = setInterval(pollStatus, 1000);
+    const intervalId = setInterval(pollStatus, 1000);
+    return () => clearInterval(intervalId);
+  }, [visibleChallenges, joinedChallenges, getChallengeForJoinedStudent]);
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [
-    visibleChallenges,
-    joinedChallenges,
-    getChallengeForJoinedStudent,
-    router,
-  ]);
-
+  // Countdown effect for redirect
   useEffect(() => {
-    if (!countdown) return () => {};
+    if (!countdown) return;
 
     if (countdown.value <= 0) {
-      const { challengeId } = countdown.challengeId;
+      const challengeId = countdown.challengeId;
       setCountdown(null);
       router.push(`/student/challenges/${challengeId}/match`);
-      return () => {};
+      return;
     }
 
     const timeoutId = setTimeout(() => {
@@ -196,13 +168,9 @@ export default function StudentChallengesPage() {
     setActionPending(challengeId, 'join', true);
     try {
       const res = await joinChallenge(challengeId, STUDENT_ID);
-
-      if (res.success) {
-        setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
-      } else {
-        setError(res?.error || res?.message || 'Unable to join the challenge');
-      }
-    } catch (_err) {
+      if (res.success) setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+      else setError(res?.error || res?.message || 'Unable to join the challenge');
+    } catch {
       setError('Unable to join the challenge');
     } finally {
       setActionPending(challengeId, 'join', false);
@@ -228,47 +196,12 @@ export default function StudentChallengesPage() {
     const isJoining = pendingActions[challenge.id]?.join;
     const isCountingDown = countdown && countdown.challengeId === challenge.id;
 
-    if (isCountingDown) {
-      return (
-        <div className='text-primary font-semibold text-sm'>
-          Challenge starting in {countdown.value}…
-        </div>
-      );
-    }
-
-    if (!joined && !started && !assigned) {
-      return (
-        <Button
-          size='lg'
-          onClick={() => handleJoin(challenge.id)}
-          disabled={isJoining}
-        >
-          {isJoining ? 'Joining...' : 'Join'}
-        </Button>
-      );
-    }
-
-    if (!joined && assigned) {
-      return (
-        <div className='text-primary font-semibold text-sm'>
-          Wait for the teacher to start the challenge.
-        </div>
-      );
-    }
-
-    if (!joined && started) {
-      return (
-        <div className='text-destructive font-semibold text-sm'>
-          The challenge is in progress.
-        </div>
-      );
-    }
-
-    return (
-      <div className='text-primary font-semibold text-sm'>
-        Wait for the teacher to start the challenge.
-      </div>
-    );
+    if (isCountingDown) return <div className='text-primary font-semibold text-sm'>Challenge starting in {countdown.value}…</div>;
+    if (!joined && !started && !assigned)
+      return <Button size='lg' onClick={() => handleJoin(challenge.id)} disabled={isJoining}>{isJoining ? 'Joining...' : 'Join'}</Button>;
+    if (!joined && assigned) return <div className='text-primary font-semibold text-sm'>Wait for the teacher to start the challenge.</div>;
+    if (!joined && started) return <div className='text-destructive font-semibold text-sm'>The challenge is in progress.</div>;
+    return <div className='text-primary font-semibold text-sm'>Wait for the teacher to start the challenge.</div>;
   };
 
   return (
@@ -278,19 +211,14 @@ export default function StudentChallengesPage() {
           <div className='bg-card rounded-2xl px-10 py-8 text-center shadow-xl border border-border'>
             <p className='text-sm text-muted-foreground mb-2'>Get ready…</p>
             <p className='text-6xl font-bold mb-4'>{countdown.value}</p>
-            <p className='text-sm text-muted-foreground'>
-              The challenge is about to start.
-            </p>
+            <p className='text-sm text-muted-foreground'>The challenge is about to start.</p>
           </div>
         </div>
       )}
+
       <div className='space-y-2'>
-        <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-          Student area
-        </p>
-        <h1 className='text-3xl font-bold text-foreground'>
-          Available Challenges
-        </h1>
+        <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Student area</p>
+        <h1 className='text-3xl font-bold text-foreground'>Available Challenges</h1>
         <p className='text-muted-foreground text-sm'>
           Challenges become visible once their start time arrives. Join to be
           included, then wait for your teacher to start the challenge.
@@ -317,19 +245,13 @@ export default function StudentChallengesPage() {
           </Card>
         ) : (
           visibleChallenges.map((challenge) => (
-            <Card
-              key={challenge.id}
-              className='border border-border bg-card text-card-foreground shadow-sm'
-            >
+            <Card key={challenge.id} className='border border-border bg-card text-card-foreground shadow-sm'>
               <CardHeader className='pb-4'>
                 <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
                   <div className='space-y-1.5'>
-                    <CardTitle className='text-xl font-semibold text-foreground'>
-                      {challenge.title}
-                    </CardTitle>
+                    <CardTitle className='text-xl font-semibold text-foreground'>{challenge.title}</CardTitle>
                     <CardDescription className='text-muted-foreground text-sm leading-normal'>
-                      Join the challenge and wait for your teacher to assign
-                      matches.
+                      Join the challenge and wait for your teacher to assign matches.
                     </CardDescription>
                   </div>
                   {renderStatusBadge(challenge.status)}
@@ -340,26 +262,16 @@ export default function StudentChallengesPage() {
                 <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
                   <dl className='flex flex-wrap gap-6 text-sm text-muted-foreground'>
                     <div className='space-y-1'>
-                      <dt className='text-xs font-semibold uppercase tracking-wide'>
-                        Start
-                      </dt>
-                      <dd className='text-foreground font-medium'>
-                        {formatDateTime(challenge.startDatetime)}
-                      </dd>
+                      <dt className='text-xs font-semibold uppercase tracking-wide'>Start</dt>
+                      <dd className='text-foreground font-medium'>{formatDateTime(challenge.startDatetime)}</dd>
                     </div>
                     <div className='space-y-1'>
-                      <dt className='text-xs font-semibold uppercase tracking-wide'>
-                        Duration
-                      </dt>
-                      <dd className='text-foreground font-medium'>
-                        {challenge.duration} min
-                      </dd>
+                      <dt className='text-xs font-semibold uppercase tracking-wide'>Duration</dt>
+                      <dd className='text-foreground font-medium'>{challenge.duration} min</dd>
                     </div>
                   </dl>
 
-                  <div className='flex flex-wrap gap-3 justify-end'>
-                    {renderStudentAction(challenge)}
-                  </div>
+                  <div className='flex flex-wrap gap-3 justify-end'>{renderStudentAction(challenge)}</div>
                 </div>
               </CardContent>
             </Card>
