@@ -1,11 +1,13 @@
-TODO 
-1) TEST FRONTEND
-2) INTEGRARE CON USER STORY 2 => DA MERGIARE
-3) TIMER CHALLENGE DA IMPLEMENTARE => CON CHIAMATA QUANDO FINISCE
-5) CRON che quando (startPhaseOneDateTime + durata >= sysdate) => lo stato della challenge deve diventare ENDED_PHASE_ONE
+- [ ] 1. TEST FRONTEND
+- [ ] 2. INTEGRARE CON USER STORY 2 => DA MERGIARE
+- [ ] 3. TIMER CHALLENGE DA IMPLEMENTARE => CON CHIAMATA QUANDO FINISCE
+- [ ] 4. ERRORE ID NON TROVATO
+- [ ] 5. CRON che quando (startPhaseOneDateTime + durata >= sysdate) => lo stato della challenge deve diventare ENDED_PHASE_ONE
     e aggiornare endedPhaseOneDateTime con sysdate
     => contemporaneamente 
         1. cambiare lo stato della pagina che vede la prof => es: aggiungere messaggio "fine prima fase" 
         (anche la prof dovrebbe poter vedere il timer?)
         2. pagina dello studente => quando scade il timer disabilitare l'input e provare a fare l'insert
-6) vedere a cosa serve la colonna started_at e eventualmente fare file di migrazione dove si toglie
+
+
+- [ ] 6. vedere a cosa serve la colonna started_at e eventualmente fare file di migrazione dove si toglie
