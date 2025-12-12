@@ -14,24 +14,6 @@ const LANGUAGE_CONFIGS = {
     extension: '.js',
     timeout: 10000,
   },
-  java: {
-    command: 'javac && java',
-    extension: '.java',
-    timeout: 15000,
-    compileFirst: true,
-  },
-  cpp: {
-    command: 'g++ -o main && ./main',
-    extension: '.cpp',
-    timeout: 15000,
-    compileFirst: true,
-  },
-  c: {
-    command: 'gcc -o main && ./main',
-    extension: '.c',
-    timeout: 15000,
-    compileFirst: true,
-  },
 };
 
 const DOCKER_IMAGE = process.env.CODE_RUNNER_IMAGE || 'judge0/compilers:latest';
@@ -40,7 +22,7 @@ const getTempBase = () => {
   return tmpdir();
 };
 
-export async function runCode(code, language, input = '') {
+export async function runCode(code, language, input = '', options = {}) {
   const config = LANGUAGE_CONFIGS[language.toLowerCase()];
   if (!config) {
     console.error('[CODE RUNNER] Unsupported language:', language);
@@ -99,7 +81,7 @@ export async function runCode(code, language, input = '') {
         '--cpus=0.5',
         '--read-only',
         '--tmpfs',
-        '/tmp:rw,noexec,nosuid,size=10m',
+        '/tmp:rw,exec,nosuid,size=10m',
         '-i',
         DOCKER_IMAGE,
         'sh',
@@ -116,10 +98,21 @@ export async function runCode(code, language, input = '') {
       }
 
       if (config.compileFirst) {
-        const compileCmd = config.command.split(' && ')[0];
-        const runCmd = config.command.split(' && ')[1];
         const outputName = `/tmp/output-${uniqueId}`;
-        execCommand = `${setupCommand} && ${compileCmd} ${codeFilePath} -o ${outputName} && ${runCmd} ${outputName}`;
+        // Build compile + run command per language to avoid fragile split logic
+        if (language.toLowerCase() === 'cpp') {
+          execCommand = `${setupCommand} && g++ ${codeFilePath} -o ${outputName} && ${outputName}${input ? ` < ${inputFilePath}` : ''}`;
+        } else if (language.toLowerCase() === 'c') {
+          execCommand = `${setupCommand} && gcc ${codeFilePath} -o ${outputName} && ${outputName}${input ? ` < ${inputFilePath}` : ''}`;
+        } else if (language.toLowerCase() === 'java') {
+          // Expect class Main for Java code in tests; compile then run
+          // Place compiled classes in /tmp and run with classpath /tmp
+          // Move/compile the file as /tmp/Main.java
+          execCommand = `${setupCommand} && sed -n 'w /tmp/Main.java' ${codeFilePath} >/dev/null 2>&1 || cp ${codeFilePath} /tmp/Main.java && javac /tmp/Main.java && java -cp /tmp Main${input ? ` < ${inputFilePath}` : ''}`;
+        } else {
+          // Fallback (should not happen with current configs)
+          execCommand = `${setupCommand}`;
+        }
       } else {
         if (input) {
           execCommand = `${setupCommand} && ${config.command} ${codeFilePath} < ${inputFilePath}`;
@@ -148,6 +141,19 @@ export async function runCode(code, language, input = '') {
       let stderr = '';
       let timeoutId;
       let resolved = false;
+      // Determine effective timeout in this order:
+      // 1) per-call option
+      // 2) test override via env (for API tests to shorten loops)
+      // 3) language default
+      const testTimeoutEnv = process.env.CODE_RUNNER_TEST_TIMEOUT_MS;
+      const envTimeout =
+        testTimeoutEnv && !Number.isNaN(parseInt(testTimeoutEnv, 10))
+          ? parseInt(testTimeoutEnv, 10)
+          : undefined;
+      const effectiveTimeout =
+        options && typeof options.timeoutMs === 'number'
+          ? options.timeoutMs
+          : (envTimeout ?? config.timeout);
 
       timeoutId = setTimeout(async () => {
         if (!resolved) {
@@ -170,7 +176,7 @@ export async function runCode(code, language, input = '') {
             exitCode: 124,
           });
         }
-      }, config.timeout);
+      }, effectiveTimeout);
 
       dockerProcess.stdout.on('data', (data) => {
         stdout += data.toString();

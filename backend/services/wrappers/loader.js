@@ -1,7 +1,7 @@
 import { registerWrapper } from './index.js';
 import { readdir } from 'fs/promises';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,7 +19,8 @@ export async function loadWrappers() {
     const loadPromises = wrapperFiles.map(async (file) => {
       try {
         const filePath = join(implementationsDir, file);
-        const module = await import(`file://${filePath}`);
+        // Use pathToFileURL to avoid SSR host warnings and ensure valid file URLs
+        const module = await import(pathToFileURL(filePath).href);
 
         const wrapperFunction = Object.values(module).find(
           (exported) =>

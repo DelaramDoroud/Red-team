@@ -3,74 +3,83 @@ import request from 'supertest';
 import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
 import sequelize from '#root/services/sequelize.js';
+import {
+  pythonCorrectTwoSum,
+  pythonIncorrectTwoSum,
+  pythonSyntaxError,
+  pythonInfiniteLoop,
+} from './student-code/python.js';
+import { cppCorrectTwoSum, cppInvalid } from './student-code/cpp.js';
 
 let app;
 let testMatchSettingId;
+let prevTestTimeoutEnv;
+const TEST_PROBLEM_TITLE = 'Two Sum (Code Runner API Tests)';
 
 beforeAll(async () => {
+  // Force shorter execution timeout for tests only (affects worker -> runCode)
+  prevTestTimeoutEnv = process.env.CODE_RUNNER_TEST_TIMEOUT_MS;
+  process.env.CODE_RUNNER_TEST_TIMEOUT_MS = '2000';
+
   const appModule = await import('#root/app_initial.js');
   app = appModule.default;
 
-  // Try to find existing match setting with public tests
+  const publicTests = [
+    { input: [[2, 7, 11, 15], 9], output: [0, 1] },
+    { input: [[3, 2, 4], 6], output: [1, 2] },
+  ];
+
+  const privateTests = [
+    { input: [[3, 3], 6], output: [0, 1] },
+    { input: [[-1, -2, -3, -4, -5], -8], output: [2, 4] },
+  ];
+
   let matchSetting = await MatchSetting.findOne({
-    where: {
-      status: MatchSettingStatus.READY,
-    },
-    order: [['id', 'ASC']],
+    where: { problemTitle: TEST_PROBLEM_TITLE },
   });
 
-  // If no match setting exists or it has no public tests, create one
-  if (
-    !matchSetting ||
-    !Array.isArray(matchSetting.publicTests) ||
-    matchSetting.publicTests.length === 0
-  ) {
-    matchSetting = await MatchSetting.create({
-      problemTitle: 'Two Sum',
-      problemDescription:
-        'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
-      referenceSolution: `function twoSum(nums, target) {
-  const map = new Map();
+  const baseData = {
+    problemTitle: TEST_PROBLEM_TITLE,
+    problemDescription:
+      'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+    referenceSolution: `function solve(input) {
+  const [nums, target] = input;
+  const seen = new Map();
   for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (map.has(complement)) {
-      return [map.get(complement), i];
-    }
-    map.set(nums[i], i);
+    const need = target - nums[i];
+    if (seen.has(need)) return [seen.get(need), i];
+    seen.set(nums[i], i);
   }
   return [];
 }`,
-      publicTests: [
-        { input: [[2, 7, 11, 15], 9], output: [0, 1] },
-        { input: [[3, 2, 4], 6], output: [1, 2] },
-      ],
-      privateTests: [{ input: [[3, 3], 6], output: [0, 1] }],
-      status: MatchSettingStatus.READY,
-    });
+    publicTests,
+    privateTests,
+    status: MatchSettingStatus.READY,
+  };
+
+  if (!matchSetting) {
+    matchSetting = await MatchSetting.create(baseData);
+  } else {
+    await matchSetting.update(baseData);
   }
 
   testMatchSettingId = matchSetting.id;
 });
 
 afterAll(async () => {
+  // Restore timeout env
+  if (prevTestTimeoutEnv === undefined)
+    delete process.env.CODE_RUNNER_TEST_TIMEOUT_MS;
+  else process.env.CODE_RUNNER_TEST_TIMEOUT_MS = prevTestTimeoutEnv;
+
   if (sequelize) await sequelize.close();
 });
 
 describe('Code Runner API - POST /api/rest/run', () => {
   it('should execute correct Python code and pass all tests', async () => {
-    const correctCode = `import json
-nums, target = input_data
-map = {}
-for i, num in enumerate(nums):
-    complement = target - num
-    if complement in map:
-        print(json.dumps([map[complement], i]))
-        break
-    map[num] = i`;
-
     const res = await request(app).post('/api/rest/run').send({
       matchSettingId: testMatchSettingId,
-      code: correctCode,
+      code: pythonCorrectTwoSum,
       language: 'python',
     });
 
@@ -80,6 +89,8 @@ for i, num in enumerate(nums):
     expect(res.body.summary.total).toBeGreaterThan(0);
 
     if (res.body.summary.passed !== res.body.summary.total) {
+      // Useful debug in CI logs if it ever fails
+      // eslint-disable-next-line no-console
       console.log('Test results:', JSON.stringify(res.body.results, null, 2));
     }
 
@@ -97,14 +108,9 @@ for i, num in enumerate(nums):
   }, 180000);
 
   it('should execute incorrect Python code and fail tests', async () => {
-    const incorrectCode = `import json
-nums, target = input_data
-# Wrong implementation - always returns [0, 1]
-print(json.dumps([0, 1]))`;
-
     const res = await request(app).post('/api/rest/run').send({
       matchSettingId: testMatchSettingId,
-      code: incorrectCode,
+      code: pythonIncorrectTwoSum,
       language: 'python',
     });
 
@@ -130,16 +136,59 @@ print(json.dumps([0, 1]))`;
     });
   }, 180000);
 
-  it('should handle Python code with syntax errors', async () => {
-    const syntaxErrorCode = `import json
-nums, target = input_data
-# Syntax error - missing colon
-for i, num in enumerate(nums)
-    print(json.dumps([i, i]))`;
-
+  it('should execute correct C++ code and pass all tests', async () => {
     const res = await request(app).post('/api/rest/run').send({
       matchSettingId: testMatchSettingId,
-      code: syntaxErrorCode,
+      code: cppCorrectTwoSum,
+      language: 'cpp',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.summary).toBeDefined();
+    expect(res.body.summary.total).toBeGreaterThan(0);
+    if (res.body.summary.passed !== res.body.summary.total) {
+      // Useful debug in CI logs if it ever fails
+      // eslint-disable-next-line no-console
+      console.log('C++ results:', JSON.stringify(res.body.results, null, 2));
+    }
+    expect(res.body.summary.passed).toBe(res.body.summary.total);
+    expect(res.body.summary.failed).toBe(0);
+    expect(res.body.summary.allPassed).toBe(true);
+    expect(res.body.results).toBeDefined();
+    expect(res.body.results.length).toBe(res.body.summary.total);
+    res.body.results.forEach((r) => {
+      expect(r.passed).toBe(true);
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe('');
+    });
+  }, 180000);
+
+  it('should report compilation errors for invalid C++ code', async () => {
+    const res = await request(app).post('/api/rest/run').send({
+      matchSettingId: testMatchSettingId,
+      code: cppInvalid,
+      language: 'cpp',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.summary).toBeDefined();
+    expect(res.body.summary.total).toBeGreaterThan(0);
+    expect(res.body.summary.passed).toBe(0);
+    expect(res.body.summary.failed).toBe(res.body.summary.total);
+    expect(res.body.results).toBeDefined();
+    res.body.results.forEach((r) => {
+      expect(r.passed).toBe(false);
+      expect(r.exitCode).not.toBe(0);
+      expect(String(r.stderr).toLowerCase()).toContain('error');
+    });
+  }, 180000);
+
+  it('should handle Python code with syntax errors', async () => {
+    const res = await request(app).post('/api/rest/run').send({
+      matchSettingId: testMatchSettingId,
+      code: pythonSyntaxError,
       language: 'python',
     });
 
@@ -168,14 +217,9 @@ for i, num in enumerate(nums)
   }, 180000);
 
   it('should timeout infinite loop code', async () => {
-    const infiniteLoopCode = `import json
-# Infinite loop - should timeout
-while True:
-    pass`;
-
     const res = await request(app).post('/api/rest/run').send({
       matchSettingId: testMatchSettingId,
-      code: infiniteLoopCode,
+      code: pythonInfiniteLoop,
       language: 'python',
     });
 
