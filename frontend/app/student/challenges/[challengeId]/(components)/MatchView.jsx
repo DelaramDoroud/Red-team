@@ -23,6 +23,7 @@ import { useDuration } from '../(context)/DurationContext';
 export default function MatchView({
   loading,
   error,
+  challengeId,
   matchData,
   code,
   setCode,
@@ -86,7 +87,11 @@ export default function MatchView({
   return (
     <div className='max-w-7xl h-full my-2 '>
       <div className='flex justify-end text-lg font-bold'>
-        <Timer duration={duration} onFinish={onTimerFinish} />
+        <Timer
+          duration={duration}
+          challengeId={challengeId}
+          onFinish={onTimerFinish}
+        />
       </div>
       <div className=' my-2 flex justify-normal gap-x-2 '>
         <div className='space-y-2 w-1/3'>
