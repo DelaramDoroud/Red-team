@@ -62,7 +62,7 @@ export default async function startChallenge({ challengeId }) {
 
   // 7) Update status to "started"
   challenge.status = ChallengeStatus.STARTED_PHASE_ONE;
-  challenge.startedAt = new Date();
+  challenge.startPhaseOneDateTime = new Date();
   await challenge.save();
 
   return {

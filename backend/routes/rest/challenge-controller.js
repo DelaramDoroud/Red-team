@@ -357,7 +357,7 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         status: challenge.status,
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
-        startedAt: challenge.startedAt,
+        startPhaseOneDateTime: challenge.startPhaseOneDateTime,
       },
     });
   } catch (error) {
@@ -487,7 +487,7 @@ router.get('/challenges/:challengeId/for-student', async (req, res) => {
         status: challenge.status,
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
-        startedAt: challenge.startedAt,
+        startPhaseOneDateTime: challenge.startPhaseOneDateTime,
         title: challenge.title,
       },
     });

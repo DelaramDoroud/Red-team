@@ -69,10 +69,25 @@ const Challenge = sequelize.define(
       allowNull: false,
       defaultValue: 'private',
     },
-    startedAt: {
+    startPhaseOneDateTime: {
       type: DataTypes.DATE,
+      field: 'startPhaseOneDateTime',
       allowNull: true,
-      field: 'started_at',
+    },
+    endPhaseOneDateTime: {
+      type: DataTypes.DATE,
+      field: 'endPhaseOneDateTime',
+      allowNull: true,
+    },
+    startPhaseTwoDateTime: {
+      type: DataTypes.DATE,
+      field: 'startPhaseTwoDateTime',
+      allowNull: true,
+    },
+    endPhaseTwoDateTime: {
+      type: DataTypes.DATE,
+      field: 'endPhaseTwoDateTime',
+      allowNull: true,
     },
   },
   {
