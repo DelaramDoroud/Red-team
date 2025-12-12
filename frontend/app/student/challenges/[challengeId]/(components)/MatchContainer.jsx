@@ -16,7 +16,11 @@ int main() {
 `;
 
 export default function MatchContainer({ challengeId, studentId }) {
-  const { getStudentAssignedMatchSetting, getStudentAssignedMatch, submitSubmission } = useChallenge();
+  const {
+    getStudentAssignedMatchSetting,
+    getStudentAssignedMatch,
+    submitSubmission,
+  } = useChallenge();
 
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState(null);
@@ -30,12 +34,10 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
 
-  const [isChallengeFinished] = useState(false);
+  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
   // Load match
   useEffect(() => {
-    if (!challengeId || !studentId) return;
-
     let cancelled = false;
 
     async function fetchMatch() {
@@ -49,12 +51,16 @@ export default function MatchContainer({ challengeId, studentId }) {
       setMatchData(null);
 
       try {
-        const res = await getStudentAssignedMatchSetting(challengeId, studentId);
+        const res = await getStudentAssignedMatchSetting(
+          challengeId,
+          studentId
+        );
         if (cancelled) return;
 
         if (res?.success === false) {
           setError({
-            message: res.message || 'Unable to load your match for this challenge.',
+            message:
+              res.message || 'Unable to load your match for this challenge.',
             code: res.code,
           });
           return;
@@ -63,18 +69,27 @@ export default function MatchContainer({ challengeId, studentId }) {
         const { data } = res;
         setMatchData(data);
 
-        const starter = data?.starterCode?.trim() ? data.starterCode : CppCodeTemplate;
+        const starter = data?.starterCode?.trim()
+          ? data.starterCode
+          : CppCodeTemplate;
         setCode(starter);
       } catch {
-        if (!cancelled) setError({ message: 'Network error while loading your match. Try again.' });
+        if (!cancelled)
+          setError({
+            message: 'Network error while loading your match. Try again.',
+          });
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    fetchMatch();
+    if (challengeId && studentId) {
+      fetchMatch();
+    }
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
   // Run handler
@@ -119,7 +134,9 @@ export default function MatchContainer({ challengeId, studentId }) {
       if (submissionRes?.success) {
         setMessage('Submission successful!');
       } else {
-        setError({ message: submissionRes?.error?.message || 'Submission failed.' });
+        setError({
+          message: submissionRes?.error?.message || 'Submission failed.',
+        });
       }
     } catch (err) {
       setError({ message: `Error: ${err.message}` });
@@ -129,10 +146,33 @@ export default function MatchContainer({ challengeId, studentId }) {
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
-  // Timer finish handler (auto-submit disabled for now)
-  const handleTimerFinish = useCallback(() => {
-    // Auto-submit logic can be added here
-  }, []);
+  // Timer finish handler
+  const handleTimerFinish = useCallback(async () => {
+    setIsChallengeFinished(true);
+    setIsSubmittingActive(false);
+
+    try {
+      const res = await getStudentAssignedMatch(challengeId, studentId);
+
+      if (!res?.success || !res?.data?.id) {
+        return;
+      }
+
+      const matchId = res.data.id;
+
+      const submissionRes = await submitSubmission({ matchId, code });
+
+      if (submissionRes?.success) {
+        setMessage('Thanks for your participation.');
+      } else {
+        setMessage(
+          'Your code did not compile successfully. Thanks for your participation.'
+        );
+      }
+    } catch (err) {
+      setMessage('Thanks for your participation.');
+    }
+  }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
   return (
     <MatchView
