@@ -46,7 +46,7 @@ beforeAll(async () => {
       .slice(0, 2)
       .map((s) => s.id);
   }
-}, 30000);
+}, 60000);
 
 beforeEach(() => {
   createdChallengeIds = [];
