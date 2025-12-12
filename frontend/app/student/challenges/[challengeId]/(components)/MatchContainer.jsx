@@ -28,13 +28,15 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [message, setMessage] = useState(null);
 
   const [code, setCode] = useState(CppCodeTemplate);
+
+  // runResult ora è una stringa
   const [runResult, setRunResult] = useState(null);
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
 
-  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
+  const [isChallengeFinished] = useState(false);
 
   // Load match
   useEffect(() => {
@@ -72,6 +74,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         const starter = data?.starterCode?.trim()
           ? data.starterCode
           : CppCodeTemplate;
+
         setCode(starter);
       } catch {
         if (!cancelled)
@@ -92,16 +95,15 @@ export default function MatchContainer({ challengeId, studentId }) {
     };
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
-  // Run handler
+  // Run handler (runResult diventa stringa)
   const handleRun = useCallback(() => {
     setMessage(null);
     setRunResult(null);
     setError(null);
     setIsRunning(true);
 
-    // simulate run completion
     setTimeout(() => {
-      setRunResult({ output: 'Run completed (mock).' });
+      setRunResult('Run completed (mock).'); // <-- Fix
       setIsRunning(false);
       setIsSubmittingActive(true);
     }, 300);
@@ -146,34 +148,6 @@ export default function MatchContainer({ challengeId, studentId }) {
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
-  // Timer finish handler
-  const handleTimerFinish = useCallback(async () => {
-    setIsChallengeFinished(true);
-    setIsSubmittingActive(false);
-
-    try {
-      const res = await getStudentAssignedMatch(challengeId, studentId);
-
-      if (!res?.success || !res?.data?.id) {
-        return;
-      }
-
-      const matchId = res.data.id;
-
-      const submissionRes = await submitSubmission({ matchId, code });
-
-      if (submissionRes?.success) {
-        setMessage('Thanks for your participation.');
-      } else {
-        setMessage(
-          'Your code did not compile successfully. Thanks for your participation.'
-        );
-      }
-    } catch (err) {
-      setMessage('Thanks for your participation.');
-    }
-  }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
-
   return (
     <MatchView
       loading={loading}
@@ -188,7 +162,6 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
-      onTimerFinish={handleTimerFinish}
       isChallengeFinished={isChallengeFinished}
       challengeId={challengeId}
     />
