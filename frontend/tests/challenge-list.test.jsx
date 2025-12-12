@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ChallengeList from '#modules/challenge/list';
-import userEvent from "@testing-library/user-event";
+import userEvent from '@testing-library/user-event';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -81,41 +81,39 @@ describe('ChallengeList', () => {
   }, 10000);
 });
 
-describe("ChallengeList – start challenge flow", () => {
+describe('ChallengeList – start challenge flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockGetChallenges.mockResolvedValue([
       {
         id: 1,
-        title: "Demo challenge",
+        title: 'Demo challenge',
         duration: 30,
-        startDatetime: "2025-01-01T10:00:00.000Z",
-        status: "assigned",
+        startDatetime: '2025-01-01T10:00:00.000Z',
+        status: 'assigned',
       },
     ]);
 
     mockGetChallengeParticipants.mockResolvedValue({
       success: true,
-      data: [{ id: 99, name: "Delaram" }], // student joined
+      data: [{ id: 99, name: 'Delaram' }], // student joined
     });
 
     mockStartChallenge.mockResolvedValue({
       success: true,
-      status: "started",
+      status: 'started',
     });
   });
 
-  it("starts a challenge and updates UI accordingly", async () => {
+  it('starts a challenge and updates UI accordingly', async () => {
     render(<ChallengeList />);
 
     // Challenge should be visible
-    expect(
-      await screen.findByText(/demo challenge/i)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/demo challenge/i)).toBeInTheDocument();
 
     // Start button should be available
-    const startButton = await screen.findByRole("button", { name: /start/i });
+    const startButton = await screen.findByRole('button', { name: /start/i });
     expect(startButton).toBeInTheDocument();
 
     // Teacher clicks Start
@@ -126,13 +124,10 @@ describe("ChallengeList – start challenge flow", () => {
 
     // Start button should disappear
     expect(
-      screen.queryByRole("button", { name: /start/i })
+      screen.queryByRole('button', { name: /start/i })
     ).not.toBeInTheDocument();
 
     // UI must show “challenge is in progress”
-    expect(
-      screen.getByText(/challenge is in progress/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/challenge is in progress/i)).toBeInTheDocument();
   });
 });
-
