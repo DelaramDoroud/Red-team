@@ -121,27 +121,29 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!res?.success || !res?.data?.id) {
         setError({ message: 'No match found for submission.' });
-        return;
+        return false;
       }
 
       const matchId = res.data.id;
 
       if (!code.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
-        return;
+        return false;
       }
 
       const submissionRes = await submitSubmission({ matchId, code });
 
       if (submissionRes?.success) {
         setMessage('Submission successful!');
-      } else {
-        setError({
-          message: submissionRes?.error?.message || 'Submission failed.',
-        });
+        return true;
       }
+      setError({
+        message: submissionRes?.error?.message || 'Submission failed.',
+      });
+      return false;
     } catch (err) {
       setError({ message: `Error: ${err.message}` });
+      return false;
     } finally {
       setIsSubmitting(false);
       setIsSubmittingActive(false);

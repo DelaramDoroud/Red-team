@@ -38,28 +38,38 @@ export default function MatchView({
   runResult,
   onRun,
   onSubmit,
+  onTimerFinish, // for testing
   isChallengeFinished,
   challengeId,
 }) {
   const { duration } = useDuration();
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [submissionError, setSubmissionError] = useState(null);
 
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
 
   const handleTimerEnd = async () => {
     setIsSubmittingFinal(true);
+    setSubmissionError(null);
 
     try {
-      await onSubmit();
+      const result = await onSubmit();
+      // Check if submission failed
+      if (result === false || (result && result.success === false)) {
+        setSubmissionError('Your code did not compile successfully.');
+      }
     } catch (err) {
-      error({ message: `Error during final submission: ${err.message}` });
+      setSubmissionError('Error during final submission.');
       // console.error(err);
     } finally {
       setIsSubmittingFinal(false);
       setFinished(true);
     }
   };
+
+  // Use onTimerFinish if provided (for testing), otherwise use handleTimerEnd
+  const timerFinishHandler = onTimerFinish || handleTimerEnd;
 
   if (loading) {
     return (
@@ -108,12 +118,21 @@ export default function MatchView({
   }
 
   if (finished) {
+    const displayMessage = submissionError
+      ? `${submissionError} Thanks for your participation`
+      : 'Thanks for your participation';
+
     return (
-      <div className='max-w-4xl mx-auto py-10 space-y-4'>
+      <div
+        className='max-w-4xl mx-auto py-10 space-y-4'
+        data-testid='challenge-finished'
+      >
         <Card>
           <CardHeader>
-            <CardTitle>Congratulation!</CardTitle>
-            <CardDescription>You have completed the challenge.</CardDescription>
+            <CardTitle>Phase One Complete</CardTitle>
+            <CardDescription data-testid='message'>
+              {displayMessage}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
@@ -130,11 +149,12 @@ export default function MatchView({
     return (
       <div className='max-w-2xl mx-auto py-10'>
         <Card>
-          <CardContent>
-            <p className='text-sm'>
+          <CardHeader>
+            <CardTitle>Phase One Complete</CardTitle>
+            <CardDescription>
               Challenge is over. You can no longer submit your solution.
-            </p>
-          </CardContent>
+            </CardDescription>
+          </CardHeader>
         </Card>
       </div>
     );
@@ -155,7 +175,7 @@ export default function MatchView({
         <Timer
           duration={duration}
           challengeId={challengeId}
-          onFinish={handleTimerEnd}
+          onFinish={timerFinishHandler}
         />
       </div>
 
@@ -269,6 +289,12 @@ export default function MatchView({
                   </Tooltip>
                 )}
               </div>
+
+              {error && (
+                <p className='text-sm text-red-500 dark:text-red-400'>
+                  {error.message}
+                </p>
+              )}
 
               {message && (
                 <p className='text-sm text-green-600 dark:text-green-400'>

@@ -258,7 +258,8 @@ export default function StudentChallengesPage() {
         <Card className='border border-dashed border-border bg-card'>
           <CardContent className='py-6'>
             <p className='text-muted-foreground text-sm'>
-              No challenge available at the moment.
+              There is no available challenge at the moment. Please wait for
+              your teacher to schedule one.
             </p>
           </CardContent>
         </Card>
