@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import Timer from '../app/student/challenges/[challengeId]/(components)/Timer';
 
 function ensureMemoryLocalStorage() {
@@ -73,9 +73,7 @@ describe('RT-4 Timer Component', () => {
     });
 
     // Timer should now show 00:04:59
-    await waitFor(() => {
-      expect(screen.getByText(/Timer: 00:04:59/)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/Timer: 00:04:59/)).toBeInTheDocument();
   });
 
   it('should countdown continuously', async () => {
@@ -94,9 +92,7 @@ describe('RT-4 Timer Component', () => {
     });
 
     // Timer should now show 00:04:50
-    await waitFor(() => {
-      expect(screen.getByText(/Timer: 00:04:50/)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/Timer: 00:04:50/)).toBeInTheDocument();
   });
 
   // RT-4 AC: Timer reaches zero and triggers automatic submission
@@ -115,9 +111,7 @@ describe('RT-4 Timer Component', () => {
       vi.advanceTimersByTime(300000 + 1000);
     });
 
-    await waitFor(() => {
-      expect(onFinish).toHaveBeenCalledTimes(1);
-    });
+    expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
   it('AC: should display 00:00:00 when timer reaches zero', async () => {
@@ -135,9 +129,7 @@ describe('RT-4 Timer Component', () => {
       vi.advanceTimersByTime(300000 + 1000);
     });
 
-    await waitFor(() => {
-      expect(screen.getByText(/Timer: 00:00:00/)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/Timer: 00:00:00/)).toBeInTheDocument();
   });
 
   it('AC: should only call onFinish once even if timer keeps running', async () => {
@@ -155,9 +147,7 @@ describe('RT-4 Timer Component', () => {
       vi.advanceTimersByTime(300000 + 5000);
     });
 
-    await waitFor(() => {
-      expect(onFinish).toHaveBeenCalledTimes(1);
-    });
+    expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
   it('should persist start time in localStorage', () => {
