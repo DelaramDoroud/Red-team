@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import Timer from '../app/student/challenges/[challengeId]/(components)/Timer';
 
 function ensureMemoryLocalStorage() {
@@ -30,7 +30,7 @@ describe('RT-4 Timer Component', () => {
   const duration = 5; // 5 minutes
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ now: new Date('2020-01-01T00:00:00Z') });
     ensureMemoryLocalStorage();
     localStorage.clear();
   });
@@ -68,7 +68,9 @@ describe('RT-4 Timer Component', () => {
     expect(screen.getByText(/Timer: 00:05:00/)).toBeInTheDocument();
 
     // Fast-forward 1 second
-    vi.advanceTimersByTime(1000);
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
 
     // Timer should now show 00:04:59
     await waitFor(() => {
@@ -87,7 +89,9 @@ describe('RT-4 Timer Component', () => {
     );
 
     // Fast-forward 10 seconds
-    vi.advanceTimersByTime(10000);
+    await act(async () => {
+      vi.advanceTimersByTime(10000);
+    });
 
     // Timer should now show 00:04:50
     await waitFor(() => {
@@ -107,7 +111,9 @@ describe('RT-4 Timer Component', () => {
     );
 
     // Fast-forward to timer completion (5 minutes = 300 seconds)
-    vi.advanceTimersByTime(300000 + 1000);
+    await act(async () => {
+      vi.advanceTimersByTime(300000 + 1000);
+    });
 
     await waitFor(() => {
       expect(onFinish).toHaveBeenCalledTimes(1);
@@ -125,7 +131,9 @@ describe('RT-4 Timer Component', () => {
     );
 
     // Fast-forward to timer completion
-    vi.advanceTimersByTime(300000 + 1000);
+    await act(async () => {
+      vi.advanceTimersByTime(300000 + 1000);
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Timer: 00:00:00/)).toBeInTheDocument();
@@ -143,7 +151,9 @@ describe('RT-4 Timer Component', () => {
     );
 
     // Fast-forward past timer completion
-    vi.advanceTimersByTime(300000 + 5000);
+    await act(async () => {
+      vi.advanceTimersByTime(300000 + 5000);
+    });
 
     await waitFor(() => {
       expect(onFinish).toHaveBeenCalledTimes(1);
@@ -229,7 +239,7 @@ describe('RT-4 Timer Component', () => {
     clearIntervalSpy.mockRestore();
   });
 
-  it('should handle multiple timers with different challenges', () => {
+  it('should handle multiple timers with different challenges', async () => {
     const onFinish1 = vi.fn();
     const onFinish2 = vi.fn();
 
@@ -240,6 +250,10 @@ describe('RT-4 Timer Component', () => {
     const storageKey1 = `challenge-start-challenge-1`;
     const startTime1 = localStorage.getItem(storageKey1);
     expect(startTime1).toBeTruthy();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
 
     rerender(
       <Timer duration={5} challengeId='challenge-2' onFinish={onFinish2} />

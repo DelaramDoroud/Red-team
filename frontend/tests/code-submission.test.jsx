@@ -30,12 +30,19 @@ vi.mock(
       onSubmit,
       onTimerFinish,
       isSubmittingActive,
+      isRunning,
+      isSubmitting,
       message,
       error,
       isChallengeFinished,
     }) => (
       <div data-testid='match-view'>
-        <button type='button' onClick={onRun} data-testid='run-btn'>
+        <button
+          type='button'
+          onClick={onRun}
+          disabled={isRunning || isSubmitting || isChallengeFinished}
+          data-testid='run-btn'
+        >
           Run
         </button>
         <button

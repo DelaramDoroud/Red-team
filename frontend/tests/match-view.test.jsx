@@ -141,8 +141,8 @@ describe('RT-4 MatchView Component – UI States', () => {
 
     render(<MatchView {...props} />);
 
-    const editor = screen.getByTestId('cpp-editor');
-    expect(editor).toBeDisabled();
+    expect(screen.getByText(/Phase One Complete/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('cpp-editor')).not.toBeInTheDocument();
   });
 
   // RT-4 AC: Problem description is visible
