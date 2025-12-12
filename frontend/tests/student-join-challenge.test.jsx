@@ -207,7 +207,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     await then(async () => {
       await waitFor(() => {
         expect(
-          screen.getByText(/the challenge is in progress\./i)
+          screen.getByText(/the challenge is already in progress\./i)
         ).toBeInTheDocument();
       });
 

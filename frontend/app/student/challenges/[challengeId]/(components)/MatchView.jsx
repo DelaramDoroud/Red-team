@@ -152,7 +152,8 @@ export default function MatchView({
           <CardHeader>
             <CardTitle>Phase One Complete</CardTitle>
             <CardDescription>
-              Challenge is over. You can no longer submit your solution.
+              {message ||
+                'Challenge is over. You can no longer submit your solution.'}
             </CardDescription>
           </CardHeader>
         </Card>

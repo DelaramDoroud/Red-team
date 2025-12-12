@@ -36,7 +36,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingActive, setIsSubmittingActive] = useState(false);
 
-  const [isChallengeFinished] = useState(false);
+  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
   // Load match
   useEffect(() => {
@@ -121,6 +121,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!res?.success || !res?.data?.id) {
         setError({ message: 'No match found for submission.' });
+        setIsChallengeFinished(true);
         return false;
       }
 
@@ -128,6 +129,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!code.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
+        setIsChallengeFinished(true);
         return false;
       }
 
@@ -135,14 +137,17 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (submissionRes?.success) {
         setMessage('Submission successful!');
+        setIsChallengeFinished(true);
         return true;
       }
       setError({
         message: submissionRes?.error?.message || 'Submission failed.',
       });
+      setIsChallengeFinished(true);
       return false;
     } catch (err) {
       setError({ message: `Error: ${err.message}` });
+      setIsChallengeFinished(true);
       return false;
     } finally {
       setIsSubmitting(false);
@@ -164,6 +169,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
+      onTimerFinish={handleSubmit} // For testing - allows test to trigger automatic submission
       isChallengeFinished={isChallengeFinished}
       challengeId={challengeId}
     />
