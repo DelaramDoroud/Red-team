@@ -121,6 +121,47 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!res?.success || !res?.data?.id) {
         setError({ message: 'No match found for submission.' });
+        return false;
+      }
+
+      const matchId = res.data.id;
+
+      if (!code.trim()) {
+        setError({ message: 'Empty code cannot be submitted.' });
+        return false;
+      }
+
+      const submissionRes = await submitSubmission({ matchId, code });
+
+      if (submissionRes?.success) {
+        setMessage('Submission successful!');
+        return true;
+      }
+      setError({
+        message: submissionRes?.error?.message || 'Submission failed.',
+      });
+      return false;
+    } catch (err) {
+      setError({ message: `Error: ${err.message}` });
+      return false;
+    } finally {
+      setIsSubmitting(false);
+      setIsSubmittingActive(false);
+    }
+  }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
+
+  // Automatic submission handler (for timer finish)
+  const handleTimerFinish = useCallback(async () => {
+    setMessage(null);
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const res = await getStudentAssignedMatch(challengeId, studentId);
+
+      if (!res?.success || !res?.data?.id) {
+        setError({ message: 'No match found for submission.' });
+        setMessage('Thanks for your participation');
         setIsChallengeFinished(true);
         return false;
       }
@@ -129,6 +170,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!code.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
+        setMessage('Thanks for your participation');
         setIsChallengeFinished(true);
         return false;
       }
@@ -136,22 +178,21 @@ export default function MatchContainer({ challengeId, studentId }) {
       const submissionRes = await submitSubmission({ matchId, code });
 
       if (submissionRes?.success) {
-        setMessage('Submission successful!');
+        setMessage('Thanks for your participation');
         setIsChallengeFinished(true);
         return true;
       }
-      setError({
-        message: submissionRes?.error?.message || 'Submission failed.',
-      });
+      setMessage(
+        'Your code did not compile successfully. Thanks for your participation'
+      );
       setIsChallengeFinished(true);
       return false;
     } catch (err) {
-      setError({ message: `Error: ${err.message}` });
+      setMessage('Thanks for your participation');
       setIsChallengeFinished(true);
       return false;
     } finally {
       setIsSubmitting(false);
-      setIsSubmittingActive(false);
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
@@ -169,7 +210,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
-      onTimerFinish={handleSubmit} // For testing - allows test to trigger automatic submission
+      onTimerFinish={handleTimerFinish} // For testing - allows test to trigger automatic submission
       isChallengeFinished={isChallengeFinished}
       challengeId={challengeId}
     />
