@@ -103,6 +103,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     <MatchView
       loading={loading}
       error={error}
+      challengeId={challengeId}
       matchData={matchData}
       code={code}
       setCode={setCode}
