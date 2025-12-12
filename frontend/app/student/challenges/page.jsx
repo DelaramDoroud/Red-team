@@ -168,7 +168,7 @@ export default function StudentChallengesPage() {
     if (!countdown) return () => {};
 
     if (countdown.value <= 0) {
-      const { challengeId } = countdown.challengeId;
+      const { challengeId } = countdown;
       setCountdown(null);
       router.push(`/student/challenges/${challengeId}/match`);
       return () => {};
