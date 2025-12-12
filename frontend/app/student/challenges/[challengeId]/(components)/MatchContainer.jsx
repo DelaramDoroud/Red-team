@@ -155,6 +155,8 @@ export default function MatchContainer({ challengeId, studentId }) {
     setMessage(null);
     setError(null);
     setIsSubmitting(true);
+    // Keep submit button disabled after auto-submission
+    setIsSubmittingActive(false);
 
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
