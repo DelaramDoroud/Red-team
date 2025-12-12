@@ -368,11 +368,13 @@ describe('RT-4 Code Submission', () => {
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('submit-btn'));
-      // Check that run button is disabled while submitting
-      expect(screen.getByTestId('run-btn')).toBeDisabled();
     });
 
     await then(async () => {
+      await waitFor(() => {
+        expect(screen.getByTestId('run-btn')).toBeDisabled();
+      });
+
       await waitFor(() => {
         expect(screen.getByTestId('run-btn')).not.toBeDisabled();
       });

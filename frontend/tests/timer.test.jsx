@@ -2,19 +2,43 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import Timer from '../app/student/challenges/[challengeId]/(components)/Timer';
 
+function ensureMemoryLocalStorage() {
+  if (
+    typeof localStorage !== 'undefined' &&
+    typeof localStorage.clear === 'function'
+  ) {
+    return;
+  }
+
+  const store = new Map();
+  const memoryStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear(),
+  };
+
+  Object.defineProperty(global, 'localStorage', {
+    value: memoryStorage,
+    writable: false,
+    configurable: true,
+  });
+}
+
 describe('RT-4 Timer Component', () => {
   const challengeId = '123';
   const duration = 5; // 5 minutes
 
   beforeEach(() => {
     vi.useFakeTimers();
-    // Clear localStorage before each test
+    ensureMemoryLocalStorage();
     localStorage.clear();
   });
 
   afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
+    ensureMemoryLocalStorage();
     localStorage.clear();
   });
 
