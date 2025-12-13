@@ -146,11 +146,16 @@ describe('Challenge API - POST /api/rest/challenges', () => {
   });
 
   it('AC: Challenge created successfully when all required fields are valid and at least one match setting is selected', async () => {
+    // Use unique time window to avoid overlaps
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 1 day from now
+    const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours later
+
     const payload = {
       title: 'My First Challenge',
       duration: 120,
-      startDatetime: '2025-12-01T09:00:00Z',
-      endDatetime: '2025-12-01T11:00:00Z',
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
       durationPeerReview: 60,
       allowedNumberOfReview: 2,
       status: 'private',
@@ -195,11 +200,16 @@ describe('Challenge API - POST /api/rest/challenges', () => {
   });
 
   it('should NOT create a challenge if matchSettingIds contains invalid IDs', async () => {
+    // Use unique time window to avoid overlaps (validation should fail before overlap check)
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 26 * 60 * 60 * 1000); // 1 day + 2 hours from now
+    const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours later
+
     const payload = {
       title: 'Test Challenge',
       duration: 60,
-      startDatetime: '2025-12-01T09:00:00Z',
-      endDatetime: '2025-12-01T11:00:00Z',
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
       durationPeerReview: 60,
       allowedNumberOfReview: 2,
       status: 'private',
@@ -214,11 +224,16 @@ describe('Challenge API - POST /api/rest/challenges', () => {
   });
 
   it('should accept multiple match settings (checkbox toggling behavior)', async () => {
+    // Use unique time window to avoid overlaps
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 25 * 60 * 60 * 1000); // 1 day + 1 hour from now
+    const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours later
+
     const payload = {
       title: 'Challenge with Multiple Settings',
       duration: 90,
-      startDatetime: '2025-12-01T09:00:00Z',
-      endDatetime: '2025-12-01T11:00:00Z',
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
       durationPeerReview: 60,
       allowedNumberOfReview: 2,
       status: 'private',
@@ -239,11 +254,16 @@ describe('Challenge API - POST /api/rest/challenges', () => {
   });
 
   it('should handle partial matchSettingIds validation', async () => {
+    // Use unique time window to avoid overlaps (validation should fail before overlap check)
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 27 * 60 * 60 * 1000); // 1 day + 3 hours from now
+    const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours later
+
     const payload = {
       title: 'Test Challenge',
       duration: 60,
-      startDatetime: '2025-12-01T09:00:00Z',
-      endDatetime: '2025-12-01T11:00:00Z',
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
       durationPeerReview: 60,
       matchSettingIds: [readyMatchSettingIds[0], 99999],
     };

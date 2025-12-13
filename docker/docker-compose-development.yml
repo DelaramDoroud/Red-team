@@ -11,8 +11,15 @@ services:
       - "3000:3000"
     volumes:
       - ${FRONTEND_FOLDER}:/usr/app
+  code-runner-image:
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh -c "echo 'Pulling Judge0 compilers image...' && docker pull ${CODE_RUNNER_IMAGE:-judge0/compilers:latest} && echo '✓ Code runner image ready'"
+    networks:
+      - default
   backend:
-    user: ${USERID}:${GROUPID}
+    # Run as root initially so entrypoint can fix permissions, then it switches to the user
     build:
       context: ${BACKEND_FOLDER}
       dockerfile: ${BACKEND_FOLDER}/dev.Dockerfile
@@ -24,8 +31,15 @@ services:
       - "3001:3001"
     volumes:
       - ${BACKEND_FOLDER}:/usr/app
-    environment:
-      NODE_ENV: development
+      - /var/run/docker.sock:/var/run/docker.sock
+      - code_runner_temp:/tmp/code-runner
+    depends_on:
+      - db
+      - frontend
+      - code-runner-image
   db:
     volumes:
       - db_data:/var/lib/postgresql/data
+
+volumes:
+  code_runner_temp:

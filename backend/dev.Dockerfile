@@ -5,7 +5,7 @@ ARG GROUPID=1000
 
 RUN set -eux; \
     npm install -g npm@11; \
-    apk add --no-cache git; \
+    apk add --no-cache git docker-cli su-exec; \
     git config --global --add safe.directory /usr/app
 
 RUN set -eux; \
@@ -28,7 +28,16 @@ RUN set -eux; \
 
 WORKDIR /usr/app
 RUN chown ${USERID}:${GROUPID} /usr/app
+
+# Copy entrypoint script and make it executable (as root)
+COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 COPY --chown=${USERID}:${GROUPID} . /usr/app
 
-USER ${USERID}:${GROUPID}
+# Set entrypoint - runs as root to fix permissions, then switches to user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Don't set USER here - entrypoint will switch to the user
+# This allows entrypoint to run as root to fix permissions
 CMD ["sh", "-c", "set -eu; npm i --no-audit --no-fund && npm run debug"]
