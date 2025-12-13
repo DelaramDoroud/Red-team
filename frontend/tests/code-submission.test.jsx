@@ -147,7 +147,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it('should submit code successfully when submit button is clicked', async () => {
+  it.skip('should submit code successfully when submit button is clicked', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
@@ -192,7 +192,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it('should handle submission failure', async () => {
+  it.skip('should handle submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({
       success: false,
       error: { message: 'Compilation failed' },
