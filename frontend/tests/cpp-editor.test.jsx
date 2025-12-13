@@ -3,6 +3,14 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import CppEditor from '../app/student/challenges/[challengeId]/(components)/CppEditor';
 
+// Mock next/dynamic to return components immediately
+vi.mock('next/dynamic', () => ({
+  default: (fn) => {
+    const Component = fn();
+    return Component.default || Component;
+  },
+}));
+
 // Mock Monaco Editor
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange, options, height }) => (
