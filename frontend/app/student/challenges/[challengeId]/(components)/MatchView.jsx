@@ -42,7 +42,8 @@ export default function MatchView({
   isChallengeFinished,
   challengeId,
 }) {
-  const { duration } = useDuration();
+  const durationContext = useDuration();
+  const duration = durationContext?.duration;
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
