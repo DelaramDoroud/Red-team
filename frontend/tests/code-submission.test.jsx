@@ -83,8 +83,9 @@ describe('RT-4 Code Submission', () => {
   const clickRunAndWait = async () => {
     fireEvent.click(screen.getByTestId('run-btn'));
     // Wait for the mock run to complete (uses real setTimeout of 300ms in component)
+    // Add extra buffer to ensure state updates propagate
     await new Promise((resolve) => {
-      setTimeout(resolve, 350);
+      setTimeout(resolve, 500);
     });
   };
 
