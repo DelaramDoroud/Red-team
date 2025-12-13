@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import CppEditor from '../app/student/challenges/[challengeId]/(components)/CppEditor';
 
@@ -38,8 +38,8 @@ int main() {
   it('AC: should display initial code value', () => {
     render(<CppEditor {...defaultProps} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).toHaveValue(defaultCode);
   });
 
@@ -48,8 +48,8 @@ int main() {
     const onChange = vi.fn();
     render(<CppEditor {...defaultProps} onChange={onChange} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     const newCode = 'cout << "Hello" << endl;';
 
     // Simulate user typing by directly calling onChange
@@ -65,8 +65,8 @@ int main() {
     const props = { ...defaultProps, disabled: true };
     render(<CppEditor {...props} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).toBeDisabled();
   });
 
@@ -75,8 +75,8 @@ int main() {
     const props = { ...defaultProps, disabled: false };
     render(<CppEditor {...props} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).not.toBeDisabled();
   });
 
@@ -84,8 +84,8 @@ int main() {
   it('AC: should set editor height to 50vh', () => {
     render(<CppEditor {...defaultProps} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).toHaveStyle({ height: '50vh' });
   });
 
@@ -108,8 +108,8 @@ int main() {
     const onChange = vi.fn();
     render(<CppEditor value='' onChange={onChange} disabled={false} />);
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).toHaveValue('');
   });
 
@@ -120,17 +120,16 @@ int main() {
       <CppEditor value={defaultCode} onChange={onChange} disabled={false} />
     );
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    let editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).not.toBeDisabled();
 
     // Rerender with disabled=true
     rerender(<CppEditor value={defaultCode} onChange={onChange} disabled />);
 
-    const updatedWrapper = screen.getByTestId('monaco-editor');
-    const updatedEditor =
-      within(updatedWrapper).getByPlaceholderText('C++ Code Editor');
-    expect(updatedEditor).toBeDisabled();
+    screen.getByTestId('monaco-editor');
+    editor = screen.getByPlaceholderText('C++ Code Editor');
+    expect(editor).toBeDisabled();
   });
 
   // RT-4 AC: Code preserves formatting
@@ -152,8 +151,8 @@ int main() {
       <CppEditor value={formattedCode} onChange={onChange} disabled={false} />
     );
 
-    const wrapper = screen.getByTestId('monaco-editor');
-    const editor = within(wrapper).getByPlaceholderText('C++ Code Editor');
+    screen.getByTestId('monaco-editor');
+    const editor = screen.getByPlaceholderText('C++ Code Editor');
     expect(editor).toHaveValue(formattedCode);
   });
 
