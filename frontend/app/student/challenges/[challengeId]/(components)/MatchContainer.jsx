@@ -16,17 +16,18 @@ int main() {
 `;
 
 export default function MatchContainer({ challengeId, studentId }) {
-  const { getStudentAssignedMatchSetting } = useChallenge();
+  const { getStudentAssignedMatchSetting, runCode } = useChallenge();
 
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState(null);
   const [error, setError] = useState(null);
-
+  const [testResults, setTestResults] = useState([]);
   const [code, setCode] = useState(CppCodeTemplate);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [runResult, setRunResult] = useState(null);
-
+  const [canSubmit, setCanSubmit] = useState(false);
+  const [isTimeUp, setIsTimeUp] = useState(false);
   // load StudentAssignedMatchSetting(Mtach)
   useEffect(() => {
     if (!challengeId || !studentId) return () => {};
@@ -43,7 +44,6 @@ export default function MatchContainer({ challengeId, studentId }) {
           challengeId,
           studentId
         );
-        // console.log(res);
         if (res?.success === false) {
           if (!cancelled) {
             setError({
@@ -88,16 +88,70 @@ export default function MatchContainer({ challengeId, studentId }) {
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
   // handlers: run + submit
-  const handleRun = useCallback(() => {
-    setRunResult();
-    setIsRunning();
-  }, []);
+  const handleRun = useCallback(async () => {
+    setRunResult({ type: 'info', message: 'Running your code...' });
+    setIsRunning(true);
+    try {
+      const payload = {
+        matchSettingId: matchData.id,
+        code,
+        language: 'python',
+      };
+      const res = await runCode(payload);
+      //  SYNTAX / COMPILATION / RUNTIME ERROR
+      setTestResults(res.results || []);
+      if (res.data.error) {
+        setRunResult({
+          type: 'error',
+          message: res.data.error,
+        });
+        setCanSubmit(false);
+        return;
+      }
+      setRunResult({
+        type: 'success',
+        message: 'Code executed successfully.',
+      });
+      if (res.summary?.allPassed === true) {
+        setCanSubmit(true);
+      } else {
+        setCanSubmit(false);
+      }
+    } catch (err) {
+      setRunResult({
+        type: 'error',
+        message: 'Network error while running the code.',
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  }, [code, matchData, runCode]);
 
   const handleSubmit = useCallback(() => {
-    setIsSubmitting();
+    setIsSubmitting(false);
   }, []);
+
+  // onRunClick wrapper to check code presence
+  const onRunClick = useCallback(() => {
+    if (!code || code.trim() === '') {
+      setRunResult({
+        type: 'error',
+        message: 'There is no code to run.',
+      });
+      return;
+    }
+    handleRun();
+  }, [code, handleRun]);
+
   const handleTimerFinish = useCallback(() => {
-    // console.log('timer reaches zero');
+    setIsTimeUp(true);
+    setCanSubmit(false);
+    setIsRunning(false);
+    setIsSubmitting(false);
+    setRunResult({
+      type: 'error',
+      message: 'Time is up. You can no longer run or submit code.',
+    });
   }, []);
   return (
     <MatchView
@@ -110,9 +164,12 @@ export default function MatchContainer({ challengeId, studentId }) {
       isRunning={isRunning}
       isSubmitting={isSubmitting}
       runResult={runResult}
-      onRun={handleRun}
+      onRun={onRunClick}
       onSubmit={handleSubmit}
+      isTimeUp={isTimeUp}
       onTimerFinish={handleTimerFinish}
+      testResults={testResults}
+      canSubmit={canSubmit}
     />
   );
 }

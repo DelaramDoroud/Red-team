@@ -18,6 +18,7 @@ import {
 } from '#components/common/Table';
 import CppEditor from './CppEditor';
 import Timer from './Timer';
+import { Loader2 } from 'lucide-react';
 import { useDuration } from '../(context)/DurationContext';
 
 export default function MatchView({
@@ -33,6 +34,9 @@ export default function MatchView({
   onRun,
   onSubmit,
   onTimerFinish,
+  testResults,
+  canSubmit,
+  isTimeUp,
 }) {
   const { duration } = useDuration();
   // loading
@@ -130,17 +134,39 @@ export default function MatchView({
                     </TableHeader>
 
                     <TableBody>
-                      {publicTests.map((test) => (
-                        <TableRow key={JSON.stringify(test)}>
-                          <TableCell className=''>
-                            {JSON.stringify(test.input)}
-                          </TableCell>
+                      {publicTests.map((test, index) => {
+                        const result = testResults?.[index];
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>{JSON.stringify(test.input)}</TableCell>
 
-                          <TableCell>{JSON.stringify(test.output)}</TableCell>
+                            <TableCell>{JSON.stringify(test.output)}</TableCell>
 
-                          <TableCell>{/* for actual output */}</TableCell>
-                        </TableRow>
-                      ))}
+                            <TableCell
+                              className={
+                                result
+                                  ? result.passed
+                                    ? 'text-green-600'
+                                    : 'text-red-600'
+                                  : 'text-muted-foreground'
+                              }
+                            >
+                              {result ? (
+                                result.actualOutput &&
+                                result.actualOutput.length > 0 ? (
+                                  JSON.stringify(result.actualOutput)
+                                ) : (
+                                  <span className='text-muted-foreground italic'>
+                                    —
+                                  </span>
+                                )
+                              ) : (
+                                <span className='text-muted-foreground'>—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -163,19 +189,29 @@ export default function MatchView({
               <CppEditor value={code} onChange={setCode} />
               <div className='mt-2'>
                 <h2 className='text-sm font-medium mb-1'>Result</h2>
-                <div className='min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs'>
-                  {runResult ??
+                <div
+                  className={`min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs ${
+                    runResult?.type === 'error'
+                      ? 'text-red-700 dark:text-red-400'
+                      : runResult?.type === 'success'
+                        ? 'text-green-700 dark:text-green-400'
+                        : runResult?.type === 'info'
+                          ? 'text-blue-700 dark:text-blue-400'
+                          : 'text-foreground'
+                  }`}
+                >
+                  {runResult?.message ??
                     'Run your code to see compilation and test results.'}
                 </div>
               </div>
               <div className='flex gap-3'>
-                <Button onClick={onRun} disabled={isRunning || isSubmitting}>
-                  {isRunning ? 'Running…' : 'Run'}
+                <Button onClick={onRun} disabled={isRunning || isTimeUp}>
+                  {isRunning && <Loader2 className='h-4 w-4 animate-spin' />}
+                  {isRunning ? 'Running...' : 'Run'}
                 </Button>
                 <Button
-                  variant='primary'
                   onClick={onSubmit}
-                  disabled={isSubmitting || isRunning}
+                  disabled={!canSubmit || isRunning || isSubmitting || isTimeUp}
                 >
                   {isSubmitting ? 'Submitting…' : 'Submit'}
                 </Button>

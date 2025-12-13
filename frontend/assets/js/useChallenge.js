@@ -100,6 +100,24 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const runCode = useCallback(
+    async ({ matchSettingId, code, language }) => {
+      console.log("dffffff");
+      
+      const url = `${API_BASE}/run`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchSettingId,
+          code,
+          language,
+        }),
+      });
+    },
+    [fetchData]
+  );
+
   return {
     loading,
     getChallenges,
@@ -113,5 +131,6 @@ export default function useChallenge() {
     startChallenge,
     getChallengeForJoinedStudent,
     getStudentAssignedMatchSetting,
+    runCode,
   };
 }
