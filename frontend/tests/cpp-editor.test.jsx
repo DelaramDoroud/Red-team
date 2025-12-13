@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import MonacoEditor from '@monaco-editor/react';
 import CppEditor from '../app/student/challenges/[challengeId]/(components)/CppEditor';
@@ -58,10 +58,8 @@ int main() {
     const editor = screen.getByPlaceholderText('C++ Code Editor');
     const newCode = 'cout << "Hello" << endl;';
 
-    // Simulate user typing by directly calling onChange
-    editor.dispatchEvent(
-      new Event('change', { bubbles: true, target: { value: newCode } })
-    );
+    // Simulate user typing
+    fireEvent.change(editor, { target: { value: newCode } });
 
     expect(onChange).toHaveBeenCalled();
   });
