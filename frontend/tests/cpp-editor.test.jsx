@@ -1,17 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import MonacoEditor from '@monaco-editor/react';
 import CppEditor from '../app/student/challenges/[challengeId]/(components)/CppEditor';
 
-// Mock next/dynamic to return components immediately
-vi.mock('next/dynamic', () => ({
-  default: (fn) => {
-    const Component = fn();
-    return Component.default || Component;
-  },
-}));
-
-// Mock Monaco Editor
+// Mock Monaco Editor first
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange, options, height }) => (
     <textarea
@@ -22,6 +15,11 @@ vi.mock('@monaco-editor/react', () => ({
       style={{ height }}
     />
   ),
+}));
+
+// Mock next/dynamic to return components synchronously
+vi.mock('next/dynamic', () => ({
+  default: () => MonacoEditor,
 }));
 
 describe('RT-4 CppEditor Component', () => {
