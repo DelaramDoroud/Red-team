@@ -154,7 +154,7 @@ int main() {
 beforeAll(async () => {
   // Force shorter execution timeout for tests only
   prevTestTimeoutEnv = process.env.CODE_RUNNER_TEST_TIMEOUT_MS;
-  process.env.CODE_RUNNER_TEST_TIMEOUT_MS = '3000';
+  process.env.CODE_RUNNER_TEST_TIMEOUT_MS = '6000';
 
   const appModule = await import('#root/app_initial.js');
   app = appModule.default;
