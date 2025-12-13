@@ -26,6 +26,7 @@ vi.mock(
   '../app/student/challenges/[challengeId]/(components)/MatchView',
   () => ({
     default: ({
+      loading,
       onRun,
       onSubmit,
       onTimerFinish,
@@ -35,38 +36,42 @@ vi.mock(
       message,
       error,
       isChallengeFinished,
-    }) => (
-      <div data-testid='match-view'>
-        <button
-          type='button'
-          onClick={onRun}
-          disabled={isRunning || isSubmitting || isChallengeFinished}
-          data-testid='run-btn'
-        >
-          Run
-        </button>
-        <button
-          type='button'
-          onClick={onSubmit}
-          disabled={!isSubmittingActive}
-          data-testid='submit-btn'
-        >
-          Submit
-        </button>
-        <button
-          type='button'
-          onClick={onTimerFinish}
-          data-testid='timer-finish-btn'
-        >
-          Finish Timer
-        </button>
-        {message && <div data-testid='message'>{message}</div>}
-        {error && <div data-testid='error'>{error.message}</div>}
-        {isChallengeFinished && (
-          <div data-testid='challenge-finished'>Challenge Finished</div>
-        )}
-      </div>
-    ),
+    }) => {
+      if (loading) return <div data-testid='loading'>Loading...</div>;
+      if (error) return <div data-testid='error'>{error.message}</div>;
+
+      return (
+        <div data-testid='match-view'>
+          <button
+            type='button'
+            onClick={onRun}
+            disabled={isRunning || isSubmitting || isChallengeFinished}
+            data-testid='run-btn'
+          >
+            Run
+          </button>
+          <button
+            type='button'
+            onClick={onSubmit}
+            disabled={!isSubmittingActive}
+            data-testid='submit-btn'
+          >
+            Submit
+          </button>
+          <button
+            type='button'
+            onClick={onTimerFinish}
+            data-testid='timer-finish-btn'
+          >
+            Finish Timer
+          </button>
+          {message && <div data-testid='message'>{message}</div>}
+          {isChallengeFinished && (
+            <div data-testid='challenge-finished'>Challenge Finished</div>
+          )}
+        </div>
+      );
+    },
   })
 );
 
@@ -81,6 +86,8 @@ describe('RT-4 Code Submission', () => {
       success: true,
       data: {
         starterCode: 'int main() {}',
+        problemTitle: 'Test Problem',
+        testCases: [],
       },
     });
     // Default successful match response
@@ -89,6 +96,10 @@ describe('RT-4 Code Submission', () => {
       data: {
         id: 456,
       },
+    });
+    // Default successful submission response
+    mockSubmitSubmission.mockResolvedValue({
+      success: true,
     });
   });
 
