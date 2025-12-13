@@ -8,9 +8,11 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 
 export default function CppEditor({ value, onChange, disabled }) {
   return (
-    <div className='border rounded-xl overflow-hidden'>
+    <div
+      className='border rounded-xl overflow-hidden'
+      data-testid='monaco-editor'
+    >
       <MonacoEditor
-        data-testid='monaco-editor'
         height='50vh'
         defaultLanguage='cpp'
         theme='vs-dark'
