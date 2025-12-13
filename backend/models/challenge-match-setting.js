@@ -69,20 +69,28 @@ ChallengeMatchSetting.seed = async function () {
     const count = await ChallengeMatchSetting.count();
     if (count > 0) return;
 
-    await ChallengeMatchSetting.bulkCreate([
-      {
-        challengeId: 1,
-        matchSettingId: 1,
-      },
-      {
-        challengeId: 1,
-        matchSettingId: 2,
-      },
-      {
-        challengeId: 1,
-        matchSettingId: 3,
-      },
-    ]);
+    const { default: Challenge } = await import('./challenge.js');
+    const { default: MatchSetting } = await import('./match-setting.js');
+
+    const challenge = await Challenge.findOne({ order: [['id', 'ASC']] });
+    const matchSettings = await MatchSetting.findAll({
+      order: [['id', 'ASC']],
+      limit: 3,
+    });
+
+    if (!challenge || matchSettings.length === 0) {
+      console.warn(
+        'ChallengeMatchSetting seeding skipped: missing challenge or match settings'
+      );
+      return;
+    }
+
+    const rows = matchSettings.map((ms) => ({
+      challengeId: challenge.id,
+      matchSettingId: ms.id,
+    }));
+
+    await ChallengeMatchSetting.bulkCreate(rows);
 
     console.log('ChallengeMatchSetting seeded successfully.');
   } catch (error) {

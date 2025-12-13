@@ -12,13 +12,8 @@ import { Button } from '#components/common/Button';
 import styles from './list.module.css';
 
 export default function ChallengeList() {
-  const {
-    loading,
-    getChallenges,
-    getChallengeParticipants,
-    assignChallenge,
-    startChallenge,
-  } = useChallenge();
+  const { loading, getChallenges, getChallengeParticipants, assignChallenge } =
+    useChallenge();
 
   const [challenges, setChallenges] = useState([]);
   const [participantsMap, setParticipantsMap] = useState({});
@@ -76,9 +71,7 @@ export default function ChallengeList() {
         );
       } else {
         setError(
-          res?.error?.message ||
-            res?.message ||
-            'Unable to assign students to challenge'
+          res?.error || res?.message || 'Unable to assign students to challenge'
         );
       }
     } catch (_err) {
@@ -87,31 +80,7 @@ export default function ChallengeList() {
       setPendingAction(challengeId, 'assign', false);
     }
   };
-  const handleStart = async (challengeId) => {
-    setError(null);
-    setPendingAction(challengeId, 'start', true);
-    try {
-      const res = await startChallenge(challengeId);
 
-      if (res?.success) {
-        setChallenges((prev) =>
-          prev.map((item) =>
-            item.id === challengeId
-              ? { ...item, status: ChallengeStatus.STARTED_PHASE_ONE }
-              : item
-          )
-        );
-      } else {
-        setError(
-          res?.error?.message || res?.message || 'Unable to start challenge'
-        );
-      }
-    } catch (_err) {
-      setError('Unable to start challenge');
-    } finally {
-      setPendingAction(challengeId, 'start', false);
-    }
-  };
   useEffect(() => {
     load();
   }, [load]);
@@ -167,79 +136,7 @@ export default function ChallengeList() {
       </div>
     );
   }
-  const renderActions = (challenge, studentCount) => {
-    const hasStudents = studentCount > 0;
-    const now = new Date();
-    const canStartNow =
-      challenge.startDatetime && new Date(challenge.startDatetime) <= now;
 
-    // show Assign Student Button and handle assign
-    if (challenge.status === ChallengeStatus.PUBLIC && canStartNow) {
-      return (
-        <Button
-          onClick={(e) => {
-            e.preventDefault();
-
-            if (!hasStudents) {
-              setError('No students have joined this challenge yet.');
-              return;
-            }
-
-            if (!canStartNow) {
-              setError('The challenge start time has not been reached yet.');
-              return;
-            }
-
-            handleAssign(challenge.id);
-          }}
-          disabled={pending[challenge.id]?.assign}
-          size='sm'
-        >
-          {pending[challenge.id]?.assign ? 'Assigning...' : 'Assign students'}
-        </Button>
-      );
-    }
-
-    // show Start Button and handle start
-    if (challenge.status === ChallengeStatus.ASSIGNED) {
-      return (
-        <Button
-          variant='secondary'
-          size='sm'
-          onClick={(e) => {
-            e.preventDefault();
-
-            if (!hasStudents) {
-              setError('No students have joined this challenge yet.');
-              return;
-            }
-
-            if (!canStartNow) {
-              setError('The challenge start time has not been reached yet.');
-              return;
-            }
-
-            handleStart(challenge.id);
-          }}
-          disabled={pending[challenge.id]?.start}
-        >
-          {pending[challenge.id]?.start ? 'Starting...' : 'Start'}
-        </Button>
-      );
-    }
-
-    // hide Start button if status=== STARTED_PHASE_ONE and show message instead
-    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-      return (
-        <span className={styles.inProgress}>
-          The challenge is in progress...
-        </span>
-      );
-    }
-
-    // No actions
-    return null;
-  };
   return (
     <section className={styles.section}>
       <div className={styles.header}>
@@ -257,12 +154,33 @@ export default function ChallengeList() {
       <div className={styles.grid}>
         {currentItems.map((challenge) => {
           const studentCount = participantsMap[challenge.id] || 0;
+
           return (
             <ChallengeCard
               key={challenge.id ?? challenge.title}
               challenge={{ ...challenge, participants: studentCount }}
               href={`/challenges/${challenge.id}`}
-              actions={renderActions(challenge, studentCount)}
+              actions={
+                // eslint-disable-next-line no-nested-ternary
+                challenge.status === ChallengeStatus.PUBLIC ? (
+                  <Button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleAssign(challenge.id);
+                    }}
+                    disabled={pending[challenge.id]?.assign}
+                    size='sm'
+                  >
+                    {pending[challenge.id]?.assign
+                      ? 'Assigning...'
+                      : 'Assign students'}
+                  </Button>
+                ) : challenge.status === ChallengeStatus.ASSIGNED ? (
+                  <Button variant='secondary' disabled size='sm'>
+                    Start
+                  </Button>
+                ) : null
+              }
             />
           );
         })}

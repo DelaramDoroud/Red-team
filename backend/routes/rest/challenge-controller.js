@@ -13,8 +13,6 @@ import {
   joinChallenge,
 } from '#root/services/challenge-participant.js';
 import assignMatches from '#root/services/assign-matches.js';
-import startChallengeService from '#root/services/start-challenge.js';
-
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -76,6 +74,23 @@ router.post('/challenges', async (req, res) => {
       });
     }
 
+    // Validate matchSettingIds before checking overlaps
+    // This ensures we return the correct error for invalid matchSettingIds
+    const settings = await MatchSetting.findAll({
+      where: { id: matchSettingIds },
+    });
+    if (settings.length !== matchSettingIds.length) {
+      const foundIds = settings.map((s) => s.id);
+      const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'One or more match settings not found.',
+          missingIds,
+        },
+      });
+    }
+
     // Check for overlapping challenges
     const overlappingChallenge = await Challenge.findOne({
       where: {
@@ -95,27 +110,7 @@ router.post('/challenges', async (req, res) => {
 
     transaction = await sequelize.transaction();
     const challenge = await Challenge.create(payload, { transaction });
-    if (matchSettingIds.length > 0) {
-      const settings = await MatchSetting.findAll({
-        where: { id: matchSettingIds },
-        transaction,
-      });
-      if (settings.length !== matchSettingIds.length) {
-        await transaction.rollback();
-        const foundIds = settings.map((s) => s.id);
-        const missingIds = matchSettingIds.filter(
-          (id) => !foundIds.includes(id)
-        );
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'One or more match settings not found.',
-            missingIds,
-          },
-        });
-      }
-      await challenge.addMatchSettings(settings, { transaction });
-    }
+    await challenge.addMatchSettings(settings, { transaction });
     await transaction.commit();
     const createdChallenge = await Challenge.findByPk(challenge.id, {
       include: [
@@ -131,7 +126,8 @@ router.post('/challenges', async (req, res) => {
       challenge: createdChallenge,
     });
   } catch (error) {
-    console.error('Create Challenge Error:', error);
+    if (process.env.NODE_ENV !== 'test')
+      console.error('Create Challenge Error:', error);
     if (transaction) await transaction.rollback();
     handleException(res, error);
   }
@@ -250,12 +246,6 @@ router.post('/challenges/:challengeId/assign', async (req, res) => {
         .status(404)
         .json({ success: false, error: 'Challenge not found' });
     }
-    if (result.status === 'too_early') {
-      return res.status(400).json({
-        success: false,
-        error: 'The challenge start time has not been reached yet.',
-      });
-    }
     if (result.status === 'no_match_settings') {
       return res.status(400).json({
         success: false,
@@ -288,66 +278,82 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         .json({ success: false, error: 'Invalid challengeId' });
     }
 
-    const result = await startChallengeService({ challengeId });
-
-    if (result.status === 'challenge_not_found') {
+    // Verify challenge exists
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
       return res
         .status(404)
         .json({ success: false, error: 'Challenge not found' });
     }
 
-    if (result.status === 'invalid_status') {
+    // Check if challenge status is valid for starting
+    if (
+      challenge.status !== 'assigned' &&
+      challenge.status !== 'started_phase_one'
+    ) {
       return res.status(409).json({
         success: false,
         error: 'Challenge must be assigned before it can be started.',
-        currentStatus: result.challengeStatus,
+        currentStatus: challenge.status,
       });
     }
 
-    if (result.status === 'too_early') {
+    // Check if start time has arrived
+    const now = new Date();
+    if (challenge.startDatetime && now < new Date(challenge.startDatetime)) {
       return res.status(400).json({
         success: false,
         error: 'Challenge cannot be started before its start time.',
       });
     }
 
-    if (result.status === 'no_participants') {
-      return res.status(400).json({
-        success: false,
-        error: 'No participants joined. Challenge cannot be started.',
-      });
-    }
-
-    if (result.status === 'no_matches') {
-      return res.status(400).json({
-        success: false,
-        error: 'No matches assigned. Challenge cannot be started.',
-      });
-    }
-
-    if (result.status === 'already_started') {
-      return res.status(409).json({
-        success: false,
-        error: 'Challenge already started.',
-      });
-    }
-
-    if (result.status === 'participants_error') {
+    // Verify there are participants
+    const participantsResult = await getChallengeParticipants({ challengeId });
+    if (participantsResult.status !== 'ok') {
       return res.status(500).json({
         success: false,
         error: 'Unable to load participants.',
       });
     }
 
-    if (result.status !== 'ok') {
-      //for any unexpected status that we dont know
-      return res.status(500).json({
+    const participants = participantsResult.participants || [];
+    if (participants.length === 0) {
+      return res.status(400).json({
         success: false,
-        error: 'Unknown error starting challenge.',
+        error: 'No participants joined. Challenge cannot be started.',
       });
     }
 
-    const { challenge } = result;
+    // Verify there are matches assigned
+    const matchesCount = await Match.count({
+      include: [
+        {
+          model: ChallengeMatchSetting,
+          as: 'challengeMatchSetting',
+          where: { challengeId },
+        },
+      ],
+    });
+
+    if (matchesCount === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No matches assigned. Challenge cannot be started.',
+      });
+    }
+
+    // Check if already started
+    if (challenge.status === 'started_phase_one') {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge already started.',
+      });
+    }
+
+    // Update status to started
+    challenge.status = 'started_phase_one';
+    challenge.startPhaseOneDateTime = new Date();
+    await challenge.save();
 
     return res.json({
       success: true,
@@ -444,57 +450,7 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
     handleException(res, error);
   }
 });
-//read challenge data for joind student
-router.get('/challenges/:challengeId/for-student', async (req, res) => {
-  try {
-    const challengeId = Number(req.params.challengeId);
-    if (!Number.isInteger(challengeId) || challengeId < 1) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid challengeId',
-      });
-    }
 
-    const studentId = Number(req.query.studentId);
-    if (!Number.isInteger(studentId) || studentId < 1) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid studentId',
-      });
-    }
-
-    // check the student actually joined
-    const participation = await ChallengeParticipant.findOne({
-      where: { challengeId, studentId },
-    });
-    if (!participation) {
-      return res.status(403).json({
-        success: false,
-        error: 'Student has not joined this challenge',
-      });
-    }
-    const challenge = await Challenge.findByPk(challengeId);
-    if (!challenge) {
-      return res.status(404).json({
-        success: false,
-        error: 'Challenge not found',
-      });
-    }
-    return res.json({
-      success: true,
-      data: {
-        id: challenge.id,
-        status: challenge.status,
-        startDatetime: challenge.startDatetime,
-        duration: challenge.duration,
-        startPhaseOneDateTime: challenge.startPhaseOneDateTime,
-        title: challenge.title,
-      },
-    });
-  } catch (error) {
-    handleException(res, error);
-  }
-});
 //read Match(assigned matchsettng for joind student)
 router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
   try {
