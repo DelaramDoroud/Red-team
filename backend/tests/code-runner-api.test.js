@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { execSync } from 'child_process';
 import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
 import sequelize from '#root/services/sequelize.js';
@@ -10,6 +11,25 @@ import {
   pythonInfiniteLoop,
 } from './student-code/python.js';
 import { cppCorrectTwoSum, cppInvalid } from './student-code/cpp.js';
+
+// Check if Docker is available for these API tests
+const DOCKER_AVAILABLE = (() => {
+  try {
+    const result = execSync('which docker', {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    if (!result.trim()) {
+      return false;
+    }
+    execSync('docker --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const describeIf = DOCKER_AVAILABLE ? describe : describe.skip;
 
 let app;
 let testMatchSettingId;
@@ -75,7 +95,7 @@ afterAll(async () => {
   if (sequelize) await sequelize.close();
 });
 
-describe('Code Runner API - POST /api/rest/run', () => {
+describeIf('Code Runner API - POST /api/rest/run', () => {
   it('should execute correct Python code and pass all tests', async () => {
     const res = await request(app).post('/api/rest/run').send({
       matchSettingId: testMatchSettingId,

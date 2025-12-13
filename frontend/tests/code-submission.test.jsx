@@ -90,6 +90,7 @@ describe('RT-4 Code Submission', () => {
     fireEvent.click(screen.getByTestId('run-btn'));
     await act(async () => {
       vi.advanceTimersByTime(300);
+      await Promise.resolve(); // Flush promises
     });
   };
 
@@ -128,6 +129,10 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
+      // Flush initial promises
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
 
     await waitFor(() => {
@@ -160,6 +165,10 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
+      // Flush initial promises
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
 
     // Wait for component to be fully loaded
@@ -211,6 +220,10 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
+      // Flush initial promises
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
 
     // Wait for component to be fully loaded
@@ -255,6 +268,10 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
+      // Flush initial promises
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
 
     // Wait for component to be fully loaded
