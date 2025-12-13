@@ -7,7 +7,6 @@ import CppEditor from '../app/student/challenges/[challengeId]/(components)/CppE
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange, options, height }) => (
     <textarea
-      data-testid='monaco-editor'
       value={value}
       onChange={(e) => onChange?.(e.target.value)}
       disabled={options?.readOnly}
@@ -39,7 +38,8 @@ int main() {
   it('AC: should display initial code value', () => {
     render(<CppEditor {...defaultProps} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).toHaveValue(defaultCode);
   });
 
@@ -48,7 +48,8 @@ int main() {
     const onChange = vi.fn();
     render(<CppEditor {...defaultProps} onChange={onChange} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     const newCode = 'cout << "Hello" << endl;';
 
     fireEvent.change(editor, { target: { value: newCode } });
@@ -61,7 +62,8 @@ int main() {
     const props = { ...defaultProps, disabled: true };
     render(<CppEditor {...props} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).toBeDisabled();
   });
 
@@ -70,7 +72,8 @@ int main() {
     const props = { ...defaultProps, disabled: false };
     render(<CppEditor {...props} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).not.toBeDisabled();
   });
 
@@ -78,7 +81,8 @@ int main() {
   it('AC: should set editor height to 50vh', () => {
     render(<CppEditor {...defaultProps} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).toHaveStyle({ height: '50vh' });
   });
 
@@ -87,7 +91,8 @@ int main() {
     const onChange = vi.fn();
     render(<CppEditor {...defaultProps} onChange={onChange} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
 
     // First edit
     fireEvent.change(editor, { target: { value: 'int x = 1;' } });
@@ -105,7 +110,8 @@ int main() {
     const onChange = vi.fn();
     render(<CppEditor value='' onChange={onChange} disabled={false} />);
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).toHaveValue('');
   });
 
@@ -116,13 +122,15 @@ int main() {
       <CppEditor value={defaultCode} onChange={onChange} disabled={false} />
     );
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).not.toBeDisabled();
 
     // Rerender with disabled=true
     rerender(<CppEditor value={defaultCode} onChange={onChange} disabled />);
 
-    const updatedEditor = screen.getByTestId('monaco-editor');
+    const updatedWrapper = screen.getByTestId('monaco-editor');
+    const updatedEditor = updatedWrapper.querySelector('textarea');
     expect(updatedEditor).toBeDisabled();
   });
 
@@ -145,7 +153,8 @@ int main() {
       <CppEditor value={formattedCode} onChange={onChange} disabled={false} />
     );
 
-    const editor = screen.getByTestId('monaco-editor');
+    const wrapper = screen.getByTestId('monaco-editor');
+    const editor = wrapper.querySelector('textarea');
     expect(editor).toHaveValue(formattedCode);
   });
 
