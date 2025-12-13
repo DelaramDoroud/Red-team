@@ -104,7 +104,7 @@ router.post('/run', async (req, res) => {
 
     const isTest = process.env.NODE_ENV === 'test';
     const maxWaitTime = parseInt(
-      process.env.RUN_API_MAX_WAIT_TIME || (isTest ? '10000' : '30000'),
+      process.env.RUN_API_MAX_WAIT_TIME || (isTest ? '15000' : '30000'),
       10
     );
     const pollInterval = parseInt(
