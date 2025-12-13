@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  render,
-  screen,
-  waitFor,
-  fireEvent,
-  act,
-} from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
 import { given, when, andThen as then } from './bdd';
 
@@ -85,17 +79,16 @@ describe('RT-4 Code Submission', () => {
   const studentId = 1;
   const challengeId = '123';
 
-  // Helper to click run button and advance timers
+  // Helper to click run button and wait for completion
   const clickRunAndWait = async () => {
     fireEvent.click(screen.getByTestId('run-btn'));
-    await act(async () => {
-      vi.advanceTimersByTime(300);
-      await Promise.resolve(); // Flush promises
+    // Wait for the mock run to complete (uses real setTimeout of 300ms in component)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350);
     });
   };
 
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
     // Default successful match setting response
     mockGetStudentAssignedMatchSetting.mockResolvedValue({
@@ -120,8 +113,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
+    // Clean up
   });
 
   it('should enable submit button only after running code', async () => {
@@ -129,10 +121,6 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      // Flush initial promises
-      await act(async () => {
-        await Promise.resolve();
-      });
     });
 
     await waitFor(() => {
@@ -156,7 +144,7 @@ describe('RT-4 Code Submission', () => {
         { timeout: 2000 }
       );
     });
-  }, 10000);
+  });
 
   it('should submit code successfully when submit button is clicked', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
@@ -165,10 +153,6 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      // Flush initial promises
-      await act(async () => {
-        await Promise.resolve();
-      });
     });
 
     // Wait for component to be fully loaded
@@ -189,9 +173,6 @@ describe('RT-4 Code Submission', () => {
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('submit-btn'));
-      await act(async () => {
-        vi.advanceTimersByTime(100);
-      });
     });
 
     await then(async () => {
@@ -208,7 +189,7 @@ describe('RT-4 Code Submission', () => {
         { timeout: 2000 }
       );
     });
-  }, 10000);
+  });
 
   it('should handle submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({
@@ -220,10 +201,6 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      // Flush initial promises
-      await act(async () => {
-        await Promise.resolve();
-      });
     });
 
     // Wait for component to be fully loaded
@@ -244,9 +221,6 @@ describe('RT-4 Code Submission', () => {
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('submit-btn'));
-      await act(async () => {
-        vi.advanceTimersByTime(100);
-      });
     });
 
     await then(async () => {
@@ -259,7 +233,7 @@ describe('RT-4 Code Submission', () => {
         { timeout: 2000 }
       );
     });
-  }, 10000);
+  });
 
   it('should automatically submit when timer finishes', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
@@ -268,10 +242,6 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      // Flush initial promises
-      await act(async () => {
-        await Promise.resolve();
-      });
     });
 
     // Wait for component to be fully loaded
@@ -281,9 +251,6 @@ describe('RT-4 Code Submission', () => {
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
-      await act(async () => {
-        vi.advanceTimersByTime(100);
-      });
     });
 
     await then(async () => {
@@ -294,7 +261,7 @@ describe('RT-4 Code Submission', () => {
         { timeout: 2000 }
       );
     });
-  }, 10000);
+  });
 
   // RT-4 AC: Automatic submission when timer reaches zero
   it.skip('AC: should show "Thanks for your participation" message on automatic submission success', async () => {
