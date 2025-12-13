@@ -19,10 +19,13 @@ export default async function assignMatches({
   challengeId,
   overwrite = false,
 }) {
-  // 1) Verify challenge exists
+  // 1) Verify challenge exists and Check challenge start date/time <= now
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) return { status: 'challenge_not_found' };
-
+  const now = new Date();
+  if (challenge.startDatetime && now < new Date(challenge.startDatetime)) {
+    return { status: 'too_early' };
+  }
   // 2) Load selected match settings via ChallengeMatchSetting
   const cmsList = await ChallengeMatchSetting.findAll({
     where: { challengeId },

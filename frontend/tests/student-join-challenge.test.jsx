@@ -7,7 +7,7 @@ import { given, when, andThen as then } from './bdd';
 const mockGetChallenges = vi.fn();
 const mockJoinChallenge = vi.fn();
 const mockAssignChallenge = vi.fn();
-
+const mockgetChallengeForJoinedStudent = vi.fn();
 vi.mock('#components/common/Button', () => {
   function Button({ children, ...props }) {
     return (
@@ -45,12 +45,17 @@ vi.mock('#js/useChallenge', () => ({
     getChallenges: mockGetChallenges,
     joinChallenge: mockJoinChallenge,
     assignChallenge: mockAssignChallenge,
+    getChallengeForJoinedStudent: mockgetChallengeForJoinedStudent,
     createChallenge: vi.fn(),
     publishChallenge: vi.fn(),
     unpublishChallenge: vi.fn(),
   }),
 }));
-
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
 describe('Student joins challenge page – Acceptance criteria', () => {
   const duration = 30;
   const visibleStart = '2025-11-30T00:00:00Z'; // past
@@ -82,6 +87,8 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     vi.resetAllMocks();
     mockGetChallenges.mockReset();
     mockJoinChallenge.mockReset();
+    mockgetChallengeForJoinedStudent.mockReset();
+    mockgetChallengeForJoinedStudent.mockResolvedValue({ success: false });
   });
   // AC1: The student sees only one challenge when its date and time exactly match(<=) the current  date and time.
   it('Student sees only one challenge when its start time is <= current time', async () => {
