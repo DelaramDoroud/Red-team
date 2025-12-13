@@ -10,3 +10,9 @@ export const ChallengeStatus = {
   STARTED: 'started',
   ENDED: 'ended',
 };
+
+export const SubmissionStatus = {
+  WRONG: 'wrong',
+  IMPROVABLE: 'improvable',
+  PROBABLY_CORRECT: 'probably_correct',
+};
