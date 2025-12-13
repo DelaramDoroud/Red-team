@@ -22,5 +22,5 @@ server.on('upgrade', function (req, socket, head) {
 });
 
 server.listen(3001, () => {
-  console.log('Codymatch backend listening on port 3001');
+  console.log('\nCODYMATCH READY ON PORT 3001');
 });
