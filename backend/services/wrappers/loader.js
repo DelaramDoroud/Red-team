@@ -8,6 +8,7 @@ const __dirname = dirname(__filename);
 
 export async function loadWrappers() {
   const implementationsDir = join(__dirname, 'implementations');
+  const shouldLog = process.env.NODE_ENV !== 'test';
 
   try {
     const files = await readdir(implementationsDir);
@@ -43,16 +44,23 @@ export async function loadWrappers() {
             wrapperFunction,
             metadata
           );
-          console.log(
-            `✓ Loaded wrapper: ${metadata.supportedLanguages.join(', ')} (${file})`
-          );
-        } else {
+          if (shouldLog) {
+            console.log(
+              `✓ Loaded wrapper: ${metadata.supportedLanguages.join(', ')} (${file})`
+            );
+          }
+        } else if (shouldLog) {
           console.warn(
             `⚠ Skipping ${file}: Missing wrapper function or metadata`
           );
         }
       } catch (error) {
-        console.error(`✗ Failed to load wrapper from ${file}:`, error.message);
+        if (shouldLog) {
+          console.error(
+            `✗ Failed to load wrapper from ${file}:`,
+            error.message
+          );
+        }
       }
     });
 

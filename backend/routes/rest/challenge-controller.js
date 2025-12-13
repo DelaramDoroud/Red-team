@@ -126,7 +126,8 @@ router.post('/challenges', async (req, res) => {
       challenge: createdChallenge,
     });
   } catch (error) {
-    console.error('Create Challenge Error:', error);
+    if (process.env.NODE_ENV !== 'test')
+      console.error('Create Challenge Error:', error);
     if (transaction) await transaction.rollback();
     handleException(res, error);
   }

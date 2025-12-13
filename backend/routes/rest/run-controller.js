@@ -102,12 +102,13 @@ router.post('/run', async (req, res) => {
       });
     }
 
+    const isTest = process.env.NODE_ENV === 'test';
     const maxWaitTime = parseInt(
-      process.env.RUN_API_MAX_WAIT_TIME || '30000',
+      process.env.RUN_API_MAX_WAIT_TIME || (isTest ? '10000' : '30000'),
       10
     );
     const pollInterval = parseInt(
-      process.env.RUN_API_POLL_INTERVAL || '500',
+      process.env.RUN_API_POLL_INTERVAL || (isTest ? '200' : '500'),
       10
     );
 

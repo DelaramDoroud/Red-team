@@ -14,6 +14,25 @@ const LANGUAGE_CONFIGS = {
     extension: '.js',
     timeout: 10000,
   },
+  cpp: {
+    // command is unused when compileFirst=true; actual compile/run is built below
+    command: 'g++',
+    extension: '.cpp',
+    timeout: 15000,
+    compileFirst: true,
+  },
+  c: {
+    command: 'gcc',
+    extension: '.c',
+    timeout: 15000,
+    compileFirst: true,
+  },
+  java: {
+    command: 'javac',
+    extension: '.java',
+    timeout: 20000,
+    compileFirst: true,
+  },
 };
 
 const DOCKER_IMAGE = process.env.CODE_RUNNER_IMAGE || 'judge0/compilers:latest';
@@ -25,7 +44,8 @@ const getTempBase = () => {
 export async function runCode(code, language, input = '', options = {}) {
   const config = LANGUAGE_CONFIGS[language.toLowerCase()];
   if (!config) {
-    console.error('[CODE RUNNER] Unsupported language:', language);
+    if (process.env.NODE_ENV !== 'test')
+      console.error('[CODE RUNNER] Unsupported language:', language);
     throw new Error(
       `Unsupported language: ${language}. Supported: ${Object.keys(LANGUAGE_CONFIGS).join(', ')}`
     );
@@ -241,7 +261,7 @@ export async function runCode(code, language, input = '', options = {}) {
         resolve({
           success: false,
           stdout: '',
-          stderr: error.message,
+          stderr: `Docker error: ${error.message}`,
           exitCode: 1,
           error: error.message,
         });
