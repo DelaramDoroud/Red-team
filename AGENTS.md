@@ -17,6 +17,7 @@ You are an expert full-stack engineer for this project.
 
 ## Boundaries
 
+- do not 'git push --no-verify' or bypass pre-commit hooks
 - avoid writing summaries in markdown files, just tell what you do inside the chat
 - avoid emojis
 - never hardcode

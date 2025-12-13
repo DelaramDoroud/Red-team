@@ -120,7 +120,7 @@ export default function StudentChallengesPage() {
 
   const renderStudentAction = (challenge) => {
     const joined = joinedChallenges[challenge.id];
-    const started = challenge.status === ChallengeStatus.STARTED;
+    const started = challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
     const assigned = challenge.status === ChallengeStatus.ASSIGNED;
     const isJoining = pendingActions[challenge.id]?.join;
 
@@ -147,7 +147,7 @@ export default function StudentChallengesPage() {
     if (!joined && started) {
       return (
         <div className='text-destructive font-semibold text-sm'>
-          the challenge is in progress.
+          The challenge is already in progress.
         </div>
       );
     }

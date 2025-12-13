@@ -36,6 +36,19 @@ const DOCKER_SOCKET_AVAILABLE = existsSync('/var/run/docker.sock');
 // In Docker environment, we check for socket and temp dir
 // On host, we check if docker command works
 const DOCKER_AVAILABLE = (() => {
+  // First check if docker command exists at all
+  try {
+    const result = execSync('which docker', {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    if (!result.trim()) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
   if (IN_DOCKER_ENV && DOCKER_SOCKET_AVAILABLE) {
     // In Docker container, socket availability is enough
     return true;

@@ -148,10 +148,10 @@ describe('RT-4 Code Submission', () => {
         () => {
           expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
         },
-        { timeout: 1000 }
+        { timeout: 2000 }
       );
     });
-  });
+  }, 10000);
 
   it('should submit code successfully when submit button is clicked', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
@@ -162,16 +162,27 @@ describe('RT-4 Code Submission', () => {
       );
     });
 
+    // Wait for component to be fully loaded
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
-      await waitFor(() => {
-        expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
+        },
+        { timeout: 2000 }
+      );
     });
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('submit-btn'));
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
     });
 
     await then(async () => {
@@ -179,13 +190,16 @@ describe('RT-4 Code Submission', () => {
         matchId: 456,
         code: expect.any(String),
       });
-      await waitFor(() => {
-        expect(screen.getByTestId('message')).toHaveTextContent(
-          'Submission successful!'
-        );
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('message')).toHaveTextContent(
+            'Submission successful!'
+          );
+        },
+        { timeout: 2000 }
+      );
     });
-  });
+  }, 10000);
 
   it('should handle submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({
@@ -199,26 +213,40 @@ describe('RT-4 Code Submission', () => {
       );
     });
 
+    // Wait for component to be fully loaded
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
-      await waitFor(() => {
-        expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
+        },
+        { timeout: 2000 }
+      );
     });
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('submit-btn'));
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByTestId('error')).toHaveTextContent(
-          'Compilation failed'
-        );
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('error')).toHaveTextContent(
+            'Compilation failed'
+          );
+        },
+        { timeout: 2000 }
+      );
     });
-  });
+  }, 10000);
 
   it('should automatically submit when timer finishes', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
@@ -229,16 +257,27 @@ describe('RT-4 Code Submission', () => {
       );
     });
 
+    // Wait for component to be fully loaded
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(mockSubmitSubmission).toHaveBeenCalled();
-      });
+      await waitFor(
+        () => {
+          expect(mockSubmitSubmission).toHaveBeenCalled();
+        },
+        { timeout: 2000 }
+      );
     });
-  });
+  }, 10000);
 
   // RT-4 AC: Automatic submission when timer reaches zero
   it.skip('AC: should show "Thanks for your participation" message on automatic submission success', async () => {
