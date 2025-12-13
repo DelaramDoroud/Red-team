@@ -87,7 +87,7 @@ describe('RT-4 Code Submission', () => {
 
   // Helper to click run button and advance timers
   const clickRunAndWait = async () => {
-    await clickRunAndWait();
+    fireEvent.click(screen.getByTestId('run-btn'));
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
