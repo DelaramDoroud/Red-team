@@ -120,7 +120,12 @@ export default function StudentChallengesPage() {
 
         const { status, startPhaseOneDateTime } = res.data;
 
-        if (status === ChallengeStatus.STARTED_PHASE_ONE) {
+        if (
+          status === ChallengeStatus.STARTED_PHASE_ONE ||
+          status === ChallengeStatus.ENDED_PHASE_ONE ||
+          status === ChallengeStatus.STARTED_PHASE_TWO ||
+          status === ChallengeStatus.ENDED_PHASE_TWO
+        ) {
           const start = new Date(startPhaseOneDateTime).getTime();
           const elapsed = Math.floor((Date.now() - start) / 1000);
           const remaining = Math.max(3 - elapsed, 0);
