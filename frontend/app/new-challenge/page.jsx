@@ -14,7 +14,6 @@ export default function NewChallengePage() {
   const { getMatchSettingsReady } = useMatchSettings();
   const { createChallenge } = useChallenge();
   const mountedRef = useRef(false);
-
   const [challenge, setChallenge] = useState({
     title: '',
     startDatetime: '',
@@ -81,12 +80,12 @@ export default function NewChallengePage() {
           const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
           const minEndStr = `${year}-${month}-${day}T${hours}:${minutes}`;
 
-          if (
-            !newChallenge.endDatetime ||
-            newChallenge.endDatetime < minEndStr
-          ) {
-            newChallenge.endDatetime = minEndStr;
-          }
+          // if (
+          //   !newChallenge.endDatetime ||
+          //   newChallenge.endDatetime < minEndStr
+          // ) {
+          newChallenge.endDatetime = minEndStr;
+          // }
         }
       }
     }
