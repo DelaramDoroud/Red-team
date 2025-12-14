@@ -52,6 +52,13 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 describe('Student joins challenge page – Acceptance criteria', () => {
   const duration = 30;
   const visibleStart = '2025-11-30T00:00:00Z'; // past
