@@ -42,6 +42,7 @@
     "normalize.css": "^8.0.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "@monaco-editor/react": "^4.7.0",
     "react-hot-toast": "^2.6.0",
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",

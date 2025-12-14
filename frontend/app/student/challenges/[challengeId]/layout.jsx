@@ -17,7 +17,7 @@ import { DurationProvider } from './(context)/DurationContext';
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const { getChallengeForJoinedStudent } = useChallenge();
+  const { getChallengeMatches } = useChallenge();
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,13 +33,17 @@ export default function ChallengeLayout({ children }) {
       setError(null);
 
       try {
-        const { data } = await getChallengeForJoinedStudent(
-          challengeId,
-          studentId
-        );
-
+        const res = await getChallengeMatches(challengeId);
         if (!cancelled) {
-          setchallengeData(data);
+          if (res?.success) {
+            // challenge: { id, title, status, startDatetime, duration }
+            setchallengeData(res.challenge);
+          } else {
+            setError({
+              message:
+                res?.error || res?.message || 'Unable to load challenge info.',
+            });
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -60,7 +64,7 @@ export default function ChallengeLayout({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [challengeId, studentId, getChallengeForJoinedStudent]);
+  }, [challengeId, studentId, getChallengeMatches]);
   const { status, title, duration } = challengeData || {};
   const phaseLabel = () => {
     switch (status) {
@@ -79,7 +83,7 @@ export default function ChallengeLayout({ children }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            {loading ? 'Loading challenge...' : title}-{' '}
+            {loading ? 'Loading challenge...' : title || 'Unknown'}-{' '}
             <span>{phaseLabel()}</span>
           </CardTitle>
         </CardHeader>
@@ -92,7 +96,9 @@ export default function ChallengeLayout({ children }) {
           </CardContent>
         )}
       </Card>
-      <DurationProvider value={{ duration, challengeId }}>
+      <DurationProvider
+        value={{ duration: Number(duration) || 0, challengeId }}
+      >
         {children}
       </DurationProvider>
     </div>
