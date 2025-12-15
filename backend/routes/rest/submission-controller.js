@@ -19,18 +19,14 @@ router.post('/submissions', async (req, res) => {
     if (!matchId || !code) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: 'Missing required fields: matchId and code',
-        },
+        error: { message: 'Missing required fields: matchId and code' },
       });
     }
 
     if (typeof code !== 'string' || code.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: 'Code cannot be empty',
-        },
+        error: { message: 'Code cannot be empty' },
       });
     }
 
@@ -39,12 +35,7 @@ router.post('/submissions', async (req, res) => {
         {
           model: ChallengeMatchSetting,
           as: 'challengeMatchSetting',
-          include: [
-            {
-              model: MatchSetting,
-              as: 'matchSetting',
-            },
-          ],
+          include: [{ model: MatchSetting, as: 'matchSetting' }],
         },
       ],
     });
@@ -52,9 +43,7 @@ router.post('/submissions', async (req, res) => {
     if (!match) {
       return res.status(404).json({
         success: false,
-        error: {
-          message: `Match with ID ${matchId} not found`,
-        },
+        error: { message: `Match with ID ${matchId} not found` },
       });
     }
 
@@ -62,41 +51,34 @@ router.post('/submissions', async (req, res) => {
     if (!matchSetting) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: 'Match setting not found for this match',
-        },
+        error: { message: 'Match setting not found for this match' },
       });
     }
 
-    //RUN COMPILATION CHECK
-
+    // RUN COMPILATION CHECK
     let runResponse;
-
     try {
       runResponse = await axios.post(
-        `${process.env.INTERNAL_API_URL || 'http://localhost:3000'}/api/rest/run`,
-        {
-          matchSettingId: matchSetting.id,
-          code,
-          language,
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 20000,
-        }
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest'}/run`,
+        { matchSettingId: matchSetting.id, code, language },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
       );
     } catch (err) {
       logger.error('Run API error:', err?.response?.data || err.message);
-
       return res.status(500).json({
         success: false,
-        error: {
-          message: 'Error while executing code for compilation check',
-        },
+        error: { message: 'Error while executing code for compilation check' },
       });
     }
 
-    if (!runResponse.data?.success) {
+    // Check compilation: exitCode !== 0 or stderr contains "error"
+    const compilationFailed = runResponse.data.results?.some(
+      (r) =>
+        r.exitCode !== 0 ||
+        (r.stderr && r.stderr.toLowerCase().includes('error'))
+    );
+
+    if (compilationFailed) {
       return res.status(400).json({
         success: false,
         error: {
@@ -106,8 +88,8 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
+    // SAVE SUBMISSION
     const transaction = await sequelize.transaction();
-
     try {
       let submission = await Submission.findOne({
         where: { matchId },
@@ -115,14 +97,11 @@ router.post('/submissions', async (req, res) => {
       });
 
       if (submission) {
-        // UPDATE
         submission.code = code;
         submission.submissions_count = (submission.submissions_count || 0) + 1;
         submission.updatedAt = new Date();
-
         await submission.save({ transaction });
       } else {
-        // INSERT
         submission = await Submission.create(
           {
             matchId,
@@ -165,24 +144,18 @@ router.post('/submissions', async (req, res) => {
 router.get('/submission/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     if (isNaN(Number(id))) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: 'Submission ID must be a number',
-        },
+        error: { message: 'Submission ID must be a number' },
       });
     }
 
     const submission = await Submission.findByPk(id);
-
     if (!submission) {
       return res.status(404).json({
         success: false,
-        error: {
-          message: `Submission with ID ${id} not found`,
-        },
+        error: { message: `Submission with ID ${id} not found` },
       });
     }
 

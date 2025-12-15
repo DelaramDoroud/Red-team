@@ -28,8 +28,6 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [message, setMessage] = useState(null);
 
   const [code, setCode] = useState(CppCodeTemplate);
-
-  // runResult ora è una stringa
   const [runResult, setRunResult] = useState(null);
 
   const [isRunning, setIsRunning] = useState(false);
@@ -38,7 +36,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
   const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
-  // Load match
+  // Load match data
   useEffect(() => {
     let cancelled = false;
 
@@ -74,7 +72,6 @@ export default function MatchContainer({ challengeId, studentId }) {
         const starter = data?.starterCode?.trim()
           ? data.starterCode
           : CppCodeTemplate;
-
         setCode(starter);
       } catch {
         if (!cancelled)
@@ -95,7 +92,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     };
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
-  // Run handler (runResult diventa stringa)
+  // Run code handler
   const handleRun = useCallback(() => {
     setMessage(null);
     setRunResult(null);
@@ -103,18 +100,17 @@ export default function MatchContainer({ challengeId, studentId }) {
     setIsRunning(true);
 
     setTimeout(() => {
-      setRunResult('Run completed (mock).'); // <-- Fix
+      setRunResult('Run completed (mock).');
       setIsRunning(false);
-      setIsSubmittingActive(true);
+      setIsSubmittingActive(true); // Enable submit after successful run
     }, 300);
   }, []);
 
-  // Submit handler
+  // Manual submit handler
   const handleSubmit = useCallback(async () => {
     setMessage(null);
     setError(null);
     setIsSubmitting(true);
-    setIsSubmittingActive(true);
 
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
@@ -137,6 +133,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         setMessage('Submission successful!');
         return true;
       }
+
       setError({
         message: submissionRes?.error?.message || 'Submission failed.',
       });
@@ -150,19 +147,17 @@ export default function MatchContainer({ challengeId, studentId }) {
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
 
-  // Automatic submission handler (for timer finish)
+  // Automatic submission when timer finishes
   const handleTimerFinish = useCallback(async () => {
     setMessage(null);
     setError(null);
     setIsSubmitting(true);
-    // Keep submit button disabled after auto-submission
     setIsSubmittingActive(false);
 
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        setError({ message: 'No match found for submission.' });
         setMessage('Thanks for your participation');
         setIsChallengeFinished(true);
         return false;
@@ -171,7 +166,6 @@ export default function MatchContainer({ challengeId, studentId }) {
       const matchId = res.data.id;
 
       if (!code.trim()) {
-        setError({ message: 'Empty code cannot be submitted.' });
         setMessage('Thanks for your participation');
         setIsChallengeFinished(true);
         return false;
@@ -179,14 +173,10 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const submissionRes = await submitSubmission({ matchId, code });
 
-      if (submissionRes?.success) {
-        setMessage('Thanks for your participation');
-        setIsChallengeFinished(true);
-        return true;
-      }
       setMessage('Thanks for your participation');
       setIsChallengeFinished(true);
-      return false;
+
+      return submissionRes?.success ?? false;
     } catch (err) {
       setMessage('Thanks for your participation');
       setIsChallengeFinished(true);
@@ -210,7 +200,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
-      onTimerFinish={handleTimerFinish} // For testing - allows test to trigger automatic submission
+      onTimerFinish={handleTimerFinish}
       isChallengeFinished={isChallengeFinished}
       challengeId={challengeId}
     />
