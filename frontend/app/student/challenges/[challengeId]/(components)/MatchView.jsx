@@ -20,7 +20,7 @@ import {
 import Tooltip from '#components/common/Tooltip';
 import Spinner from '#components/common/Spinner';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import CppEditor from './CppEditor';
 import Timer from './Timer';
 import { useDuration } from '../(context)/DurationContext';
@@ -38,37 +38,42 @@ export default function MatchView({
   runResult,
   onRun,
   onSubmit,
-  onTimerFinish, // for testing
+  onTimerFinish,
   isChallengeFinished,
   challengeId,
 }) {
   const { duration } = useDuration();
+
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
 
+  const hasTimerFinished = useRef(false);
+
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
 
   const handleTimerEnd = async () => {
+    if (hasTimerFinished.current) return;
+    if (!duration || duration <= 0) return;
+
+    hasTimerFinished.current = true;
     setIsSubmittingFinal(true);
     setSubmissionError(null);
 
     try {
       const result = await onSubmit();
-      // Check if submission failed
-      if (result === false || (result && result.success === false)) {
+
+      if (result === false || result?.success === false) {
         setSubmissionError('Your code did not compile successfully.');
       }
-    } catch (err) {
+    } catch {
       setSubmissionError('Error during final submission.');
-      // console.error(err);
     } finally {
       setIsSubmittingFinal(false);
       setFinished(true);
     }
   };
 
-  // Use onTimerFinish if provided (for testing), otherwise use handleTimerEnd
   const timerFinishHandler = onTimerFinish || handleTimerEnd;
 
   if (loading) {
@@ -165,7 +170,6 @@ export default function MatchView({
 
   return (
     <div className='max-w-7xl h-full my-2 relative'>
-      {/* Overlay grigio con spinner quando submit automatico */}
       {isSubmittingFinal && (
         <div className='absolute inset-0 z-50 flex items-center justify-center bg-black/40'>
           <Spinner label='Submitting your code...' />
@@ -181,7 +185,6 @@ export default function MatchView({
       </div>
 
       <div className='my-2 flex justify-normal gap-x-2'>
-        {/* Colonna sinistra: problemi e test */}
         <div className='space-y-2 w-1/3'>
           <Card>
             <CardHeader>
@@ -218,7 +221,7 @@ export default function MatchView({
                       <TableRow key={JSON.stringify(test)}>
                         <TableCell>{JSON.stringify(test.input)}</TableCell>
                         <TableCell>{JSON.stringify(test.output)}</TableCell>
-                        <TableCell>{/* your output */}</TableCell>
+                        <TableCell />
                       </TableRow>
                     ))}
                   </TableBody>
@@ -232,7 +235,6 @@ export default function MatchView({
           </Card>
         </div>
 
-        {/* Colonna destra: editor */}
         <div className='space-y-6 w-2/3'>
           <Card>
             <CardHeader>
@@ -258,7 +260,7 @@ export default function MatchView({
               <div className='flex gap-3'>
                 <Button
                   onClick={onRun}
-                  disabled={isBusy || isSubmittingFinal}
+                  disabled={isBusy}
                   className='flex items-center gap-2'
                 >
                   {isRunning && <Spinner label='Running…' />}
