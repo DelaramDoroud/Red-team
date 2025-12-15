@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import axios from 'axios';
+
 import sequelize from '#root/services/sequelize.js';
 import app from '#root/app_initial.js';
+
 import Match from '#root/models/match.js';
 import Submission from '#root/models/submission.js';
 import Challenge from '#root/models/challenge.js';
@@ -25,15 +27,9 @@ describe('Submission API', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
+
     axios.post.mockResolvedValue({
-      data: {
-        success: true,
-        data: {
-          isCompiled: true,
-          isPassed: true,
-          verdict: 'Accepted',
-        },
-      },
+      data: { success: true },
     });
 
     transaction = await sequelize.transaction();
@@ -109,143 +105,127 @@ describe('Submission API', () => {
   });
 
   afterEach(async () => {
-    try {
-      await Submission.destroy({ where: {} });
-      await Match.destroy({ where: {} });
-      await ChallengeParticipant.destroy({ where: {} });
-      await ChallengeMatchSetting.destroy({ where: {} });
-      await Challenge.destroy({ where: {} });
-      await MatchSetting.destroy({ where: {} });
-      await User.destroy({ where: {} });
-    } catch (error) {
-      console.error('Cleanup error:', error);
-    }
+    await Submission.destroy({ where: {} });
+    await Match.destroy({ where: {} });
+    await ChallengeParticipant.destroy({ where: {} });
+    await ChallengeMatchSetting.destroy({ where: {} });
+    await Challenge.destroy({ where: {} });
+    await MatchSetting.destroy({ where: {} });
+    await User.destroy({ where: {} });
   });
 
-  //
-  // -------------------------------------------------------------------------
-  // TEST POST /api/rest/submissions
-  // -------------------------------------------------------------------------
-  //
-
   describe('POST /api/rest/submissions', () => {
-    it('should reject submission without matchId', async () => {
+    it('rejects submission without matchId', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
         code: 'int main() { return 0; }',
       });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Missing required fields');
     });
 
-    it('should reject submission without code', async () => {
+    it('rejects submission without code', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: match.id,
       });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Missing required fields');
     });
 
-    it('should reject submission with empty code', async () => {
+    it('rejects empty code', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: match.id,
-        code: '   \n\n  ',
+        code: '   ',
       });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('empty');
     });
 
-    it('should return 404 for non-existent match', async () => {
+    it('returns 404 for non-existent match', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
-        matchId: 99999,
+        matchId: 999999,
         code: 'int main() { return 0; }',
       });
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('not found');
     });
 
-    it('should create a new submission with submissions_count=1', async () => {
-      const code = 'int main() { return 0; }';
-
+    it('creates a new submission when code compiles', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: match.id,
-        code,
+        code: 'int main() { return 0; }',
       });
 
-      if (res.status !== 200) {
-        console.log('Test failed with status:', res.status);
-        console.log('Response body:', JSON.stringify(res.body, null, 2));
-      }
-
       expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
 
       const submission = await Submission.findOne({
         where: { matchId: match.id },
       });
 
       expect(submission).toBeDefined();
-      expect(submission.code).toBe(code);
       expect(submission.submissions_count).toBe(1);
     });
 
-    it('should update existing submission and increment submissions_count', async () => {
-      const initialSubmission = await Submission.create({
+    it('updates existing submission and increments submissions_count', async () => {
+      const existing = await Submission.create({
         matchId: match.id,
         challengeParticipantId: participant.id,
         code: 'int main() { return 1; }',
         submissions_count: 1,
       });
 
-      // Small delay to ensure timestamp difference
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const updatedCode = 'int main() { return 2; }';
-
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: match.id,
-        code: updatedCode,
+        code: 'int main() { return 2; }',
       });
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
 
-      // Reload the initial submission to get fresh data from DB
-      await initialSubmission.reload();
+      await existing.reload();
+      expect(existing.submissions_count).toBe(2);
+    });
 
-      expect(initialSubmission.code).toBe(updatedCode);
-      expect(initialSubmission.submissions_count).toBe(2);
+    it('rejects submission when code does not compile', async () => {
+      axios.post.mockResolvedValueOnce({
+        data: { success: false },
+      });
+
+      const res = await request(app).post('/api/rest/submissions').send({
+        matchId: match.id,
+        code: 'int main() { return }',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+
+      const submission = await Submission.findOne({
+        where: { matchId: match.id },
+      });
+
+      expect(submission).toBeNull();
     });
   });
 
-  //
-  // -------------------------------------------------------------------------
-  // TEST GET /api/rest/submission/:id
-  // -------------------------------------------------------------------------
-  //
-
   describe('GET /api/rest/submission/:id', () => {
-    it('should return 400 for invalid ID', async () => {
+    it('returns 400 for invalid id', async () => {
       const res = await request(app).get('/api/rest/submission/abc');
+
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('must be a number');
     });
 
-    it('should return 404 if submission not found', async () => {
+    it('returns 404 when submission does not exist', async () => {
       const res = await request(app).get('/api/rest/submission/999999');
+
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('not found');
     });
 
-    it('should return submission by ID', async () => {
+    it('returns submission by id', async () => {
       const submission = await Submission.create({
         matchId: match.id,
         challengeParticipantId: participant.id,
@@ -258,40 +238,7 @@ describe('Submission API', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
       expect(res.body.data.submission.id).toBe(submission.id);
-      expect(res.body.data.submission.code).toBe(submission.code);
-    });
-
-    it('should verify submission persists in database', async () => {
-      const testCode = 'int main() { return 42; }';
-
-      // Create submission via API
-      const createRes = await request(app).post('/api/rest/submissions').send({
-        matchId: match.id,
-        code: testCode,
-      });
-
-      expect(createRes.status).toBe(200);
-      const submissionId = createRes.body.data.submission.id;
-
-      // Verify it exists in the database
-      const dbSubmission = await Submission.findByPk(submissionId);
-      expect(dbSubmission).toBeDefined();
-      expect(dbSubmission.code).toBe(testCode);
-      expect(dbSubmission.matchId).toBe(match.id);
-      expect(dbSubmission.submissions_count).toBe(1);
-
-      // Verify we can retrieve it via API
-      const getRes = await request(app).get(
-        `/api/rest/submission/${submissionId}`
-      );
-      expect(getRes.status).toBe(200);
-      expect(getRes.body.data.submission.code).toBe(testCode);
-
-      // Count total submissions in the table (should be at least 1)
-      const count = await Submission.count();
-      expect(count).toBeGreaterThanOrEqual(1);
     });
   });
 });

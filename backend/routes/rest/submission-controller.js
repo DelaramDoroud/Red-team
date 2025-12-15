@@ -100,17 +100,6 @@ router.post('/submissions', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: {
-          message: 'Code execution failed',
-        },
-      });
-    }
-
-    const { isCompiled } = runResponse.data.data;
-
-    if (!isCompiled) {
-      return res.status(400).json({
-        success: false,
-        error: {
           message:
             'Your code did not compile. Please fix compilation errors before submitting.',
         },
