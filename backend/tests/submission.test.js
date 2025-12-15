@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import axios from 'axios';
 import sequelize from '#root/services/sequelize.js';
 import app from '#root/app_initial.js';
 import Match from '#root/models/match.js';
@@ -11,6 +12,8 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 
+vi.mock('axios');
+
 describe('Submission API', () => {
   let challenge;
   let matchSetting;
@@ -21,6 +24,16 @@ describe('Submission API', () => {
   let transaction;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
+    axios.post.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          verdict: 'Accepted',
+        },
+      },
+    });
+
     transaction = await sequelize.transaction();
 
     try {
@@ -163,6 +176,11 @@ describe('Submission API', () => {
         matchId: match.id,
         code,
       });
+
+      if (res.status !== 200) {
+        console.log('Test failed with status:', res.status);
+        console.log('Response body:', JSON.stringify(res.body, null, 2));
+      }
 
       expect(res.status).toBe(200);
 
