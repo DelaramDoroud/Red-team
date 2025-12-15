@@ -140,12 +140,12 @@ test)
     if [[ "$STOP_AFTER" == true ]]; then
       # Non-watch mode, used e.g. in pre-push
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend sh -c \
-        "npm run test:run -- --no-file-parallelism"
+        "npm run test:run -- --no-file-parallelism --bail=1"
       BACKEND_TEST_EXIT_CODE=$?
     else
       # Default test command (may be watch or not, depending on package.json)
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
-        "npm run test -- --no-file-parallelism"
+        "npm run test -- --no-file-parallelism --bail=1"
       BACKEND_TEST_EXIT_CODE=$?
     fi
   fi
@@ -157,12 +157,12 @@ test)
     if [[ "$STOP_AFTER" == true ]]; then
       # Non-watch mode for frontend (single run)
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
-        "npm run test:run"
+        "npm run test:run -- --bail=1"
       FRONTEND_TEST_EXIT_CODE=$?
     else
       # Default frontend test script
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
-        "npm run test"
+        "npm run test -- --bail=1"
       FRONTEND_TEST_EXIT_CODE=$?
     fi
   fi
@@ -170,13 +170,18 @@ test)
   echo "Cleaning up test DB..."
   docker rm -f test-db > /dev/null 2>&1 || true
 
-  if [[ $BACKEND_TEST_EXIT_CODE -ne 0 || $FRONTEND_TEST_EXIT_CODE -ne 0 ]]; then
-    echo "Some tests failed."
+  if [[ $BACKEND_TEST_EXIT_CODE -ne 0 ]]; then
+    echo "Backend tests failed."
     exit 1
-  else
-    echo "All tests passed."
-    exit 0
   fi
+
+  if [[ $FRONTEND_TEST_EXIT_CODE -ne 0 ]]; then
+    echo "Frontend tests failed."
+    exit 1
+  fi
+
+  echo "All tests passed."
+  exit 0
   ;;
 
 backend|frontend)
