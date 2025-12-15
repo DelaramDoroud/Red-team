@@ -28,8 +28,12 @@ describe('Submission API', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
 
+    // Default /run API mock: always successful compilation
     axios.post.mockResolvedValue({
-      data: { success: true },
+      data: {
+        success: true,
+        results: [{ exitCode: 0, stdout: '', stderr: '' }],
+      },
     });
 
     transaction = await sequelize.transaction();
@@ -190,13 +194,23 @@ describe('Submission API', () => {
     });
 
     it('rejects submission when code does not compile', async () => {
+      // Mock /run API to simulate compilation error
       axios.post.mockResolvedValueOnce({
-        data: { success: false },
+        data: {
+          success: true,
+          results: [
+            {
+              exitCode: 1, // non-zero exit code indicates compilation error
+              stdout: '',
+              stderr: 'error: expected ; before }',
+            },
+          ],
+        },
       });
 
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: match.id,
-        code: 'int main() { return }',
+        code: 'int main() { return }', // intentionally invalid C++ code
       });
 
       expect(res.status).toBe(400);
@@ -206,7 +220,7 @@ describe('Submission API', () => {
         where: { matchId: match.id },
       });
 
-      expect(submission).toBeNull();
+      expect(submission).toBeNull(); // Should not be saved
     });
   });
 
