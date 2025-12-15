@@ -213,7 +213,7 @@ console.log(obj.property);
 while True:
     pass
       `.trim();
-      const result = await runCode(code, 'python');
+      const result = await runCode(code, 'python', '', { timeoutMs: 2000 });
 
       expect(result.success).toBe(false);
       // Exit code can be 124 (timeout) or 125 (Docker error) depending on how timeout is handled
@@ -223,7 +223,7 @@ while True:
 
     it('should timeout JavaScript infinite loop', async () => {
       const code = 'while(true) {}';
-      const result = await runCode(code, 'javascript');
+      const result = await runCode(code, 'javascript', '', { timeoutMs: 2000 });
 
       expect(result.success).toBe(false);
       expect([124, 125]).toContain(result.exitCode);
@@ -236,7 +236,7 @@ import time
 time.sleep(20)  # Sleep for 20 seconds (longer than timeout)
 print("Done")
       `.trim();
-      const result = await runCode(code, 'python');
+      const result = await runCode(code, 'python', '', { timeoutMs: 2000 });
 
       expect(result.success).toBe(false);
       expect([124, 125]).toContain(result.exitCode);
@@ -374,6 +374,37 @@ console.log(result);
   });
 
   describe('Compiled Languages (if supported)', () => {
+    it('should fail to compile invalid C++ code', async () => {
+      const badCode = `
+        int main() {
+          // missing semicolon and include
+          std::cout << "Broken" 
+          return 0;
+        }
+      `.trim();
+      const result = await runCode(badCode, 'cpp');
+
+      expect(result).toHaveProperty('success');
+      expect(result.success).toBe(false);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toBeTruthy();
+    }, 30000);
+
+    it('should compile C++ but produce an unexpected output', async () => {
+      const code = `
+        #include <iostream>
+        int main(){
+          std::cout << "Not the expected output" << std::endl;
+          return 0;
+        }
+      `.trim();
+      const result = await runCode(code, 'cpp');
+
+      expect(result.success).toBe(true);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe('Not the expected output');
+    }, 30000);
+
     it('should compile and run Java code', async () => {
       const code = `
 public class Main {
@@ -401,6 +432,116 @@ int main() {
 
       expect(result).toHaveProperty('success');
       expect(result).toHaveProperty('stdout');
+      expect(result.success).toBe(true);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toBe('Hello from C++!');
+    }, 30000);
+
+    it('should solve Two Sum in C++ and match expected outputs for two inputs', async () => {
+      const cppTwoSum = `#include <iostream>
+        #include <vector>
+        #include <unordered_map>
+        #include <sstream>
+        #include <string>
+        using namespace std;
+        int main(){
+          ios::sync_with_stdio(false);
+          cin.tie(nullptr);
+          string s; {
+            ostringstream oss; oss << cin.rdbuf(); s = oss.str();
+          }
+          vector<long long> vals; long long cur=0; bool inNum=false; bool neg=false;
+          for(char c: s){
+            if(c=='-' && !inNum){ neg=true; continue; }
+            if(c>='0' && c<='9'){ if(!inNum){ inNum=true; cur=0; } cur = cur*10 + (c-'0'); }
+            else { if(inNum){ vals.push_back(neg?-cur:cur); inNum=false; neg=false; cur=0; } else { neg=false; } }
+          }
+          if(inNum) vals.push_back(neg?-cur:cur);
+          if(vals.size()<2){ cout << "[]"; return 0; }
+          long long target = vals.back();
+          vector<long long> nums(vals.begin(), vals.end()-1);
+          unordered_map<long long,int> mp;
+          for(int i=0;i<(int)nums.size();++i){
+            long long need = target - nums[i];
+            auto it = mp.find(need);
+            if(it!=mp.end()){ cout << "[" << it->second << ", " << i << "]"; return 0; }
+            mp[nums[i]] = i;
+          }
+          cout << "[]";
+          return 0;
+        }`.trim();
+
+      const case1 = await runCode(
+        cppTwoSum,
+        'cpp',
+        JSON.stringify([[2, 7, 11, 15], 9])
+      );
+      expect(case1.success).toBe(true);
+      expect(case1.exitCode).toBe(0);
+      expect(case1.stderr).toBe('');
+      expect(case1.stdout).toBe('[0, 1]');
+
+      const case2 = await runCode(
+        cppTwoSum,
+        'cpp',
+        JSON.stringify([[3, 2, 4], 6])
+      );
+      expect(case2.success).toBe(true);
+      expect(case2.exitCode).toBe(0);
+      expect(case2.stderr).toBe('');
+      expect(case2.stdout).toBe('[1, 2]');
+    }, 60000);
+
+    it('should solve Palindrome Number in C++ and match expected outputs', async () => {
+      const cppPalindrome = `#include <bits/stdc++.h>
+      using namespace std;
+      int main(){
+        ios::sync_with_stdio(false);
+        cin.tie(nullptr);
+        string s; { ostringstream oss; oss << cin.rdbuf(); s = oss.str(); }
+        long long cur = 0;
+        bool inNum = false, neg = false;
+        vector<long long> vals;
+        for (char c : s) {
+          if (c == '-' && !inNum) { neg = true; continue; }
+          if (c >= '0' && c <= '9') {
+            if (!inNum) { inNum = true; cur = 0; }
+            cur = cur * 10 + (c - '0');
+          } else {
+            if (inNum) { vals.push_back(neg ? -cur : cur); inNum = false; neg = false; cur = 0; }
+            else { neg = false; }
+          }
+        }
+        if (inNum) vals.push_back(neg ? -cur : cur);
+        if (vals.empty()) { cout << "false"; return 0; }
+        long long x = vals[0];
+        if (x < 0) { cout << "false"; return 0; }
+        string t = to_string(x);
+        string r = t;
+        reverse(r.begin(), r.end());
+        cout << (t == r ? "true" : "false");
+        return 0;
+      }`.trim();
+
+      const case1 = await runCode(cppPalindrome, 'cpp', JSON.stringify([121]));
+      expect(case1.success).toBe(true);
+      expect(case1.exitCode).toBe(0);
+      expect(case1.stderr).toBe('');
+      expect(case1.stdout).toBe('true');
+
+      const case2 = await runCode(cppPalindrome, 'cpp', JSON.stringify([-121]));
+      expect(case2.success).toBe(true);
+      expect(case2.exitCode).toBe(0);
+      expect(case2.stderr).toBe('');
+      expect(case2.stdout).toBe('false');
+
+      // private test from seed
+      const case3 = await runCode(cppPalindrome, 'cpp', JSON.stringify([10]));
+      expect(case3.success).toBe(true);
+      expect(case3.exitCode).toBe(0);
+      expect(case3.stderr).toBe('');
+      expect(case3.stdout).toBe('false');
     }, 30000);
 
     it('should compile and run C code', async () => {

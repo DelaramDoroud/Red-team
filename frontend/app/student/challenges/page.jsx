@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -31,14 +30,13 @@ const formatDateTime = (value) => {
 };
 
 export default function StudentChallengesPage() {
-  const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
-    useChallenge();
+  const { getChallenges, joinChallenge } = useChallenge();
   const [challenges, setChallenges] = useState([]);
   const [joinedChallenges, setJoinedChallenges] = useState({});
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
   const [pendingActions, setPendingActions] = useState({});
-  const [countdown, setCountdown] = useState(null);
+
   const load = useCallback(async () => {
     setError(null);
     const res = await getChallenges();
@@ -55,8 +53,7 @@ export default function StudentChallengesPage() {
       setChallenges([]);
     }
   }, [getChallenges]);
-  const STUDENT_ID = 1;
-  const router = useRouter();
+
   useEffect(() => {
     let isCancelled = false;
     async function doFetch() {
@@ -83,106 +80,6 @@ export default function StudentChallengesPage() {
     const available = filterChallenges(challenges, now);
     return available.length > 0 ? [available[0]] : [];
   }, [challenges, filterChallenges, now]);
-  useEffect(() => {
-    if (!visibleChallenges.length) return () => {};
-
-    const challenge = visibleChallenges[0];
-    let cancelled = false;
-
-    async function checkJoined() {
-      try {
-        const res = await getChallengeForJoinedStudent(
-          challenge.id,
-          STUDENT_ID
-        );
-        if (!cancelled && res?.success && res.data) {
-          setJoinedChallenges((prev) => ({
-            ...prev,
-            [challenge.id]: true,
-          }));
-        }
-      } catch (_err) {
-        setError(_err);
-      }
-    }
-
-    checkJoined();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [visibleChallenges, getChallengeForJoinedStudent]);
-
-  useEffect(() => {
-    if (!visibleChallenges.length) return () => {};
-
-    const challenge = visibleChallenges[0];
-    const joined = joinedChallenges[challenge.id];
-    if (!joined) return () => {};
-
-    let intervalId;
-
-    const pollStatus = async () => {
-      const res = await getChallengeForJoinedStudent(challenge.id, STUDENT_ID);
-      if (!res?.success || !res.data) return;
-
-      const { status, startedAt } = res.data;
-
-      if (status === ChallengeStatus.STARTED) {
-        let remaining = 3;
-
-        if (startedAt) {
-          const startedTime = new Date(startedAt).getTime();
-          const diffSeconds = Math.floor((Date.now() - startedTime) / 1000);
-          remaining = Math.max(3 - diffSeconds, 0);
-        }
-
-        if (remaining <= 0) {
-          router.push(`/student/challenges/${challenge.id}/match`);
-        } else {
-          setCountdown((prev) =>
-            prev && prev.challengeId === challenge.id
-              ? prev
-              : { challengeId: challenge.id, value: remaining }
-          );
-        }
-
-        if (intervalId) clearInterval(intervalId);
-      }
-    };
-
-    pollStatus();
-    intervalId = setInterval(pollStatus, 1000);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [
-    visibleChallenges,
-    joinedChallenges,
-    getChallengeForJoinedStudent,
-    router,
-  ]);
-
-  useEffect(() => {
-    if (!countdown) return () => {};
-
-    if (countdown.value <= 0) {
-      const { challengeId } = countdown;
-      setCountdown(null);
-      router.push(`/student/challenges/${challengeId}/match`);
-      return () => {};
-    }
-
-    const timeoutId = setTimeout(() => {
-      setCountdown((prev) => {
-        if (!prev || prev.challengeId !== countdown.challengeId) return prev;
-        return { ...prev, value: prev.value - 1 };
-      });
-    }, 1000);
-
-    return () => clearTimeout(timeoutId);
-  }, [countdown, router]);
 
   const setActionPending = (challengeId, actionKey, isPending) => {
     setPendingActions((prev) => ({
@@ -195,7 +92,7 @@ export default function StudentChallengesPage() {
     setError(null);
     setActionPending(challengeId, 'join', true);
     try {
-      const res = await joinChallenge(challengeId, STUDENT_ID);
+      const res = await joinChallenge(challengeId, 1);
 
       if (res.success) {
         setJoinedChallenges((prev) => ({ ...prev, [challengeId]: true }));
@@ -226,15 +123,6 @@ export default function StudentChallengesPage() {
     const started = challenge.status === ChallengeStatus.STARTED;
     const assigned = challenge.status === ChallengeStatus.ASSIGNED;
     const isJoining = pendingActions[challenge.id]?.join;
-    const isCountingDown = countdown && countdown.challengeId === challenge.id;
-
-    if (isCountingDown) {
-      return (
-        <div className='text-primary font-semibold text-sm'>
-          Challenge starting in {countdown.value}…
-        </div>
-      );
-    }
 
     if (!joined && !started && !assigned) {
       return (
@@ -259,7 +147,7 @@ export default function StudentChallengesPage() {
     if (!joined && started) {
       return (
         <div className='text-destructive font-semibold text-sm'>
-          The challenge is in progress.
+          the challenge is in progress.
         </div>
       );
     }
@@ -273,17 +161,6 @@ export default function StudentChallengesPage() {
 
   return (
     <div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
-      {countdown && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
-          <div className='bg-card rounded-2xl px-10 py-8 text-center shadow-xl border border-border'>
-            <p className='text-sm text-muted-foreground mb-2'>Get ready…</p>
-            <p className='text-6xl font-bold mb-4'>{countdown.value}</p>
-            <p className='text-sm text-muted-foreground'>
-              The challenge is about to start.
-            </p>
-          </div>
-        </div>
-      )}
       <div className='space-y-2'>
         <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
           Student area

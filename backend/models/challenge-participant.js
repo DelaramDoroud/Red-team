@@ -51,12 +51,6 @@ ChallengeParticipant.initializeRelations = (models) => {
     as: 'match',
     foreignKey: 'challengeParticipantId',
   });
-  ChallengeParticipant.hasMany(models.MatchSubmission, {
-    as: 'submissions',
-    foreignKey: 'challengeParticipantId',
-    onDelete: 'CASCADE',
-    onUpdate: 'CASCADE',
-  });
 };
 
 ChallengeParticipant.seed = async function () {
