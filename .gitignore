@@ -37,6 +37,3 @@ yarn-error.log*
 # Misc
 *.pem
 tmp/
-frontend/app/student/challenges/\[challengeId]/(components)/CppEditor.jsx
-frontend/app/student/challenges/\[challengeId]/(context)/DurationContext.jsx
-frontend/app/student/challenges/\[challengeId]/(components)/Timer.jsx

@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import axios from 'axios';
+
 import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
+
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
 import logger from '#root/services/logger.js';
@@ -11,9 +14,8 @@ const router = Router();
 
 router.post('/submissions', async (req, res) => {
   try {
-    const { matchId, code } = req.body;
+    const { matchId, code, language = 'cpp' } = req.body;
 
-    // Validation
     if (!matchId || !code) {
       return res.status(400).json({
         success: false,
@@ -24,7 +26,6 @@ router.post('/submissions', async (req, res) => {
     }
 
     if (typeof code !== 'string' || code.trim().length === 0) {
-      // TODO to check how frontend sends empty or strange code (eg only random numbers, 255, 42, etc.)
       return res.status(400).json({
         success: false,
         error: {
@@ -33,7 +34,6 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // Verify match exists
     const match = await Match.findByPk(matchId, {
       include: [
         {
@@ -61,7 +61,6 @@ router.post('/submissions', async (req, res) => {
     const matchSetting = match.challengeMatchSetting?.matchSetting;
     if (!matchSetting) {
       return res.status(400).json({
-        // if match exists but no setting, it's a bad request error
         success: false,
         error: {
           message: 'Match setting not found for this match',
@@ -69,23 +68,58 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    /*
-    const compilationResult = await runSubmission({ code, matchSetting });
-    if (compilationResult.status === 'compilation_failed') {
+    //RUN COMPILATION CHECK
+
+    let runResponse;
+
+    try {
+      runResponse = await axios.post(
+        `${process.env.INTERNAL_API_URL || 'http://localhost:3000'}/api/rest/run`,
+        {
+          matchSettingId: matchSetting.id,
+          code,
+          language,
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 20000,
+        }
+      );
+    } catch (err) {
+      logger.error('Run API error:', err?.response?.data || err.message);
+
+      return res.status(500).json({
+        success: false,
+        error: {
+          message: 'Error while executing code for compilation check',
+        },
+      });
+    }
+
+    if (!runResponse.data?.success) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Code execution failed',
+        },
+      });
+    }
+
+    const { isCompiled } = runResponse.data.data;
+
+    if (!isCompiled) {
       return res.status(400).json({
         success: false,
         error: {
           message:
             'Your code did not compile. Please fix compilation errors before submitting.',
-          compilationError: compilationResult.compilationError,
         },
       });
     }
-    */
 
     const transaction = await sequelize.transaction();
+
     try {
-      // Check if a submission already exists for this match
       let submission = await Submission.findOne({
         where: { matchId },
         transaction,
@@ -94,29 +128,10 @@ router.post('/submissions', async (req, res) => {
       if (submission) {
         // UPDATE
         submission.code = code;
-        submission.updatedAt = new Date();
         submission.submissions_count = (submission.submissions_count || 0) + 1;
+        submission.updatedAt = new Date();
 
         await submission.save({ transaction });
-
-        await transaction.commit();
-
-        logger.info(`Submission ${submission.id} updated for match ${matchId}`);
-
-        return res.json({
-          success: true,
-          data: {
-            submission: {
-              id: submission.id,
-              matchId: submission.matchId,
-              challengeParticipantId: submission.challengeParticipantId,
-              code: submission.code,
-              submissionsCount: submission.submissions_count,
-              createdAt: submission.createdAt,
-              updatedAt: submission.updatedAt,
-            },
-          },
-        });
       } else {
         // INSERT
         submission = await Submission.create(
@@ -128,26 +143,26 @@ router.post('/submissions', async (req, res) => {
           },
           { transaction }
         );
-
-        await transaction.commit();
-
-        logger.info(`Submission ${submission.id} created for match ${matchId}`);
-
-        return res.json({
-          success: true,
-          data: {
-            submission: {
-              id: submission.id,
-              matchId: submission.matchId,
-              challengeParticipantId: submission.challengeParticipantId,
-              code: submission.code,
-              submissionsCount: submission.submissions_count,
-              createdAt: submission.createdAt,
-              updatedAt: submission.updatedAt,
-            },
-          },
-        });
       }
+
+      await transaction.commit();
+
+      logger.info(`Submission ${submission.id} saved for match ${matchId}`);
+
+      return res.json({
+        success: true,
+        data: {
+          submission: {
+            id: submission.id,
+            matchId: submission.matchId,
+            challengeParticipantId: submission.challengeParticipantId,
+            code: submission.code,
+            submissionsCount: submission.submissions_count,
+            createdAt: submission.createdAt,
+            updatedAt: submission.updatedAt,
+          },
+        },
+      });
     } catch (error) {
       await transaction.rollback();
       throw error;
@@ -162,7 +177,6 @@ router.get('/submission/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate that id is a valid number
     if (isNaN(Number(id))) {
       return res.status(400).json({
         success: false,
@@ -183,7 +197,7 @@ router.get('/submission/:id', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         submission: {
