@@ -65,7 +65,8 @@ export default function ChallengeLayout({ children }) {
       cancelled = true;
     };
   }, [challengeId, studentId, getChallengeMatches]);
-  const { status, title, duration } = challengeData || {};
+  const { status, title, duration, startPhaseOneDateTime } =
+    challengeData || {};
   const phaseLabel = () => {
     switch (status) {
       case ChallengeStatus.STARTED_PHASE_ONE:
@@ -97,7 +98,11 @@ export default function ChallengeLayout({ children }) {
         )}
       </Card>
       <DurationProvider
-        value={{ duration: Number(duration) || 0, challengeId }}
+        value={{
+          duration: Number(duration) || 0,
+          challengeId,
+          startPhaseOneDateTime,
+        }}
       >
         {children}
       </DurationProvider>

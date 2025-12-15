@@ -16,7 +16,7 @@ cron.schedule('*/5 * * * * *', async () => {
         where: {
           status: ChallengeStatus.STARTED_PHASE_ONE,
           [Op.and]: literal(
-            `"startPhaseOneDateTime" + ("duration" * INTERVAL '1 minute') <= NOW()`
+            `"challenge"."startPhaseOneDateTime" + ("challenge"."duration" * INTERVAL '1 minute') <= NOW()`
           ),
         },
       }

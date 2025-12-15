@@ -184,9 +184,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         setIsChallengeFinished(true);
         return true;
       }
-      setMessage(
-        'Your code did not compile successfully. Thanks for your participation'
-      );
+      setMessage('Thanks for your participation');
       setIsChallengeFinished(true);
       return false;
     } catch (err) {
