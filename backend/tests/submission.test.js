@@ -29,6 +29,8 @@ describe('Submission API', () => {
       data: {
         success: true,
         data: {
+          isCompiled: true,
+          isPassed: true,
           verdict: 'Accepted',
         },
       },
