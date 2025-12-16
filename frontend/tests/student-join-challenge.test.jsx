@@ -1,12 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
 import StudentChallengesPage from '../app/student/challenges/page';
 import { given, when, andThen as then } from './bdd';
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
 const mockGetChallenges = vi.fn();
 const mockJoinChallenge = vi.fn();
 const mockAssignChallenge = vi.fn();
+const mockGetChallengeForJoinedStudent = vi.fn();
 
 vi.mock('#components/common/Button', () => {
   function Button({ children, ...props }) {
@@ -45,6 +59,7 @@ vi.mock('#js/useChallenge', () => ({
     getChallenges: mockGetChallenges,
     joinChallenge: mockJoinChallenge,
     assignChallenge: mockAssignChallenge,
+    getChallengeForJoinedStudent: mockGetChallengeForJoinedStudent,
     createChallenge: vi.fn(),
     publishChallenge: vi.fn(),
     unpublishChallenge: vi.fn(),
@@ -82,6 +97,13 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     vi.resetAllMocks();
     mockGetChallenges.mockReset();
     mockJoinChallenge.mockReset();
+    mockGetChallengeForJoinedStudent.mockReset();
+    mockPush.mockReset();
+    // Default mock for getChallengeForJoinedStudent - returns not joined
+    mockGetChallengeForJoinedStudent.mockResolvedValue({
+      success: true,
+      data: null,
+    });
   });
   // AC1: The student sees only one challenge when its date and time exactly match(<=) the current  date and time.
   it('Student sees only one challenge when its start time is <= current time', async () => {
@@ -159,6 +181,12 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     });
 
     mockJoinChallenge.mockResolvedValue({ success: true });
+    // Initially, student hasn't joined (returns null)
+    // After joining, the component updates its internal state, so we don't need to change the mock
+    mockGetChallengeForJoinedStudent.mockResolvedValue({
+      success: true,
+      data: null, // Student hasn't joined initially
+    });
 
     await given(() => {
       render(<StudentChallengesPage />);
@@ -192,6 +220,11 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     });
 
     mockJoinChallenge.mockResolvedValue({ success: true });
+    // Student hasn't joined, so return null
+    mockGetChallengeForJoinedStudent.mockResolvedValue({
+      success: true,
+      data: null,
+    });
 
     await given(() => {
       render(<StudentChallengesPage />);
