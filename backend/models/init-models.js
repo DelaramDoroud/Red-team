@@ -16,13 +16,28 @@ export function initRelations() {
 }
 
 export async function seedModels() {
-  for (const model of Object.values(models)) {
+  // Seed in dependency-safe order first, then the remaining models
+  const orderedNames = [
+    'User', // users referenced by participants
+    'Challenge', // challenges referenced by match settings/participants
+    'MatchSetting', // needed before challenge_match_setting
+    'ChallengeMatchSetting',
+    'ChallengeParticipant',
+  ];
+
+  const seen = new Set();
+  const runSeed = async (model) => {
+    if (!model || seen.has(model.name)) return;
+    seen.add(model.name);
     console.log(`Checking seed for model: ${model.name}`);
     if (typeof model.seed === 'function') {
       console.log(`Seeding ${model.name}...`);
       await model.seed();
     }
-  }
+  };
+
+  for (const name of orderedNames) await runSeed(models[name]);
+  for (const model of Object.values(models)) await runSeed(model);
 }
 export default {
   init: async function init() {

@@ -58,48 +58,29 @@ ChallengeParticipant.seed = async function () {
     const count = await ChallengeParticipant.count();
     if (count > 0) return;
 
-    await ChallengeParticipant.bulkCreate([
-      {
-        challengeId: 1,
-        studentId: 2,
-      },
-      {
-        challengeId: 1,
-        studentId: 3,
-      },
-      {
-        challengeId: 1,
-        studentId: 4,
-      },
-      {
-        challengeId: 1,
-        studentId: 5,
-      },
-      {
-        challengeId: 1,
-        studentId: 6,
-      },
-      {
-        challengeId: 1,
-        studentId: 7,
-      },
-      {
-        challengeId: 1,
-        studentId: 8,
-      },
-      {
-        challengeId: 1,
-        studentId: 9,
-      },
-      {
-        challengeId: 1,
-        studentId: 10,
-      },
-      {
-        challengeId: 1,
-        studentId: 11,
-      },
-    ]);
+    const { default: Challenge } = await import('./challenge.js');
+    const { default: User } = await import('./user.js');
+
+    const challenge = await Challenge.findOne({ order: [['id', 'ASC']] });
+    const students = await User.findAll({
+      where: { role: 'student' },
+      order: [['id', 'ASC']],
+      limit: 10,
+    });
+
+    if (!challenge || students.length === 0) {
+      console.warn(
+        'ChallengeParticipant seeding skipped: missing challenge or students'
+      );
+      return;
+    }
+
+    const rows = students.map((student) => ({
+      challengeId: challenge.id,
+      studentId: student.id,
+    }));
+
+    await ChallengeParticipant.bulkCreate(rows);
 
     console.log('ChallengeParticipant seeded successfully.');
   } catch (error) {
