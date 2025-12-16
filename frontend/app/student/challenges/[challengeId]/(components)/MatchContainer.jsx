@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback,useRef } from 'react';
 import useChallenge from '#js/useChallenge';
 import MatchView from './MatchView';
 
@@ -18,15 +18,21 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [canSubmit, setCanSubmit] = useState(false);
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
+  const hasLoadedFromStorage = useRef(false);
 
   useEffect(() => {
     if (!matchData?.id) return;
+    if (hasLoadedFromStorage.current) return;
 
-    const savedCode = localStorage.getItem(`code-${matchData.id}`);
-    if (savedCode !== null) {
+    const key = `code-${matchData.id}`;
+    const savedCode = localStorage.getItem(key);
+
+    if (savedCode !== null && savedCode.trim() !== '') {
       setCode(savedCode);
+      hasLoadedFromStorage.current = true;
     }
   }, [matchData?.id]);
+
   useEffect(() => {
     if (!matchData?.id) return;
 
@@ -65,12 +71,13 @@ export default function MatchContainer({ challengeId, studentId }) {
         if (!cancelled) {
           setMatchData(data);
 
-          const starter =
-            data?.starterCode && data.starterCode.trim().length > 0
-              ? data.starterCode
-              : CppCodeTemplate;
-
-          setCode(starter);
+          if (
+            !hasLoadedFromStorage.current &&
+            data?.starterCode &&
+            data.starterCode.trim().length > 0
+          ) {
+            setCode(data.starterCode);
+          }
         }
       } catch (_err) {
         if (!cancelled) {
