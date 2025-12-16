@@ -2,7 +2,8 @@ import { Router } from 'express';
 import MatchSetting from '#root/models/match-setting.js';
 import { handleException } from '#root/services/error.js';
 import { MatchSettingStatus } from '../../models/enum/enums.js';
-
+import Match from '../../models/match.js';
+import ChallengeMatchSetting from '../../models/challenge-match-setting.js';
 const router = Router();
 
 router.get('/matchSettings', async (_req, res) => {
@@ -31,4 +32,36 @@ router.get('/matchSettingsReady', async (_req, res) => {
   }
 });
 
+router.post('/matchSettingsByParticipant', async (req, res) => {
+  try {
+    const { participantId } = req.body;
+    const match = await Match.findOne({
+      where: { challengeParticipantId: participantId },
+    });
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found for the given participant ID',
+      });
+    }
+    const challenge_matchSetting = await ChallengeMatchSetting.findOne({
+      where: { id: match.challengeMatchSettingId },
+    });
+    if (!challenge_matchSetting) {
+      return res.status(404).json({
+        success: false,
+        message: 'ChallengeMatchSetting not found for the given match',
+      });
+    }
+    const matchSetting = await MatchSetting.findOne({
+      where: { id: challenge_matchSetting.matchSettingId },
+    });
+    res.json({
+      success: true,
+      data: matchSetting,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
 export default router;
