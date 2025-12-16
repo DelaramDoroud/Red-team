@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from '@testing-library/react';
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
+import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
 import { given, when, andThen as then } from './bdd';
 
 // Mocks
@@ -25,53 +32,55 @@ vi.mock('next/navigation', () => ({
 vi.mock(
   '../app/student/challenges/[challengeId]/(components)/MatchView',
   () => ({
-    default: ({
-      loading,
-      onRun,
-      onSubmit,
-      onTimerFinish,
-      isSubmittingActive,
-      isRunning,
-      isSubmitting,
-      message,
-      error,
-      isChallengeFinished,
-    }) => {
-      if (loading) return <div data-testid='loading'>Loading...</div>;
-      if (error) return <div data-testid='error'>{error.message}</div>;
+    default: vi.fn(
+      ({
+        loading,
+        onRun,
+        onSubmit,
+        onTimerFinish,
+        isSubmittingActive,
+        isRunning,
+        isSubmitting,
+        message,
+        error,
+        isChallengeFinished,
+      }) => {
+        if (loading) return <div data-testid='loading'>Loading...</div>;
+        if (error) return <div data-testid='error'>{error.message}</div>;
 
-      return (
-        <div data-testid='match-view'>
-          <button
-            type='button'
-            onClick={onRun}
-            disabled={isRunning || isSubmitting || isChallengeFinished}
-            data-testid='run-btn'
-          >
-            Run
-          </button>
-          <button
-            type='button'
-            onClick={onSubmit}
-            disabled={!isSubmittingActive}
-            data-testid='submit-btn'
-          >
-            Submit
-          </button>
-          <button
-            type='button'
-            onClick={onTimerFinish}
-            data-testid='timer-finish-btn'
-          >
-            Finish Timer
-          </button>
-          {message && <div data-testid='message'>{message}</div>}
-          {isChallengeFinished && (
-            <div data-testid='challenge-finished'>Challenge Finished</div>
-          )}
-        </div>
-      );
-    },
+        return (
+          <div data-testid='match-view'>
+            <button
+              type='button'
+              onClick={onRun}
+              disabled={isRunning || isSubmitting || isChallengeFinished}
+              data-testid='run-btn'
+            >
+              Run
+            </button>
+            <button
+              type='button'
+              onClick={onSubmit}
+              disabled={!isSubmittingActive}
+              data-testid='submit-btn'
+            >
+              Submit
+            </button>
+            <button
+              type='button'
+              onClick={onTimerFinish}
+              data-testid='timer-finish-btn'
+            >
+              Finish Timer
+            </button>
+            {message && <div data-testid='message'>{message}</div>}
+            {isChallengeFinished && (
+              <div data-testid='challenge-finished'>Challenge Finished</div>
+            )}
+          </div>
+        );
+      }
+    ),
   })
 );
 
@@ -85,7 +94,7 @@ describe('RT-4 Code Submission', () => {
     // Wait for the mock run to complete (uses real setTimeout of 300ms in component)
     // Add extra buffer to ensure state updates propagate
     await new Promise((resolve) => {
-      setTimeout(resolve, 500);
+      setTimeout(resolve, 1000);
     });
   };
 
@@ -147,7 +156,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it.skip('should submit code successfully when submit button is clicked', async () => {
+  it('should submit code successfully when submit button is clicked', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
@@ -164,6 +173,9 @@ describe('RT-4 Code Submission', () => {
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(
         () => {
           expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
@@ -192,7 +204,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it.skip('should handle submission failure', async () => {
+  it('should handle submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({
       success: false,
       error: { message: 'Compilation failed' },
@@ -212,6 +224,9 @@ describe('RT-4 Code Submission', () => {
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(
         () => {
           expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
@@ -265,7 +280,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Automatic submission when timer reaches zero
-  it.skip('AC: should show "Thanks for your participation" message on automatic submission success', async () => {
+  it('AC: should show "Thanks for your participation" message on automatic submission success', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -276,19 +291,20 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
-      await waitFor(() => {
-        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
-      });
     });
 
     await then(async () => {
+      await waitFor(() => {
+        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
+      });
       await waitFor(() => {
         const message = screen.getByTestId('message');
         expect(message).toHaveTextContent('Thanks for your participation');
@@ -297,7 +313,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Automatic submission failure handling
-  it.skip('AC: should show compilation failure message on automatic submission if code fails to compile', async () => {
+  it('AC: should show compilation failure message on automatic submission if code fails to compile', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: false });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -308,19 +324,20 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
-      await waitFor(() => {
-        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
-      });
     });
 
     await then(async () => {
+      await waitFor(() => {
+        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
+      });
       await waitFor(() => {
         const message = screen.getByTestId('message');
         expect(message).toHaveTextContent(
@@ -331,7 +348,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Submit button disabled after timer expires
-  it.skip('AC: should disable submit button when challenge is finished', async () => {
+  it('AC: should disable submit button when challenge is finished', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -342,14 +359,18 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     // Enable submit button first
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
       });
@@ -358,33 +379,37 @@ describe('RT-4 Code Submission', () => {
     // Trigger timer finish
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
-      await waitFor(() => {
-        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
-      });
     });
 
     await then(async () => {
+      await waitFor(() => {
+        expect(screen.queryByTestId('challenge-finished')).toBeInTheDocument();
+      });
       // Submit button should remain disabled
       expect(screen.getByTestId('submit-btn')).toBeDisabled();
     });
   });
 
   // RT-4 AC: Stored submission is linked to correct student_id and match_id
-  it.skip('AC: should include correct matchId and code in submission', async () => {
+  it('AC: should include correct matchId and code in submission', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
       });
@@ -405,26 +430,29 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Run button should be disabled when submitting
-  it.skip('AC: should disable run button while submitting', async () => {
-    mockSubmitSubmission.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve({ success: true }), 500);
-        })
-    );
+  it('AC: should disable run button while submitting', async () => {
+    let resolveSubmission;
+    const submissionPromise = new Promise((resolve) => {
+      resolveSubmission = resolve;
+    });
+    mockSubmitSubmission.mockReturnValue(submissionPromise);
 
     await given(async () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
       });
@@ -438,7 +466,14 @@ describe('RT-4 Code Submission', () => {
       await waitFor(() => {
         expect(screen.getByTestId('run-btn')).toBeDisabled();
       });
+    });
 
+    // Resolve submission
+    await act(async () => {
+      resolveSubmission({ success: true });
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('run-btn')).not.toBeDisabled();
       });
@@ -446,7 +481,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Error handling for missing match
-  it.skip('AC: should display error if match cannot be found during submission', async () => {
+  it('AC: should display error if match cannot be found during submission', async () => {
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: false,
       message: 'Match not found',
@@ -456,14 +491,18 @@ describe('RT-4 Code Submission', () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
       });
@@ -481,36 +520,56 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Error handling for empty code submission
-  it.skip('AC: should prevent submission of empty code', async () => {
+  it('AC: should prevent submission of empty code', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
+
+    // Setup - code will default to template initially
+    mockGetStudentAssignedMatchSetting.mockResolvedValue({
+      success: true,
+      data: {
+        starterCode: 'int main() {}',
+        problemTitle: 'Test Problem',
+        testCases: [],
+      },
+    });
 
     await given(async () => {
       render(
         <MatchContainer challengeId={challengeId} studentId={studentId} />
       );
-      await waitFor(() => {
-        expect(screen.getByTestId('match-view')).toBeInTheDocument();
-      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    // Simulate user clearing the code
+    await act(async () => {
+      const { calls } = vi.mocked(MatchView).mock;
+      const lastCall = calls[calls.length - 1];
+      const { setCode } = lastCall[0];
+      setCode('');
     });
 
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
+    });
+
+    await then(async () => {
       await waitFor(() => {
         expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
       });
     });
 
-    // Mock a scenario where MatchContainer has empty code (for testing)
-    // Note: In real scenario, this would be set via editor
+    // Click submit
     await when(async () => {
-      // This test assumes the component properly validates empty code
       fireEvent.click(screen.getByTestId('submit-btn'));
     });
 
     await then(async () => {
-      // Verify the validation is in place
-      expect(mockSubmitSubmission).toHaveBeenCalled();
+      // Verify validation: submission should NOT be called
+      expect(mockSubmitSubmission).not.toHaveBeenCalled();
     });
   });
 });

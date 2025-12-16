@@ -173,7 +173,13 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const submissionRes = await submitSubmission({ matchId, code });
 
-      setMessage('Thanks for your participation');
+      if (submissionRes?.success) {
+        setMessage('Thanks for your participation');
+      } else {
+        setMessage(
+          'Your code did not compile successfully. Thanks for your participation'
+        );
+      }
       setIsChallengeFinished(true);
 
       return submissionRes?.success ?? false;
