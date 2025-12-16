@@ -37,6 +37,7 @@ export default function MatchView({
   testResults,
   canSubmit,
   isTimeUp,
+  isCompiled,
 }) {
   const { duration } = useDuration();
   // loading
@@ -151,17 +152,15 @@ export default function MatchView({
                                   : 'text-muted-foreground'
                               }
                             >
-                              {result ? (
-                                result.actualOutput &&
-                                result.actualOutput.length > 0 ? (
-                                  JSON.stringify(result.actualOutput)
-                                ) : (
-                                  <span className='text-muted-foreground italic'>
-                                    —
-                                  </span>
-                                )
+                              {isCompiled === true &&
+                              result?.actualOutput !== undefined ? (
+                                <pre className='whitespace-pre-wrap'>
+                                  {JSON.stringify(result.actualOutput)}
+                                </pre>
                               ) : (
-                                <span className='text-muted-foreground'>—</span>
+                                <span className='text-muted-foreground italic'>
+                                  —
+                                </span>
                               )}
                             </TableCell>
                           </TableRow>

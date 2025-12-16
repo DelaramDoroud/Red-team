@@ -79,10 +79,32 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const startChallenge = useCallback(
+    async (challengeId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/start`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
+
+  const getChallengeForJoinedStudent = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
+
+  const getStudentAssignedMatchSetting = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_BASE}/challenges/${challengeId}/matchSetting?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
+
   const runCode = useCallback(
     async ({ matchSettingId, code, language }) => {
-      console.log("dffffff");
-      
       const url = `${API_BASE}/run`;
       return fetchData(url, {
         method: 'POST',

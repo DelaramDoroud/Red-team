@@ -4,17 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import useChallenge from '#js/useChallenge';
 import MatchView from './MatchView';
 
-const CppCodeTemplate = `#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
-    //TODO: write your solution based on the problem description
-    return 0;
-}
-`;
-
 export default function MatchContainer({ challengeId, studentId }) {
   const { getStudentAssignedMatchSetting, runCode } = useChallenge();
 
@@ -22,12 +11,28 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [matchData, setMatchData] = useState(null);
   const [error, setError] = useState(null);
   const [testResults, setTestResults] = useState([]);
-  const [code, setCode] = useState(CppCodeTemplate);
+  const [code, setCode] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [runResult, setRunResult] = useState(null);
   const [canSubmit, setCanSubmit] = useState(false);
   const [isTimeUp, setIsTimeUp] = useState(false);
+  const [isCompiled, setIsCompiled] = useState(null);
+
+  useEffect(() => {
+    if (!matchData?.id) return;
+
+    const savedCode = localStorage.getItem(`code-${matchData.id}`);
+    if (savedCode !== null) {
+      setCode(savedCode);
+    }
+  }, [matchData?.id]);
+  useEffect(() => {
+    if (!matchData?.id) return;
+
+    localStorage.setItem(`code-${matchData.id}`, code);
+  }, [code, matchData?.id]);
+
   // load StudentAssignedMatchSetting(Mtach)
   useEffect(() => {
     if (!challengeId || !studentId) return () => {};
@@ -87,41 +92,42 @@ export default function MatchContainer({ challengeId, studentId }) {
     };
   }, [challengeId, studentId, getStudentAssignedMatchSetting]);
 
-  // handlers: run + submit
+  // handlers: run
   const handleRun = useCallback(async () => {
     setRunResult({ type: 'info', message: 'Running your code...' });
     setIsRunning(true);
+    setCanSubmit(false);
+    setIsCompiled(null);
     try {
       const payload = {
         matchSettingId: matchData.id,
         code,
-        language: 'python',
+        language: 'cpp',
       };
       const res = await runCode(payload);
-      //  SYNTAX / COMPILATION / RUNTIME ERROR
       setTestResults(res.results || []);
       if (res.data.error) {
         setRunResult({
           type: 'error',
           message: res.data.error,
         });
+        setIsCompiled(false);
         setCanSubmit(false);
         return;
       }
       setRunResult({
         type: 'success',
-        message: 'Code executed successfully.',
+        message: 'Your code compiled successfully.',
       });
-      if (res.summary?.allPassed === true) {
-        setCanSubmit(true);
-      } else {
-        setCanSubmit(false);
-      }
+      setIsCompiled(true);
+      setCanSubmit(true);
     } catch (err) {
       setRunResult({
         type: 'error',
         message: 'Network error while running the code.',
       });
+      setIsCompiled(false);
+      setCanSubmit(false);
     } finally {
       setIsRunning(false);
     }
@@ -170,6 +176,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       onTimerFinish={handleTimerFinish}
       testResults={testResults}
       canSubmit={canSubmit}
+      isCompiled={isCompiled}
     />
   );
 }

@@ -22,7 +22,10 @@ export default async function assignMatches({
   // 1) Verify challenge exists
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) return { status: 'challenge_not_found' };
-
+  const now = new Date();
+  if (challenge.startDatetime && now < new Date(challenge.startDatetime)) {
+    return { status: 'too_early' };
+  }
   // 2) Load selected match settings via ChallengeMatchSetting
   const cmsList = await ChallengeMatchSetting.findAll({
     where: { challengeId },
