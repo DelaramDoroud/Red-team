@@ -23,8 +23,6 @@ error_message () {
           echo -e "${GREEN}down                       ${WHITE}Stop and remove containers & networks"
           echo -e "${GREEN}build                      ${WHITE}Stop and remove containers & networks + build or rebuild services"
           echo -e "${GREEN}logs                       ${WHITE}View output from containers"
-          echo -e "${GREEN}build-prod-nc              ${WHITE}Build services for production without cache and push to registry"
-          echo -e "${GREEN}build-prod                 ${WHITE}Build services for production and push to registry"
           echo -e "${GREEN}test [test_file] [--stop]     ${WHITE}Run tests in backend service. Optionally specify a test file to run only that file. Use --stop to stop the test DB after tests complete."
           echo -e "${GREEN}deploy                     ${WHITE}Deploy services"
           echo -e ""
@@ -44,9 +42,11 @@ error_message () {
           echo -e "${GREEN}dul                        ${WHITE}Down, up and log all services"
           echo -e "${GREEN}ul                         ${WHITE}Up and log all services"
           echo -e "${GREEN}brl                        ${WHITE}Restart backend and log all services"
+          echo -e ""
           echo -e "${GREEN}migrate                    ${WHITE}Run database migrations"
           echo -e "${GREEN}migrate-undo               ${WHITE}Undo last database migration"
           echo -e "${GREEN}migrate-undo-all           ${WHITE}Undo all database migrations"
+          echo -e "${GREEN}migration:new [name]       ${WHITE}Create a new migration with the given name"
           echo -e ""
 }
 

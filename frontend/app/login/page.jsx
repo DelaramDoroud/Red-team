@@ -63,7 +63,7 @@ export default function LoginPage() {
     const { password } = form;
 
     if (!email || !password) {
-      setFormError('Inserisci email e password');
+      setFormError('Please enter email and password');
       return;
     }
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
         loggedUser?.role === 'student' ? '/student/challenges' : '/challenges';
       router.replace(target);
     } catch (err) {
-      setFormError(err || 'Login non riuscito');
+      setFormError(err || 'Login failed');
     }
   };
 
@@ -83,20 +83,20 @@ export default function LoginPage() {
   return (
     <section className={styles.container}>
       <div className={styles.header}>
-        <p className={styles.eyebrow}>Accesso</p>
-        <h1>Entra in CodyMatch</h1>
+        <p className={styles.eyebrow}>Sign in</p>
+        <h1>Sign in to CodyMatch</h1>
         <p className={styles.subtitle}>
-          Usa le credenziali demo per provare i ruoli student e teacher su due
-          sessioni diverse.
+          Use the demo credentials to try the student and teacher roles in two
+          different sessions.
         </p>
       </div>
 
       <Card className={styles.card}>
         <CardHeader>
-          <CardTitle>Account demo</CardTitle>
+          <CardTitle>Demo accounts</CardTitle>
           <CardDescription>
-            Teacher vede tutte le sezioni eccetto l&apos;area studenti. Student
-            vede solo la propria area con le challenge assegnate.
+            Teachers can access all sections except the student area. Students
+            can only access their own area with assigned challenges.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -118,7 +118,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>Login</CardTitle>
           <CardDescription>
-            Le password sono conservate cifrate sul backend.
+            Passwords are stored hashed on the backend.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -155,7 +155,7 @@ export default function LoginPage() {
             )}
 
             <Button type='submit' disabled={loading} className={styles.submit}>
-              {loading ? 'Accesso in corso…' : 'Accedi'}
+              {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
         </CardContent>
