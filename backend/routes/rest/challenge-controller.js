@@ -349,6 +349,7 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         status: challenge.status,
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
+        startPhaseOneDateTime: challenge.startPhaseOneDateTime,
       },
       assignments: Object.values(grouped),
     });
