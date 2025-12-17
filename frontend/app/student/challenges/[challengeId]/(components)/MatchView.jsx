@@ -46,6 +46,7 @@ export default function MatchView({
   canSubmit,
   isTimeUp,
   isCompiled,
+  onTryAgain,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
@@ -113,7 +114,8 @@ export default function MatchView({
           </CardHeader>
           <CardContent>
             <p className='text-sm text-red-500 dark:text-red-400'>
-              {error.message}
+              {error?.message ||
+                (typeof error === 'string' ? error : 'An error occurred')}
             </p>
           </CardContent>
         </Card>
@@ -292,7 +294,7 @@ export default function MatchView({
               <CppEditor
                 value={code}
                 onChange={setCode}
-                disabled={isSubmittingFinal}
+                disabled={isSubmittingFinal || isTimeUp || isChallengeFinished}
               />
 
               <div className='mt-2'>
@@ -339,14 +341,39 @@ export default function MatchView({
 
               {error && (
                 <p className='text-sm text-red-500 dark:text-red-400'>
-                  {error.message}
+                  {error?.message ||
+                    (typeof error === 'string' ? error : 'An error occurred')}
                 </p>
               )}
 
               {message && (
-                <p className='text-sm text-green-600 dark:text-green-400'>
-                  {message}
-                </p>
+                <div className='space-y-2'>
+                  <p
+                    className={`text-sm ${(() => {
+                      if (message.includes('Thanks for your submission')) {
+                        if (
+                          message.includes('problems') ||
+                          message.includes('edge cases')
+                        ) {
+                          return 'text-yellow-600 dark:text-yellow-400';
+                        }
+                        return 'text-green-600 dark:text-green-400';
+                      }
+                      return 'text-blue-600 dark:text-blue-400';
+                    })()}`}
+                  >
+                    {message}
+                  </p>
+                  {onTryAgain && !isChallengeFinished && (
+                    <Button
+                      onClick={onTryAgain}
+                      variant='outline'
+                      className='mt-2'
+                    >
+                      {isTimeUp ? 'View code' : 'Try again'}
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

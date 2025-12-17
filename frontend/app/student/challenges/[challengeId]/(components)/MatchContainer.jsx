@@ -235,17 +235,23 @@ export default function MatchContainer({ challengeId, studentId }) {
           message: res?.message || 'Unable to run your code.',
         });
         setIsCompiled(false);
+        setCanSubmit(false);
+        setIsSubmittingActive(false);
         return;
       }
 
       const compiled =
         res?.data?.isCompiled !== undefined ? res.data.isCompiled : true;
+      // Only block submission if compilation actually failed
+      // Error message can exist even when compiled (e.g., test failures)
       if (!compiled || res?.data?.error) {
         setRunResult({
           type: 'error',
           message: res?.data?.error || 'Compilation failed.',
         });
         setIsCompiled(false);
+        setCanSubmit(false);
+        setIsSubmittingActive(false);
         return;
       }
 
@@ -304,32 +310,101 @@ export default function MatchContainer({ challengeId, studentId }) {
       const submissionRes = await submitSubmission({ matchId, code });
 
       if (submissionRes?.success) {
-        setMessage('Submission successful!');
-        setLastSuccessfulCode(code);
-        lastSuccessRef.current = code;
-        if (typeof localStorage !== 'undefined') {
-          try {
-            const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-            localStorage.setItem(lastSuccessKey, code);
-          } catch (e) {
-            // ignore storage failures
+        const {
+          publicSummary,
+          privateSummary,
+          publicTestResults,
+          privateTestResults,
+        } = submissionRes.data || {};
+
+        // Determine message based on test results
+        let submissionMessage = 'Thanks for your submission.';
+
+        // Check test results directly for more reliable detection
+        if (
+          publicTestResults &&
+          Array.isArray(publicTestResults) &&
+          privateTestResults &&
+          Array.isArray(privateTestResults)
+        ) {
+          // Check if all public tests passed
+          const allPublicPassed = publicTestResults.every(
+            (result) => result.passed === true
+          );
+
+          // Check if all private tests passed
+          const allPrivatePassed = privateTestResults.every(
+            (result) => result.passed === true
+          );
+
+          if (!allPublicPassed) {
+            // Scenario A: Some or all public tests failed
+            submissionMessage =
+              'Thanks for your submission. There are problems with your solution, try to improve it.';
+          } else if (allPublicPassed && !allPrivatePassed) {
+            // Scenario B: All public pass, but some private fail
+            submissionMessage =
+              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
           }
+          // Scenario C: All public and private pass (default message)
+        } else if (publicSummary && privateSummary) {
+          // Fallback to summary if test results are not available
+          const allPublicPassed =
+            publicSummary.allPassed === true ||
+            (publicSummary.passed === publicSummary.total &&
+              publicSummary.total > 0);
+          const allPrivatePassed =
+            privateSummary.allPassed === true ||
+            (privateSummary.passed === privateSummary.total &&
+              privateSummary.total > 0);
+
+          if (!allPublicPassed) {
+            // Scenario A: Some or all public tests failed
+            submissionMessage =
+              'Thanks for your submission. There are problems with your solution, try to improve it.';
+          } else if (allPublicPassed && !allPrivatePassed) {
+            // Scenario B: All public pass, but some private fail
+            submissionMessage =
+              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+          }
+          // Scenario C: All public and private pass (default message)
         }
+
+        // from login branch
+        // setMessage('Submission successful!');
+        // setLastSuccessfulCode(code);
+        // lastSuccessRef.current = code;
+        // if (typeof localStorage !== 'undefined') {
+        //   try {
+        //     const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
+        //     localStorage.setItem(lastSuccessKey, code);
+        //   } catch (e) {
+        //     // ignore storage failures
+        //   }
+        // }
+        // return true;
+        setMessage(submissionMessage);
         return true;
       }
 
-      const lastValid = await getLastSubmission(matchId);
-      const fallbackCode = lastValid?.data?.submission?.code;
-      if (fallbackCode && fallbackCode.trim()) {
-        setMessage('New code failed. Kept your last valid submission.');
-        setLastSuccessfulCode(fallbackCode);
-        lastSuccessRef.current = fallbackCode;
-        return true;
-      }
+      // from login branch
+      // const lastValid = await getLastSubmission(matchId);
+      // const fallbackCode = lastValid?.data?.submission?.code;
+      // if (fallbackCode && fallbackCode.trim()) {
+      //   setMessage('New code failed. Kept your last valid submission.');
+      //   setLastSuccessfulCode(fallbackCode);
+      //   lastSuccessRef.current = fallbackCode;
+      //   return true;
+      // }
 
-      setError({
-        message: submissionRes?.error?.message || 'Submission failed.',
-      });
+      const errorMessage =
+        submissionRes?.error?.message ||
+        (submissionRes?.error instanceof Error
+          ? submissionRes.error.message
+          : null) ||
+        submissionRes?.message ||
+        'Submission failed.';
+      setError({ message: errorMessage });
       return false;
     } catch (err) {
       setError({ message: `Error: ${err.message}` });
@@ -347,8 +422,6 @@ export default function MatchContainer({ challengeId, studentId }) {
     code,
     submitSubmission,
     matchId,
-    getLastSubmission,
-    storageKeyBase,
   ]);
 
   // Automatic submission when timer finishes
@@ -369,7 +442,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        setMessage('Thanks for your participation');
+        setMessage('Thanks for your participation.');
         setIsChallengeFinished(true);
         return false;
       }
@@ -377,7 +450,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       setMatchId(res.data.id);
 
       const trySubmit = async (payloadCode) =>
-        submitSubmission({ matchId, code: payloadCode });
+        submitSubmission({ matchId, code: payloadCode, isAutomatic: true });
 
       if (!code.trim()) {
         const fallbackCode = lastSuccessRef.current;
@@ -447,6 +520,14 @@ export default function MatchContainer({ challengeId, studentId }) {
     storageKeyBase,
   ]);
 
+  const handleTryAgain = useCallback(() => {
+    setMessage(null);
+    setError(null);
+    setIsSubmittingActive(false);
+    setRunResult(null);
+    setTestResults([]);
+  }, []);
+
   return (
     <MatchView
       loading={loading}
@@ -468,6 +549,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       canSubmit={canSubmit}
       isCompiled={isCompiled}
       isChallengeFinished={isChallengeFinished}
+      onTryAgain={handleTryAgain}
     />
   );
 }

@@ -170,7 +170,7 @@ Challenge.seed = async function () {
 
     await Challenge.createWithValidation({
       title: 'Intro to Loops',
-      duration: 60,
+      duration: 2,
       startDatetime: '2025-12-01T09:00:00Z',
       endDatetime: '2025-12-01T10:00:00Z',
       durationPeerReview: 60,
