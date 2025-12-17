@@ -180,15 +180,25 @@ router.post('/run', async (req, res) => {
     const totalCount = testResults.length;
     const allPassed = passedCount === totalCount;
 
-    const isCompiled = testResults.some(
-      (result) =>
-        result.exitCode === 0 ||
-        (result.exitCode !== -1 &&
-          result.stderr &&
-          !result.stderr.toLowerCase().includes('syntax error') &&
-          !result.stderr.toLowerCase().includes('nameerror') &&
-          !result.stderr.toLowerCase().includes('indentationerror'))
-    );
+    const hasCompilationError = testResults.some((result) => {
+      if (!result.stderr) return false;
+      const stderrLower = result.stderr.toLowerCase();
+      return (
+        stderrLower.includes('syntaxerror') ||
+        stderrLower.includes('syntax error') ||
+        stderrLower.includes('indentationerror') ||
+        stderrLower.includes('indentation error') ||
+        stderrLower.includes('compilation error') ||
+        stderrLower.includes('compile error')
+      );
+    });
+
+    const isCompiled =
+      !hasCompilationError &&
+      testResults.some(
+        (result) =>
+          result.exitCode === 0 || (result.exitCode !== -1 && !result.stderr)
+      );
 
     const isPassed = allPassed;
 
@@ -204,9 +214,6 @@ router.post('/run', async (req, res) => {
         actualOutput: result.actualOutput,
       }));
 
-    // Get the first error message for quick display (if any)
-    const firstError = errors.length > 0 ? errors[0].error : null;
-
     const response = {
       success: true,
       matchSettingId,
@@ -214,7 +221,8 @@ router.post('/run', async (req, res) => {
         isCompiled,
         isPassed,
         matchSettingId,
-        error: firstError,
+
+        ...(errors.length > 0 && { error: errors[0].error }),
         errors: errors.length > 0 ? errors : undefined,
       },
       summary: {

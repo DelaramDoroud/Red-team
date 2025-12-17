@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+
 'use client';
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
@@ -147,10 +149,14 @@ export default function ChallengeList() {
     };
 
     fetchParticipantsForPage();
-    const pollInterval = setInterval(fetchParticipantsForPage, 3000);
-
-    return () => clearInterval(pollInterval);
-  }, [currentItems]);
+    return undefined;
+    // participantsMap is intentionally excluded to prevent infinite loop:
+    // - We read from it to filter items, but updating it would retrigger this effect
+    // - The effect should only run when currentItems changes (new challenges to fetch)
+    // const pollInterval = setInterval(fetchParticipantsForPage, 3000);
+    //
+    // return () => clearInterval(pollInterval);
+  }, [currentItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !challenges.length && !error) {
     return (

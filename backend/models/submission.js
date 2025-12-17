@@ -45,9 +45,36 @@ Submission.init(
     sequelize,
     modelName: 'Submission',
     tableName: 'submission',
-    timestamps: true,
+    schema: 'public',
     underscored: true,
+    timestamps: true,
+    indexes: [
+      {
+        name: 'idx_match_submission_match_id',
+        fields: ['matchId'],
+      },
+      {
+        name: 'idx_match_submission_challenge_participant_id',
+        fields: ['challengeParticipantId'],
+      },
+    ],
   }
 );
+
+Submission.initializeRelations = (models) => {
+  Submission.belongsTo(models.Match, {
+    as: 'match',
+    foreignKey: 'matchId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+
+  Submission.belongsTo(models.ChallengeParticipant, {
+    as: 'challengeParticipant',
+    foreignKey: 'challengeParticipantId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+};
 
 export default Submission;

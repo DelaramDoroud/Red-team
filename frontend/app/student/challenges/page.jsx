@@ -23,6 +23,13 @@ const statusStyles = {
     'bg-muted text-muted-foreground ring-1 ring-border',
 };
 
+const startedStatuses = new Set([
+  ChallengeStatus.STARTED_PHASE_ONE,
+  ChallengeStatus.ENDED_PHASE_ONE,
+  ChallengeStatus.STARTED_PHASE_TWO,
+  ChallengeStatus.ENDED_PHASE_TWO,
+]);
+
 const formatDateTime = (value) => {
   if (!value) return '—';
   const d = new Date(value);
@@ -32,7 +39,7 @@ const formatDateTime = (value) => {
 export default function StudentChallengesPage() {
   const router = useRouter();
   const STUDENT_ID = 1;
-  const { getChallenges, joinChallenge, getStudentAssignedMatchSetting } =
+  const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
     useChallenge();
 
   const [challenges, setChallenges] = useState([]);
@@ -40,7 +47,17 @@ export default function StudentChallengesPage() {
   const [countdown, setCountdown] = useState(null);
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
+  const [pendingActions, setPendingActions] = useState({});
   const redirectingRef = useRef(false);
+
+  const filterChallenges = useCallback(
+    (items, current) =>
+      (items || []).filter((challenge) => {
+        if (!challenge?.startDatetime) return false;
+        return new Date(challenge.startDatetime) <= current;
+      }),
+    []
+  );
 
   const loadChallenges = useCallback(async () => {
     try {
@@ -76,43 +93,62 @@ export default function StudentChallengesPage() {
   }, [loadChallenges]);
 
   const visibleChallenges = useMemo(() => {
-    const list = challenges.filter((c) => new Date(c.startDatetime) <= now);
-    if (list.length > 0) return [list[0]];
-    return [];
-  }, [challenges, now]);
+    const available = filterChallenges(challenges, now);
+    return available.length > 0 ? [available[0]] : [];
+  }, [challenges, filterChallenges, now]);
 
   useEffect(() => {
-    if (visibleChallenges.length === 0) {
-      return undefined;
-    }
+    if (!visibleChallenges.length) return undefined;
 
     const challenge = visibleChallenges[0];
     let cancelled = false;
 
-    const poll = async () => {
-      if (redirectingRef.current) return;
+    (async () => {
       try {
-        const matchRes = await getStudentAssignedMatchSetting(
+        const res = await getChallengeForJoinedStudent(
           challenge.id,
           STUDENT_ID
         );
-
-        const isAssigned = !!(matchRes?.success && matchRes?.data);
-        if (isAssigned) {
+        if (!cancelled && res?.success && res.data) {
           setJoined((prev) => ({ ...prev, [challenge.id]: true }));
         }
+      } catch {
+        if (!cancelled) {
+          setError('Unable to verify challenge status');
+        }
+      }
+    })();
 
-        const { status } = challenge;
-        const started =
-          status === ChallengeStatus.STARTED_PHASE_ONE ||
-          status === ChallengeStatus.ENDED_PHASE_ONE ||
-          status === ChallengeStatus.STARTED_PHASE_TWO ||
-          status === ChallengeStatus.ENDED_PHASE_TWO;
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleChallenges, getChallengeForJoinedStudent]);
 
-        if (!started || !isAssigned) return;
+  useEffect(() => {
+    if (!visibleChallenges.length) return undefined;
 
-        const startMs = challenge.startPhaseOneDateTime
-          ? new Date(challenge.startPhaseOneDateTime).getTime()
+    const challenge = visibleChallenges[0];
+    if (!joined[challenge.id]) return undefined;
+
+    const pollStatus = async () => {
+      if (redirectingRef.current) return;
+      try {
+        const res = await getChallengeForJoinedStudent(
+          challenge.id,
+          STUDENT_ID
+        );
+        if (!res?.success || !res.data) return;
+
+        const { status, startPhaseOneDateTime } = res.data;
+        if (!startedStatuses.has(status)) return;
+
+        const startedTime =
+          startPhaseOneDateTime ||
+          challenge.startPhaseOneDateTime ||
+          challenge.startDatetime;
+
+        const startMs = startedTime
+          ? new Date(startedTime).getTime()
           : Date.now();
         const elapsed = Math.floor((Date.now() - startMs) / 1000);
         const remaining = Math.max(3 - elapsed, 0);
@@ -125,42 +161,42 @@ export default function StudentChallengesPage() {
 
         setCountdown({ challengeId: challenge.id, value: remaining });
       } catch {
-        if (!cancelled) {
-          // ignore transient errors
-        }
+        // ignore transient errors
       }
     };
 
-    poll();
-    const id = setInterval(poll, 1000);
+    pollStatus();
+    const id = setInterval(pollStatus, 1000);
+
     return () => {
-      cancelled = true;
       clearInterval(id);
     };
-  }, [visibleChallenges, getStudentAssignedMatchSetting, router]);
+  }, [visibleChallenges, joined, getChallengeForJoinedStudent, router]);
 
   useEffect(() => {
-    if (!countdown) {
+    if (!countdown) return undefined;
+
+    if (countdown.value <= 0) {
+      if (!redirectingRef.current) {
+        redirectingRef.current = true;
+        router.push(`/student/challenges/${countdown.challengeId}/match`);
+      }
       return undefined;
     }
+
     const timer = setTimeout(() => {
-      if (countdown.value <= 0) {
-        if (!redirectingRef.current) {
-          redirectingRef.current = true;
-          router.push(`/student/challenges/${countdown.challengeId}/match`);
-        }
-      } else {
-        setCountdown((c) => {
-          if (!c) return null;
-          return { ...c, value: c.value - 1 };
-        });
-      }
+      setCountdown((prev) => {
+        if (!prev || prev.challengeId !== countdown.challengeId) return prev;
+        return { ...prev, value: prev.value - 1 };
+      });
     }, 1000);
+
     return () => clearTimeout(timer);
   }, [countdown, router]);
 
   const handleJoin = async (challengeId) => {
     setError(null);
+    setPendingActions((prev) => ({ ...prev, [challengeId]: { join: true } }));
     try {
       const res = await joinChallenge(challengeId, STUDENT_ID);
       if (res?.success) {
@@ -170,6 +206,12 @@ export default function StudentChallengesPage() {
       }
     } catch {
       setError('Unable to join challenge');
+    } finally {
+      setPendingActions((prev) => {
+        const next = { ...prev };
+        delete next[challengeId];
+        return next;
+      });
     }
   };
 
@@ -187,7 +229,8 @@ export default function StudentChallengesPage() {
 
   const renderAction = (challenge) => {
     const isJoined = joined[challenge.id];
-    const isStarted = challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
+    const isStarted = startedStatuses.has(challenge.status);
+    const isJoining = pendingActions[challenge.id]?.join;
     const isCounting = countdown && countdown.challengeId === challenge.id;
 
     if (isCounting) {
@@ -198,19 +241,23 @@ export default function StudentChallengesPage() {
       );
     }
 
-    if (!isJoined && !isStarted) {
-      return (
-        <Button size='lg' onClick={() => handleJoin(challenge.id)}>
-          Join
-        </Button>
-      );
-    }
-
     if (!isJoined && isStarted) {
       return (
         <div className='text-destructive font-semibold text-sm'>
           The challenge is already in progress.
         </div>
+      );
+    }
+
+    if (!isJoined) {
+      return (
+        <Button
+          size='lg'
+          onClick={() => handleJoin(challenge.id)}
+          disabled={isJoining}
+        >
+          {isJoining ? 'Joining...' : 'Join'}
+        </Button>
       );
     }
 

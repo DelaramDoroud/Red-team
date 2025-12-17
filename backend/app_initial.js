@@ -25,7 +25,7 @@ app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.json());
 app.use(
   session({
-    secret: process.env.SECRET,
+    secret: process.env.SECRET || 'test-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
   })
@@ -35,17 +35,20 @@ app.use(apiRouter);
 
 await models.init();
 
+let queueInitialized = false;
 if (process.env.ENABLE_CODE_EXECUTION_QUEUE !== 'false') {
   try {
     const { initializeQueue } =
       await import('#root/services/code-execution-queue.js');
     await initializeQueue();
+    queueInitialized = true;
   } catch (error) {
     console.error('Failed to initialize code execution queue:', error);
   }
 }
 
-if (process.env.ENABLE_CODE_EXECUTION_WORKER !== 'false') {
+// Only start worker if queue was successfully initialized
+if (queueInitialized && process.env.ENABLE_CODE_EXECUTION_WORKER !== 'false') {
   try {
     const { startWorker } =
       await import('#root/services/code-execution-worker.js');

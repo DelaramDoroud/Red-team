@@ -12,3 +12,9 @@ export const ChallengeStatus = {
   STARTED_PHASE_TWO: 'started_phase_two',
   ENDED_PHASE_TWO: 'ended_phase_two',
 };
+
+export const SubmissionStatus = {
+  WRONG: 'wrong',
+  IMPROVABLE: 'improvable',
+  PROBABLY_CORRECT: 'probably_correct',
+};

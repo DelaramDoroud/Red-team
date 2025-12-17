@@ -21,6 +21,7 @@ import Tooltip from '#components/common/Tooltip';
 import Spinner from '#components/common/Spinner';
 
 import { useState, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import CppEditor from './CppEditor';
 import Timer from './Timer';
 import { useDuration } from '../(context)/DurationContext';
@@ -29,6 +30,7 @@ export default function MatchView({
   loading,
   error,
   message,
+  challengeId,
   matchData,
   code,
   setCode,
@@ -40,7 +42,10 @@ export default function MatchView({
   onSubmit,
   onTimerFinish,
   isChallengeFinished,
-  challengeId,
+  testResults,
+  canSubmit,
+  isTimeUp,
+  isCompiled,
 }) {
   const { duration } = useDuration();
 
@@ -49,8 +54,16 @@ export default function MatchView({
   const [submissionError, setSubmissionError] = useState(null);
 
   const hasTimerFinished = useRef(false);
-
+  const runResultClass = (() => {
+    if (runResult?.type === 'error') return 'text-red-700 dark:text-red-400';
+    if (runResult?.type === 'success')
+      return 'text-green-700 dark:text-green-400';
+    if (runResult?.type === 'info') return 'text-blue-700 dark:text-blue-400';
+    return 'text-foreground';
+  })();
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
+  const canSubmitNow =
+    canSubmit && isSubmittingActive && !isSubmittingFinal && !isTimeUp;
 
   const handleTimerEnd = async () => {
     if (hasTimerFinished.current) return;
@@ -183,9 +196,9 @@ export default function MatchView({
           onFinish={timerFinishHandler}
         />
       </div>
-
-      <div className='my-2 flex justify-normal gap-x-2'>
+      <div className='my-2 flex justify-normal gap-x-2 '>
         <div className='space-y-2 w-1/3'>
+          {/* problem description */}
           <Card>
             <CardHeader>
               <CardTitle>{problemTitle}</CardTitle>
@@ -199,33 +212,64 @@ export default function MatchView({
             </CardContent>
           </Card>
 
+          {/* public tests */}
           <Card>
             <CardHeader>
               <CardTitle>Public tests</CardTitle>
               <CardDescription>
-                Sample cases your solution should handle.
+                These are sample cases your C++ solution should handle.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {publicTests.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Input</TableHead>
-                      <TableHead>Expected Output</TableHead>
-                      <TableHead>Your Output</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {publicTests.map((test) => (
-                      <TableRow key={JSON.stringify(test)}>
-                        <TableCell>{JSON.stringify(test.input)}</TableCell>
-                        <TableCell>{JSON.stringify(test.output)}</TableCell>
-                        <TableCell />
+              {publicTests && publicTests.length > 0 ? (
+                <div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Input</TableHead>
+                        <TableHead>Expected Output</TableHead>
+                        <TableHead>Your Output</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+
+                    <TableBody>
+                      {publicTests.map((test, index) => {
+                        const result = testResults?.[index];
+                        const key = JSON.stringify({
+                          input: test.input,
+                          output: test.output,
+                        });
+                        const outputClass = (() => {
+                          if (!result) return 'text-muted-foreground';
+                          return result.passed
+                            ? 'text-green-600'
+                            : 'text-red-600';
+                        })();
+
+                        return (
+                          <TableRow key={key}>
+                            <TableCell>{JSON.stringify(test.input)}</TableCell>
+
+                            <TableCell>{JSON.stringify(test.output)}</TableCell>
+
+                            <TableCell className={outputClass}>
+                              {isCompiled === true &&
+                              result?.actualOutput !== undefined ? (
+                                <pre className='whitespace-pre-wrap'>
+                                  {JSON.stringify(result.actualOutput)}
+                                </pre>
+                              ) : (
+                                <span className='text-muted-foreground italic'>
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <p className='text-sm text-red-500'>
                   No public tests available for this match.
@@ -236,6 +280,7 @@ export default function MatchView({
         </div>
 
         <div className='space-y-6 w-2/3'>
+          {/* editor + controls + result panel */}
           <Card>
             <CardHeader>
               <CardTitle>Code editor</CardTitle>
@@ -251,23 +296,21 @@ export default function MatchView({
 
               <div className='mt-2'>
                 <h2 className='text-sm font-medium mb-1'>Result</h2>
-                <div className='min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs whitespace-pre-wrap'>
-                  {runResult ||
+                <div
+                  className={`min-h-[90px] rounded-md border bg-muted px-3 py-2 text-xs ${runResultClass}`}
+                >
+                  {runResult?.message ??
                     'Run your code to see compilation and test results.'}
                 </div>
               </div>
 
               <div className='flex gap-3'>
-                <Button
-                  onClick={onRun}
-                  disabled={isBusy}
-                  className='flex items-center gap-2'
-                >
-                  {isRunning && <Spinner label='Running…' />}
-                  {!isRunning && 'Run'}
+                <Button onClick={onRun} disabled={isRunning || isTimeUp}>
+                  {isRunning && <Loader2 className='h-4 w-4 animate-spin' />}
+                  {isRunning ? 'Running...' : 'Run'}
                 </Button>
 
-                {isSubmittingActive && !isSubmittingFinal ? (
+                {canSubmitNow ? (
                   <button
                     type='button'
                     onClick={onSubmit}

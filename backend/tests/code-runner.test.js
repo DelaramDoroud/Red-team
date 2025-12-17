@@ -506,6 +506,100 @@ int main() {
       expect(case2.stdout).toBe('[1, 2]');
     }, 60000);
 
+    it('should solve Palindrome Number in C++ and match expected outputs', async () => {
+      const cppPalindrome = `#include <iostream>
+      #include <string>
+      #include <vector>
+      #include <algorithm>
+      #include <sstream>
+
+      int main() {
+        std::ios::sync_with_stdio(false);
+        std::cin.tie(nullptr);
+
+        std::string s;
+        {
+          std::ostringstream oss;
+          oss << std::cin.rdbuf();
+          s = oss.str();
+        }
+
+        long long cur = 0;
+        bool inNum = false, neg = false;
+        std::vector<long long> vals;
+        for (char c : s) {
+          if (c == '-' && !inNum) {
+            neg = true;
+            continue;
+          }
+          if (c >= '0' && c <= '9') {
+            if (!inNum) {
+              inNum = true;
+              cur = 0;
+            }
+            cur = cur * 10 + (c - '0');
+          } else {
+            if (inNum) {
+              vals.push_back(neg ? -cur : cur);
+              inNum = false;
+              neg = false;
+              cur = 0;
+            } else {
+              neg = false;
+            }
+          }
+        }
+        if (inNum) {
+          vals.push_back(neg ? -cur : cur);
+        }
+
+        if (vals.empty()) {
+          std::cout << "false";
+          return 0;
+        }
+
+        long long x = vals[0];
+        if (x < 0) {
+          std::cout << "false";
+          return 0;
+        }
+
+        std::string t = std::to_string(x);
+        std::string r = t;
+        std::reverse(r.begin(), r.end());
+        std::cout << (t == r ? "true" : "false");
+        return 0;
+      }`.trim();
+
+      const case1 = await runCode(cppPalindrome, 'cpp', JSON.stringify([121]), {
+        timeoutMs: 30000,
+      });
+      expect(case1.success).toBe(true);
+      expect(case1.exitCode).toBe(0);
+      expect(case1.stderr).toBe('');
+      expect(case1.stdout).toBe('true');
+
+      const case2 = await runCode(
+        cppPalindrome,
+        'cpp',
+        JSON.stringify([-121]),
+        { timeoutMs: 30000 }
+      );
+      expect(case2.success).toBe(true);
+      expect(case2.exitCode).toBe(0);
+      expect(case2.stderr).toBe('');
+      expect(case2.stdout).toBe('false');
+
+      // private test from seed
+      const case3 = await runCode(cppPalindrome, 'cpp', JSON.stringify([10]), {
+        timeoutMs: 30000,
+      });
+      expect(case3.success).toBe(true);
+      expect(case3.exitCode).toBe(0);
+      expect(case3.stderr).toBe('');
+      expect(case3.stdout).toBe('false');
+    }, 30000);
+
     it('should compile and run C code', async () => {
       const code = `
 #include <stdio.h>
