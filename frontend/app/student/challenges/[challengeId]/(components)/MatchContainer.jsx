@@ -371,7 +371,11 @@ export default function MatchContainer({ challengeId, studentId }) {
         return false;
       }
 
-      const submissionRes = await submitSubmission({ matchId, code });
+      const submissionRes = await submitSubmission({
+        matchId,
+        code,
+        isAutomatic: true,
+      });
 
       // Check compilation status from submission response
       const compilationSuccessful = submissionRes?.data?.isCompiled;
