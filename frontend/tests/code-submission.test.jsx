@@ -157,7 +157,17 @@ describe('RT-4 Code Submission', () => {
   });
 
   it('should submit code successfully when submit button is clicked', async () => {
-    mockSubmitSubmission.mockResolvedValue({ success: true });
+    mockSubmitSubmission.mockResolvedValue({
+      success: true,
+      data: {
+        publicTestResults: [{ passed: true }, { passed: true }],
+        privateTestResults: [{ passed: true }, { passed: true }],
+        publicSummary: { total: 2, passed: 2, allPassed: true },
+        privateSummary: { total: 2, passed: 2, allPassed: true },
+        isCompiled: true,
+        isPassed: true,
+      },
+    });
 
     await given(async () => {
       render(
@@ -196,7 +206,7 @@ describe('RT-4 Code Submission', () => {
       await waitFor(
         () => {
           expect(screen.getByTestId('message')).toHaveTextContent(
-            'Submission successful!'
+            'Thanks for your submission.'
           );
         },
         { timeout: 2000 }
