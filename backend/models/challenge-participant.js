@@ -74,14 +74,19 @@ ChallengeParticipant.seed = async function () {
       limit: 10,
     });
 
-    if (!challenge || students.length === 0) {
+    // Exclude 'student1' from joining the challenge only for seeding purposes and for sprint demo
+    const studentsToJoin = students.filter(
+      (student) => student.username !== 'student1'
+    );
+
+    if (!challenge || studentsToJoin.length === 0) {
       console.warn(
         'ChallengeParticipant seeding skipped: missing challenge or students'
       );
       return;
     }
 
-    const rows = students.map((student) => ({
+    const rows = studentsToJoin.map((student) => ({
       challengeId: challenge.id,
       studentId: student.id,
     }));
