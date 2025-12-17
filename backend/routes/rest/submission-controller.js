@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import axios from 'axios';
 
 import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
@@ -9,6 +8,7 @@ import MatchSetting from '#root/models/match-setting.js';
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
 import logger from '#root/services/logger.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
 
 const router = Router();
 
@@ -55,30 +55,60 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // RUN COMPILATION CHECK
-    let runResponse;
-    try {
-      runResponse = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest'}/run`,
-        { matchSettingId: matchSetting.id, code, language },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
-      );
-    } catch (err) {
-      logger.error('Run API error:', err?.response?.data || err.message);
-      return res.status(500).json({
+    const publicTests = matchSetting.publicTests || [];
+    const privateTests = matchSetting.privateTests || [];
+
+    if (!Array.isArray(publicTests) || publicTests.length === 0) {
+      return res.status(400).json({
         success: false,
-        error: { message: 'Error while executing code for compilation check' },
+        error: { message: 'No public tests found for this match setting' },
       });
     }
 
-    // Check compilation: exitCode !== 0 or stderr contains "error"
-    const compilationFailed = runResponse.data.results?.some(
-      (r) =>
-        r.exitCode !== 0 ||
-        (r.stderr && r.stderr.toLowerCase().includes('error'))
-    );
+    if (!Array.isArray(privateTests) || privateTests.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No private tests found for this match setting' },
+      });
+    }
 
-    if (compilationFailed) {
+    // Execute public tests (for compilation check)
+    let publicExecutionResult;
+    try {
+      publicExecutionResult = await executeCodeTests({
+        code,
+        language,
+        testCases: publicTests,
+        userId: req.user?.id,
+      });
+    } catch (error) {
+      logger.error('Public tests execution error:', error);
+      return res.status(500).json({
+        success: false,
+        error: { message: 'Error while executing public tests' },
+      });
+    }
+
+    // Execute private tests (for submission evaluation)
+    let privateExecutionResult;
+    try {
+      privateExecutionResult = await executeCodeTests({
+        code,
+        language,
+        testCases: privateTests,
+        userId: req.user?.id,
+      });
+    } catch (error) {
+      logger.error('Private tests execution error:', error);
+      return res.status(500).json({
+        success: false,
+        error: { message: 'Error while executing private tests' },
+      });
+    }
+
+    // Check compilation status from private tests
+    const isCompiled = privateExecutionResult.isCompiled;
+    if (!isCompiled) {
       return res.status(400).json({
         success: false,
         error: {
@@ -129,6 +159,12 @@ router.post('/submissions', async (req, res) => {
             createdAt: submission.createdAt,
             updatedAt: submission.updatedAt,
           },
+          publicTestResults: publicExecutionResult.testResults,
+          privateTestResults: privateExecutionResult.testResults,
+          publicSummary: publicExecutionResult.summary,
+          privateSummary: privateExecutionResult.summary,
+          isCompiled: privateExecutionResult.isCompiled,
+          isPassed: privateExecutionResult.isPassed,
         },
       });
     } catch (error) {
