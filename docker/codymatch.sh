@@ -239,6 +239,9 @@ migrate-undo)
 migrate-undo-all)
     "${DOCKER_COMPOSE[@]}" exec backend npm run migrate-undo-all
     ;;
+migration:new)
+    "${DOCKER_COMPOSE[@]}" exec backend npm run migration:new -- "${2}"
+    ;;
 *)
   error_message
   ;;
