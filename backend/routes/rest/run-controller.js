@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import MatchSetting from '#root/models/match-setting.js';
-import { enqueueCodeExecution } from '#root/services/code-execution-queue.js';
-import { getJobStatus } from '#root/services/code-execution-queue.js';
-import { wrapCode } from '#root/services/wrappers/index.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
 
 const router = Router();
 
@@ -49,170 +47,16 @@ router.post('/run', async (req, res) => {
       });
     }
 
-    const testResults = [];
-    const jobPromises = [];
-
-    for (let i = 0; i < publicTests.length; i++) {
-      const testCase = publicTests[i];
-      const { input, output: expectedOutput } = testCase;
-
-      let wrappedCode;
-      let inputString = '';
-
-      try {
-        wrappedCode = wrapCode(language, code);
-        if (input !== undefined && input !== null) {
-          inputString = JSON.stringify(input);
-        }
-      } catch (error) {
-        if (
-          error.message.includes('No wrapper registered') ||
-          error.message.includes('not yet implemented') ||
-          error.message.includes('Unsupported language')
-        ) {
-          if (input !== undefined && input !== null) {
-            if (Array.isArray(input)) {
-              inputString = JSON.stringify(input);
-            } else {
-              inputString = String(input);
-            }
-          }
-          wrappedCode = code;
-        } else {
-          throw error;
-        }
-      }
-
-      const job = await enqueueCodeExecution(
-        {
-          code: wrappedCode,
-          language,
-          input: inputString,
-          userId: req.user?.id,
-        },
-        {
-          priority: 0,
-        }
-      );
-      jobPromises.push({
-        jobId: job.id,
-        testIndex: i,
-        input,
-        expectedOutput,
-      });
-    }
-
-    const isTest = process.env.NODE_ENV === 'test';
-    const maxWaitTime = parseInt(
-      process.env.RUN_API_MAX_WAIT_TIME || (isTest ? '15000' : '30000'),
-      10
-    );
-    const pollInterval = parseInt(
-      process.env.RUN_API_POLL_INTERVAL || (isTest ? '200' : '500'),
-      10
-    );
-
-    const jobStatusPromises = jobPromises.map(async (jobInfo) => {
-      let jobStatus = null;
-      const jobStartTime = Date.now();
-
-      while (Date.now() - jobStartTime < maxWaitTime) {
-        jobStatus = await getJobStatus(jobInfo.jobId);
-
-        if (jobStatus.status === 'completed' || jobStatus.status === 'failed') {
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      }
-
-      return { jobInfo, jobStatus };
+    // Execute code tests using the service function
+    const executionResult = await executeCodeTests({
+      code,
+      language,
+      testCases: publicTests,
+      userId: req.user?.id,
     });
 
-    const jobResults = await Promise.all(jobStatusPromises);
-
-    for (const { jobInfo, jobStatus } of jobResults) {
-      if (jobStatus?.status === 'completed') {
-        const result = jobStatus.result;
-        const actualOutput = result.stdout;
-
-        let parsedOutput;
-        try {
-          parsedOutput = JSON.parse(actualOutput);
-        } catch {
-          parsedOutput = actualOutput.trim();
-        }
-
-        const passed =
-          JSON.stringify(parsedOutput) ===
-          JSON.stringify(jobInfo.expectedOutput);
-
-        testResults.push({
-          testIndex: jobInfo.testIndex,
-          input: jobInfo.input,
-          expectedOutput: jobInfo.expectedOutput,
-          actualOutput: parsedOutput,
-          passed,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          exitCode: result.exitCode,
-          executionTime: result.executionTime,
-        });
-      } else {
-        testResults.push({
-          testIndex: jobInfo.testIndex,
-          input: jobInfo.input,
-          expectedOutput: jobInfo.expectedOutput,
-          actualOutput: null,
-          passed: false,
-          stdout: jobStatus?.result?.stdout || '',
-          stderr:
-            jobStatus?.result?.stderr ||
-            jobStatus?.error?.message ||
-            'Execution failed or timed out',
-          exitCode: jobStatus?.result?.exitCode || -1,
-          executionTime: jobStatus?.result?.executionTime || 0,
-        });
-      }
-    }
-
-    const passedCount = testResults.filter((r) => r.passed).length;
-    const totalCount = testResults.length;
-    const allPassed = passedCount === totalCount;
-
-    const hasCompilationError = testResults.some((result) => {
-      if (!result.stderr) return false;
-      const stderrLower = result.stderr.toLowerCase();
-      return (
-        stderrLower.includes('syntaxerror') ||
-        stderrLower.includes('syntax error') ||
-        stderrLower.includes('indentationerror') ||
-        stderrLower.includes('indentation error') ||
-        stderrLower.includes('compilation error') ||
-        stderrLower.includes('compile error')
-      );
-    });
-
-    const isCompiled =
-      !hasCompilationError &&
-      testResults.some(
-        (result) =>
-          result.exitCode === 0 || (result.exitCode !== -1 && !result.stderr)
-      );
-
-    const isPassed = allPassed;
-
-    const errors = testResults
-      .filter((result) => !result.passed)
-      .map((result) => ({
-        testIndex: result.testIndex,
-        error:
-          result.stderr || result.stdout || 'Execution failed or timed out',
-        exitCode: result.exitCode,
-        input: result.input,
-        expectedOutput: result.expectedOutput,
-        actualOutput: result.actualOutput,
-      }));
+    const { testResults, summary, isCompiled, isPassed, errors } =
+      executionResult;
 
     const response = {
       success: true,
@@ -225,12 +69,7 @@ router.post('/run', async (req, res) => {
         ...(errors.length > 0 && { error: errors[0].error }),
         errors: errors.length > 0 ? errors : undefined,
       },
-      summary: {
-        total: totalCount,
-        passed: passedCount,
-        failed: totalCount - passedCount,
-        allPassed,
-      },
+      summary,
       results: testResults,
     };
 
