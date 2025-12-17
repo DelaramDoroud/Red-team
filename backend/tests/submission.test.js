@@ -203,15 +203,14 @@ describe('Submission API', () => {
       });
 
       expect(submission).toBeDefined();
-      expect(submission.submissions_count).toBe(1);
+      expect(submission.code).toBe('int main() { return 0; }');
     });
 
-    it('updates existing submission and increments submissions_count', async () => {
+    it('updates existing submission code', async () => {
       const existing = await Submission.create({
         matchId: match.id,
         challengeParticipantId: participant.id,
         code: 'int main() { return 1; }',
-        submissions_count: 1,
       });
 
       const res = await request(app).post('/api/rest/submissions').send({
@@ -222,7 +221,7 @@ describe('Submission API', () => {
       expect(res.status).toBe(200);
 
       await existing.reload();
-      expect(existing.submissions_count).toBe(2);
+      expect(existing.code).toBe('int main() { return 2; }');
     });
 
     it('rejects submission when code does not compile', async () => {
@@ -293,7 +292,6 @@ describe('Submission API', () => {
         matchId: match.id,
         challengeParticipantId: participant.id,
         code: 'int main() { return 0; }',
-        submissions_count: 1,
       });
 
       const res = await request(app).get(

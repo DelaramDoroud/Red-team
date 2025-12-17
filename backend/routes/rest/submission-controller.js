@@ -198,8 +198,6 @@ router.post('/submissions', async (req, res) => {
           if (isSubmissionBetter(currentTestResults, existingTestResults)) {
             // Automatic submission is better - update it
             submission.code = code;
-            submission.submissions_count =
-              (submission.submissions_count || 0) + 1;
             submission.updatedAt = new Date();
             await submission.save({ transaction });
             logger.info(
@@ -222,8 +220,6 @@ router.post('/submissions', async (req, res) => {
         // Intentional submission - always save/update
         if (submission) {
           submission.code = code;
-          submission.submissions_count =
-            (submission.submissions_count || 0) + 1;
           submission.updatedAt = new Date();
           await submission.save({ transaction });
         } else {
@@ -232,7 +228,6 @@ router.post('/submissions', async (req, res) => {
               matchId,
               challengeParticipantId: match.challengeParticipantId,
               code,
-              submissions_count: 1,
             },
             { transaction }
           );
@@ -244,7 +239,6 @@ router.post('/submissions', async (req, res) => {
             matchId,
             challengeParticipantId: match.challengeParticipantId,
             code,
-            submissions_count: 1,
           },
           { transaction }
         );
@@ -297,7 +291,6 @@ router.post('/submissions', async (req, res) => {
             id: submissionData.id,
             matchId: submissionData.matchId,
             challengeParticipantId: submissionData.challengeParticipantId,
-            submissionsCount: submissionData.submissions_count,
             createdAt: submissionData.createdAt,
             updatedAt: submissionData.updatedAt,
           },
@@ -344,7 +337,6 @@ router.get('/submission/:id', async (req, res) => {
           id: submission.id,
           matchId: submission.matchId,
           code: submission.code,
-          submissionsCount: submission.submissions_count,
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         },

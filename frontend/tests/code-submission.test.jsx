@@ -139,7 +139,7 @@ describe('RT-4 Code Submission', () => {
     });
     mockGetLastSubmission.mockResolvedValue({
       success: true,
-      data: { submission: { code: 'int main() {}', passedPublicTests: 2 } },
+      data: { submission: { code: 'int main() {}' } },
     });
   });
 

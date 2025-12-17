@@ -13,6 +13,7 @@
 # Backend
 backend/log/
 backend/tests/.env.test
+backend/coverage/
 
 # Frontend
 frontend/.next/

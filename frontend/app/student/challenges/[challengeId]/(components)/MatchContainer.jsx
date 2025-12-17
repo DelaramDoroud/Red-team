@@ -300,14 +300,18 @@ export default function MatchContainer({ challengeId, studentId }) {
         return false;
       }
 
-      setMatchId(res.data.id);
+      const resolvedMatchId = res.data.id;
+      setMatchId(resolvedMatchId);
 
       if (!code.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
         return false;
       }
 
-      const submissionRes = await submitSubmission({ matchId, code });
+      const submissionRes = await submitSubmission({
+        matchId: resolvedMatchId,
+        code,
+      });
 
       if (submissionRes?.success) {
         const {
@@ -370,32 +374,43 @@ export default function MatchContainer({ challengeId, studentId }) {
           // Scenario C: All public and private pass (default message)
         }
 
-        // from login branch
-        // setMessage('Submission successful!');
-        // setLastSuccessfulCode(code);
-        // lastSuccessRef.current = code;
-        // if (typeof localStorage !== 'undefined') {
-        //   try {
-        //     const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-        //     localStorage.setItem(lastSuccessKey, code);
-        //   } catch (e) {
-        //     // ignore storage failures
-        //   }
-        // }
-        // return true;
         setMessage(submissionMessage);
+        setLastSuccessfulCode(code);
+        lastSuccessRef.current = code;
+        if (typeof localStorage !== 'undefined') {
+          try {
+            const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
+            localStorage.setItem(lastSuccessKey, code);
+          } catch {
+            // ignore storage failures
+          }
+        }
         return true;
       }
 
-      // from login branch
-      // const lastValid = await getLastSubmission(matchId);
-      // const fallbackCode = lastValid?.data?.submission?.code;
-      // if (fallbackCode && fallbackCode.trim()) {
-      //   setMessage('New code failed. Kept your last valid submission.');
-      //   setLastSuccessfulCode(fallbackCode);
-      //   lastSuccessRef.current = fallbackCode;
-      //   return true;
-      // }
+      // If the submission fails (often due to compilation), keep the last valid submission.
+      // The backend should have retained it, but we fetch it to confirm and inform the user.
+      try {
+        const lastValid = await getLastSubmission(resolvedMatchId);
+        const fallbackCode =
+          lastValid?.data?.submission?.code || lastSuccessRef.current;
+        if (fallbackCode && fallbackCode.trim()) {
+          setMessage('New code failed. Kept your last valid submission.');
+          setLastSuccessfulCode(fallbackCode);
+          lastSuccessRef.current = fallbackCode;
+          if (typeof localStorage !== 'undefined') {
+            try {
+              const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
+              localStorage.setItem(lastSuccessKey, fallbackCode);
+            } catch {
+              // ignore storage failures
+            }
+          }
+          return true;
+        }
+      } catch {
+        // Ignore fallback failures and surface original submission error below.
+      }
 
       const errorMessage =
         submissionRes?.error?.message ||
@@ -421,7 +436,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     studentId,
     code,
     submitSubmission,
-    matchId,
+    getLastSubmission,
   ]);
 
   // Automatic submission when timer finishes
