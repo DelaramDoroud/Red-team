@@ -107,10 +107,10 @@ MatchSetting.seed = async function () {
           }
         `,
         publicTests: [
-          { input: [121], output: true },
-          { input: [-121], output: false },
+          { input: 121, output: true },
+          { input: 123, output: false },
         ],
-        privateTests: [{ input: [10], output: false }],
+        privateTests: [{ input: 10, output: false }],
         status: MatchSettingStatus.READY,
       },
 

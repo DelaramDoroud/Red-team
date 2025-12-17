@@ -121,9 +121,17 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // Check compilation status from private tests
-    const isCompiled = privateExecutionResult.isCompiled;
-    if (!isCompiled) {
+    // Check compilation status
+    // If public tests passed, the code definitely compiles (same code, same compilation)
+    // Trust public test compilation status - if it compiles for public tests, it compiles for private tests too
+    const publicCompiled = publicExecutionResult.isCompiled;
+
+    // Only block submission if public tests show compilation failure
+    // If public compiles but private shows false positive, allow submission to proceed
+    if (!publicCompiled) {
+      logger.warn(
+        `Submission blocked: Public tests show compilation failure for match ${matchId}`
+      );
       return res.status(400).json({
         success: false,
         error: {

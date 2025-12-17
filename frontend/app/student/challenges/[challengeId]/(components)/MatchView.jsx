@@ -114,7 +114,8 @@ export default function MatchView({
           </CardHeader>
           <CardContent>
             <p className='text-sm text-red-500 dark:text-red-400'>
-              {error.message}
+              {error?.message ||
+                (typeof error === 'string' ? error : 'An error occurred')}
             </p>
           </CardContent>
         </Card>
@@ -292,7 +293,7 @@ export default function MatchView({
               <CppEditor
                 value={code}
                 onChange={setCode}
-                disabled={isSubmittingFinal}
+                disabled={isSubmittingFinal || isTimeUp || isChallengeFinished}
               />
 
               <div className='mt-2'>
@@ -339,7 +340,8 @@ export default function MatchView({
 
               {error && (
                 <p className='text-sm text-red-500 dark:text-red-400'>
-                  {error.message}
+                  {error?.message ||
+                    (typeof error === 'string' ? error : 'An error occurred')}
                 </p>
               )}
 

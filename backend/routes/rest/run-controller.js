@@ -58,6 +58,15 @@ router.post('/run', async (req, res) => {
     const { testResults, summary, isCompiled, isPassed, errors } =
       executionResult;
 
+    // Set error message if tests failed or if there are execution errors
+    let errorMessage = undefined;
+    if (errors.length > 0) {
+      errorMessage = errors[0].error;
+    } else if (!isPassed) {
+      // Tests failed but no execution errors (wrong output)
+      errorMessage = 'Some tests failed. Check the results for details.';
+    }
+
     const response = {
       success: true,
       matchSettingId,
@@ -65,8 +74,7 @@ router.post('/run', async (req, res) => {
         isCompiled,
         isPassed,
         matchSettingId,
-
-        ...(errors.length > 0 && { error: errors[0].error }),
+        ...(errorMessage && { error: errorMessage }),
         errors: errors.length > 0 ? errors : undefined,
       },
       summary,

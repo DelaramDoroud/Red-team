@@ -186,17 +186,23 @@ export default function MatchContainer({ challengeId, studentId }) {
           message: res?.message || 'Unable to run your code.',
         });
         setIsCompiled(false);
+        setCanSubmit(false);
+        setIsSubmittingActive(false);
         return;
       }
 
       const compiled =
         res?.data?.isCompiled !== undefined ? res.data.isCompiled : true;
-      if (!compiled || res?.data?.error) {
+      // Only block submission if compilation actually failed
+      // Error message can exist even when compiled (e.g., test failures)
+      if (!compiled) {
         setRunResult({
           type: 'error',
           message: res?.data?.error || 'Compilation failed.',
         });
         setIsCompiled(false);
+        setCanSubmit(false);
+        setIsSubmittingActive(false);
         return;
       }
 
@@ -319,9 +325,14 @@ export default function MatchContainer({ challengeId, studentId }) {
         return true;
       }
 
-      setError({
-        message: submissionRes?.error?.message || 'Submission failed.',
-      });
+      const errorMessage =
+        submissionRes?.error?.message ||
+        (submissionRes?.error instanceof Error
+          ? submissionRes.error.message
+          : null) ||
+        submissionRes?.message ||
+        'Submission failed.';
+      setError({ message: errorMessage });
       return false;
     } catch (err) {
       setError({ message: `Error: ${err.message}` });

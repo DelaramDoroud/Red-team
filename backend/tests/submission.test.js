@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import axios from 'axios';
 
 import sequelize from '#root/services/sequelize.js';
 import app from '#root/app_initial.js';
@@ -14,7 +13,11 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 
-vi.mock('axios');
+// Mock executeCodeTests service
+const mockExecuteCodeTests = vi.fn();
+vi.mock('#root/services/execute-code-tests.js', () => ({
+  executeCodeTests: (...args) => mockExecuteCodeTests(...args),
+}));
 
 describe('Submission API', () => {
   let challenge;
@@ -28,12 +31,39 @@ describe('Submission API', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
 
-    // Default /run API mock: always successful compilation
-    axios.post.mockResolvedValue({
-      data: {
-        success: true,
-        results: [{ exitCode: 0, stdout: '', stderr: '' }],
+    // Default mock: always successful compilation and passing tests
+    mockExecuteCodeTests.mockResolvedValue({
+      testResults: [
+        {
+          testIndex: 0,
+          passed: true,
+          exitCode: 0,
+          stdout: '5',
+          stderr: '',
+          expectedOutput: '5',
+          actualOutput: '5',
+          executionTime: 100,
+        },
+        {
+          testIndex: 1,
+          passed: true,
+          exitCode: 0,
+          stdout: '30',
+          stderr: '',
+          expectedOutput: '30',
+          actualOutput: '30',
+          executionTime: 100,
+        },
+      ],
+      summary: {
+        total: 2,
+        passed: 2,
+        failed: 0,
+        allPassed: true,
       },
+      isCompiled: true,
+      isPassed: true,
+      errors: [],
     });
 
     transaction = await sequelize.transaction();
@@ -194,18 +224,35 @@ describe('Submission API', () => {
     });
 
     it('rejects submission when code does not compile', async () => {
-      // Mock /run API to simulate compilation error
-      axios.post.mockResolvedValueOnce({
-        data: {
-          success: true,
-          results: [
-            {
-              exitCode: 1, // non-zero exit code indicates compilation error
-              stdout: '',
-              stderr: 'error: expected ; before }',
-            },
-          ],
+      // Mock executeCodeTests to simulate compilation error
+      mockExecuteCodeTests.mockResolvedValueOnce({
+        testResults: [
+          {
+            testIndex: 0,
+            passed: false,
+            exitCode: 1,
+            stdout: '',
+            stderr: 'error: expected ; before }',
+            expectedOutput: '5',
+            actualOutput: null,
+            executionTime: 0,
+          },
+        ],
+        summary: {
+          total: 1,
+          passed: 0,
+          failed: 1,
+          allPassed: false,
         },
+        isCompiled: false,
+        isPassed: false,
+        errors: [
+          {
+            testIndex: 0,
+            error: 'error: expected ; before }',
+            exitCode: 1,
+          },
+        ],
       });
 
       const res = await request(app).post('/api/rest/submissions').send({

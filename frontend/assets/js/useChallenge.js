@@ -107,12 +107,12 @@ export default function useChallenge() {
     [fetchData]
   );
   const submitSubmission = useCallback(
-    async ({ matchId, code, isAutomatic = false }) => {
+    async ({ matchId, code, isAutomatic = false, language = 'cpp' }) => {
       const url = `${API_BASE}/submissions`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, code, isAutomatic }),
+        body: JSON.stringify({ matchId, code, isAutomatic, language }),
       });
     },
     [fetchData]

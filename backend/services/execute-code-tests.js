@@ -38,13 +38,13 @@ export async function executeCodeTests({
   try {
     if (hasWrapper(language)) {
       wrappedCode = wrapCode(language, code);
+    } else {
+      // No wrapper for this language - use original code (this is normal for C++, etc.)
+      wrappedCode = code;
     }
   } catch (error) {
     // If wrapping fails, use original code
-    // Some languages might not have wrappers
-    console.warn(
-      `[EXECUTE CODE TESTS] Wrapper not available for ${language}, using original code`
-    );
+    wrappedCode = code; // Fallback to original code
   }
 
   // Enqueue all test cases
@@ -146,7 +146,7 @@ export async function executeCodeTests({
         stdout: result.stdout || '',
         stderr: result.stderr || '',
         expectedOutput: testCase.output,
-        actualOutput: result.stdout || '',
+        actualOutput: actualOutput, // Use normalized output, not raw stdout
         executionTime: result.executionTime || 0,
       };
     })
@@ -158,11 +158,43 @@ export async function executeCodeTests({
   const failed = total - passed;
   const allPassed = passed === total;
 
-  // Check compilation status (if any test has exitCode !== 0 or stderr contains "error", compilation likely failed)
-  const hasCompilationError = testResults.some(
-    (r) =>
-      r.exitCode !== 0 || (r.stderr && r.stderr.toLowerCase().includes('error'))
-  );
+  // Check compilation status
+  // If ANY test produces stdout output, the code definitely compiled and ran
+  // Compilation errors typically appear in stderr of test cases
+  // If code compiles, all test cases use the same compiled binary
+  let hasCompilationError = false;
+
+  if (testResults.length > 0) {
+    // Check if ANY test produced stdout - if so, code definitely compiled
+    const anyTestHasStdout = testResults.some(
+      (result) => result.stdout && result.stdout.trim().length > 0
+    );
+
+    if (anyTestHasStdout) {
+      // At least one test ran successfully, so code compiled
+      hasCompilationError = false;
+    } else {
+      // No stdout from any test - check for compilation errors in stderr
+      // Look at first test result for compilation error patterns
+      const firstTestResult = testResults[0];
+      if (firstTestResult && firstTestResult.stderr) {
+        const stderrLower = firstTestResult.stderr.toLowerCase();
+        // Only flag as compilation error if stderr contains actual compiler error patterns
+        hasCompilationError =
+          stderrLower.includes('error:') ||
+          stderrLower.includes('undefined reference') ||
+          stderrLower.includes('cannot find') ||
+          stderrLower.includes('no such file') ||
+          stderrLower.includes('compilation terminated') ||
+          stderrLower.includes('fatal error') ||
+          (firstTestResult.exitCode !== 0 &&
+            firstTestResult.stderr.trim().length > 0 &&
+            firstTestResult.stdout.trim().length === 0 &&
+            !stderrLower.includes('runtime')); // Compilation errors usually have stderr but no stdout
+      }
+    }
+  }
+
   const isCompiled = !hasCompilationError;
 
   // Collect errors

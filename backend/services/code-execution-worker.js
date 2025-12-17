@@ -63,7 +63,7 @@ export async function startWorker() {
 
           const executionTime = Date.now() - startTime;
 
-          const jobResult = {
+          return {
             success: result.success,
             stdout: result.stdout,
             stderr: result.stderr,
@@ -74,8 +74,6 @@ export async function startWorker() {
             submissionId,
             matchId,
           };
-
-          return jobResult;
         } catch (error) {
           const executionTime = Date.now() - startTime;
           console.error('[WORKER] Job failed:', {
