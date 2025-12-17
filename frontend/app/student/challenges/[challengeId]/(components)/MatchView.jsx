@@ -46,6 +46,7 @@ export default function MatchView({
   canSubmit,
   isTimeUp,
   isCompiled,
+  onTryAgain,
 }) {
   const { duration } = useDuration();
 
@@ -343,9 +344,33 @@ export default function MatchView({
               )}
 
               {message && (
-                <p className='text-sm text-green-600 dark:text-green-400'>
-                  {message}
-                </p>
+                <div className='space-y-2'>
+                  <p
+                    className={`text-sm ${(() => {
+                      if (message.includes('Thanks for your submission')) {
+                        if (
+                          message.includes('problems') ||
+                          message.includes('edge cases')
+                        ) {
+                          return 'text-yellow-600 dark:text-yellow-400';
+                        }
+                        return 'text-green-600 dark:text-green-400';
+                      }
+                      return 'text-blue-600 dark:text-blue-400';
+                    })()}`}
+                  >
+                    {message}
+                  </p>
+                  {onTryAgain && !isChallengeFinished && (
+                    <Button
+                      onClick={onTryAgain}
+                      variant='outline'
+                      className='mt-2'
+                    >
+                      {isTimeUp ? 'View code' : 'Try again'}
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

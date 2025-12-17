@@ -147,17 +147,20 @@ router.post('/submissions', async (req, res) => {
 
       logger.info(`Submission ${submission.id} saved for match ${matchId}`);
 
+      // Build response without code field - explicitly exclude it
+      const submissionData = submission.get({ plain: true });
+      delete submissionData.code;
+
       return res.json({
         success: true,
         data: {
           submission: {
-            id: submission.id,
-            matchId: submission.matchId,
-            challengeParticipantId: submission.challengeParticipantId,
-            code: submission.code,
-            submissionsCount: submission.submissions_count,
-            createdAt: submission.createdAt,
-            updatedAt: submission.updatedAt,
+            id: submissionData.id,
+            matchId: submissionData.matchId,
+            challengeParticipantId: submissionData.challengeParticipantId,
+            submissionsCount: submissionData.submissions_count,
+            createdAt: submissionData.createdAt,
+            updatedAt: submissionData.updatedAt,
           },
           publicTestResults: publicExecutionResult.testResults,
           privateTestResults: privateExecutionResult.testResults,

@@ -255,7 +255,67 @@ export default function MatchContainer({ challengeId, studentId }) {
       const submissionRes = await submitSubmission({ matchId, code });
 
       if (submissionRes?.success) {
-        setMessage('Submission successful!');
+        const {
+          publicSummary,
+          privateSummary,
+          publicTestResults,
+          privateTestResults,
+        } = submissionRes.data || {};
+
+        // Determine message based on test results
+        let submissionMessage = 'Thanks for your submission.';
+
+        // Check test results directly for more reliable detection
+        if (
+          publicTestResults &&
+          Array.isArray(publicTestResults) &&
+          privateTestResults &&
+          Array.isArray(privateTestResults)
+        ) {
+          // Check if all public tests passed
+          const allPublicPassed = publicTestResults.every(
+            (result) => result.passed === true
+          );
+
+          // Check if all private tests passed
+          const allPrivatePassed = privateTestResults.every(
+            (result) => result.passed === true
+          );
+
+          if (!allPublicPassed) {
+            // Scenario A: Some or all public tests failed
+            submissionMessage =
+              'Thanks for your submission. There are problems with your solution, try to improve it.';
+          } else if (allPublicPassed && !allPrivatePassed) {
+            // Scenario B: All public pass, but some private fail
+            submissionMessage =
+              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+          }
+          // Scenario C: All public and private pass (default message)
+        } else if (publicSummary && privateSummary) {
+          // Fallback to summary if test results are not available
+          const allPublicPassed =
+            publicSummary.allPassed === true ||
+            (publicSummary.passed === publicSummary.total &&
+              publicSummary.total > 0);
+          const allPrivatePassed =
+            privateSummary.allPassed === true ||
+            (privateSummary.passed === privateSummary.total &&
+              privateSummary.total > 0);
+
+          if (!allPublicPassed) {
+            // Scenario A: Some or all public tests failed
+            submissionMessage =
+              'Thanks for your submission. There are problems with your solution, try to improve it.';
+          } else if (allPublicPassed && !allPrivatePassed) {
+            // Scenario B: All public pass, but some private fail
+            submissionMessage =
+              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+          }
+          // Scenario C: All public and private pass (default message)
+        }
+
+        setMessage(submissionMessage);
         return true;
       }
 
@@ -298,7 +358,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        setMessage('Thanks for your participation');
+        setMessage('Thanks for your participation.');
         setIsChallengeFinished(true);
         return false;
       }
@@ -306,31 +366,44 @@ export default function MatchContainer({ challengeId, studentId }) {
       const matchId = res.data.id;
 
       if (!code.trim()) {
-        setMessage('Thanks for your participation');
+        setMessage('Thanks for your participation.');
         setIsChallengeFinished(true);
         return false;
       }
 
       const submissionRes = await submitSubmission({ matchId, code });
 
-      if (submissionRes?.success) {
-        setMessage('Thanks for your participation');
+      // Check compilation status from submission response
+      const compilationSuccessful = submissionRes?.data?.isCompiled;
+
+      if (submissionRes?.success && compilationSuccessful) {
+        // Scenario D: Compilation successful
+        setMessage('Thanks for your participation.');
       } else {
+        // Scenario E: Compilation failed
         setMessage(
-          'Your code did not compile successfully. Thanks for your participation'
+          'Your code did not compile successfully. Thanks for your participation.'
         );
       }
       setIsChallengeFinished(true);
 
       return submissionRes?.success ?? false;
     } catch (err) {
-      setMessage('Thanks for your participation');
+      setMessage('Thanks for your participation.');
       setIsChallengeFinished(true);
       return false;
     } finally {
       setIsSubmitting(false);
     }
   }, [challengeId, studentId, code, getStudentAssignedMatch, submitSubmission]);
+
+  const handleTryAgain = useCallback(() => {
+    setMessage(null);
+    setError(null);
+    setIsSubmittingActive(false);
+    setRunResult(null);
+    setTestResults([]);
+  }, []);
 
   return (
     <MatchView
@@ -353,6 +426,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       canSubmit={canSubmit}
       isCompiled={isCompiled}
       isChallengeFinished={isChallengeFinished}
+      onTryAgain={handleTryAgain}
     />
   );
 }
