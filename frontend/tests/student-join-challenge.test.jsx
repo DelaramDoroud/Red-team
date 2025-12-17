@@ -3,8 +3,28 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
 import { ChallengeStatus } from '#js/constants';
+
 import StudentChallengesPage from '../app/student/challenges/page';
 import { given, when, andThen as then } from './bdd';
+
+const mockDispatch = vi.fn(() => Promise.resolve());
+
+vi.mock('#js/store/hooks', () => ({
+  useAppDispatch: () => mockDispatch,
+  useAppSelector: (selector) =>
+    selector({
+      auth: {
+        user: { id: 1, role: 'student' },
+        isLoggedIn: true,
+        loading: false,
+      },
+    }),
+  useAppStore: () => ({}),
+}));
+
+vi.mock('#js/store/slices/auth', () => ({
+  fetchUserInfo: () => async () => ({}),
+}));
 
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -16,6 +36,7 @@ vi.mock('next/navigation', () => ({
     forward: vi.fn(),
     prefetch: vi.fn(),
   }),
+  usePathname: () => '/student/challenges',
 }));
 
 const mockGetChallenges = vi.fn();

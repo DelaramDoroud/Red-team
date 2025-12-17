@@ -20,7 +20,12 @@ const accessLogStream = createStream('access.log', {
 });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(
+  cors({
+    origin: true, // reflect request origin
+    credentials: true,
+  })
+);
 app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.json());
 app.use(
@@ -28,6 +33,10 @@ app.use(
     secret: process.env.SECRET || 'test-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
   })
 );
 

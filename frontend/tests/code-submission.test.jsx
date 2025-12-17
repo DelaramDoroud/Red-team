@@ -9,11 +9,14 @@ import {
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
 import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
 import { given, when, andThen as then } from './bdd';
+import { getMockedStoreWrapper } from './test-redux-provider';
 
 // Mocks
 const mockGetStudentAssignedMatchSetting = vi.fn();
 const mockGetStudentAssignedMatch = vi.fn();
 const mockSubmitSubmission = vi.fn();
+const mockRunCode = vi.fn();
+const mockGetLastSubmission = vi.fn();
 
 vi.mock('#js/useChallenge', () => ({
   __esModule: true,
@@ -21,6 +24,8 @@ vi.mock('#js/useChallenge', () => ({
     getStudentAssignedMatchSetting: mockGetStudentAssignedMatchSetting,
     getStudentAssignedMatch: mockGetStudentAssignedMatch,
     submitSubmission: mockSubmitSubmission,
+    getLastSubmission: mockGetLastSubmission,
+    runCode: mockRunCode,
   }),
 }));
 
@@ -44,6 +49,7 @@ vi.mock(
         message,
         error,
         isChallengeFinished,
+        setCode,
       }) => {
         if (loading) return <div data-testid='loading'>Loading...</div>;
         if (error) return <div data-testid='error'>{error.message}</div>;
@@ -65,6 +71,13 @@ vi.mock(
               data-testid='submit-btn'
             >
               Submit
+            </button>
+            <button
+              type='button'
+              onClick={() => setCode('broken')}
+              data-testid='set-bad-code'
+            >
+              Set bad code
             </button>
             <button
               type='button'
@@ -120,6 +133,14 @@ describe('RT-4 Code Submission', () => {
     mockSubmitSubmission.mockResolvedValue({
       success: true,
     });
+    mockRunCode.mockResolvedValue({
+      success: true,
+      data: { isCompiled: true, isPassed: true, results: [] },
+    });
+    mockGetLastSubmission.mockResolvedValue({
+      success: true,
+      data: { submission: { code: 'int main() {}', passedPublicTests: 2 } },
+    });
   });
 
   afterEach(() => {
@@ -129,7 +150,12 @@ describe('RT-4 Code Submission', () => {
   it('should enable submit button only after running code', async () => {
     await given(async () => {
       render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
+        <MatchContainer challengeId={challengeId} studentId={studentId} />,
+        {
+          wrapper: getMockedStoreWrapper({
+            auth: { user: { id: 1, role: 'student' }, isLoggedIn: true },
+          }),
+        }
       );
     });
 
@@ -204,10 +230,65 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
+  it('re-submits last successful code if new submission fails to compile', async () => {
+    const goodCode = 'int main() {}';
+    const badCode = 'broken';
+
+    mockSubmitSubmission.mockImplementation(({ code }) =>
+      Promise.resolve({ success: code !== badCode })
+    );
+    mockGetLastSubmission.mockResolvedValue({
+      success: true,
+      data: { submission: { code: goodCode } },
+    });
+
+    await given(async () => {
+      render(
+        <MatchContainer challengeId={challengeId} studentId={studentId} />
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    // First run + submit with good code
+    await when(async () => {
+      await clickRunAndWait();
+      fireEvent.click(screen.getByTestId('submit-btn'));
+    });
+
+    // Update code to a bad one and try submitting again
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('set-bad-code'));
+      fireEvent.click(screen.getByTestId('run-btn'));
+    });
+
+    // Trigger submit with bad code first then fallback to last success
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('submit-btn'));
+    });
+
+    await then(async () => {
+      await waitFor(() => {
+        expect(mockSubmitSubmission).toHaveBeenCalledTimes(1);
+      });
+      expect(mockSubmitSubmission).toHaveBeenCalledWith({
+        matchId: 456,
+        code: badCode,
+      });
+      expect(mockGetLastSubmission).toHaveBeenCalledWith(456);
+    });
+  });
+
   it('should handle submission failure', async () => {
-    mockSubmitSubmission.mockResolvedValue({
+    mockSubmitSubmission.mockResolvedValueOnce({
       success: false,
       error: { message: 'Compilation failed' },
+    });
+    mockGetLastSubmission.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'No submission found' },
     });
 
     await given(async () => {
@@ -242,9 +323,7 @@ describe('RT-4 Code Submission', () => {
     await then(async () => {
       await waitFor(
         () => {
-          expect(screen.getByTestId('error')).toHaveTextContent(
-            'Compilation failed'
-          );
+          expect(screen.getByText(/Compilation failed/)).toBeInTheDocument();
         },
         { timeout: 2000 }
       );

@@ -25,6 +25,7 @@ import {
   FieldError,
 } from '#components/common/Field';
 import { Input } from '#components/common/Input';
+import useRoleGuard from '#js/useRoleGuard';
 
 import styles from './page.module.css';
 
@@ -34,7 +35,12 @@ export default function HomePage() {
     { id: 2, name: 'Delaram' },
     { id: 3, name: 'Aida' },
   ];
+  const { isAuthorized } = useRoleGuard({
+    allowedRoles: ['teacher', 'admin'],
+  });
   const [error, setError] = useState(null);
+
+  if (!isAuthorized) return null;
 
   const handleBlur = (e) => {
     if (!e.target.value.trim()) {

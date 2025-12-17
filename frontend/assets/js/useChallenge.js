@@ -118,6 +118,14 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const getLastSubmission = useCallback(
+    async (matchId) => {
+      const url = `${API_BASE}/submissions/last?matchId=${matchId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
+
   const runCode = useCallback(
     async ({ matchSettingId, code, language }) => {
       const url = `${API_BASE}/run`;
@@ -149,6 +157,7 @@ export default function useChallenge() {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
     submitSubmission,
+    getLastSubmission,
     runCode,
   };
 }

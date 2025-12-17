@@ -39,10 +39,12 @@ describe('Submission API', () => {
     transaction = await sequelize.transaction();
 
     try {
+      const suffix = Date.now();
       user = await User.create(
         {
-          username: `testuser_${Date.now()}`,
+          username: `testuser_${suffix}`,
           password: 'testpassword123',
+          email: `testuser_${suffix}@mail.com`,
           role: 'student',
         },
         { transaction }

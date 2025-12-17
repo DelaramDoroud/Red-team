@@ -10,7 +10,7 @@ const useFetchData = () => {
     async (response) => {
       if (response.status === 401) {
         dispatch(clearUser());
-        window.location = '/';
+        window.location = '/login';
         return { error: 'User not logged in' };
       }
       if (response.status >= 400) {
@@ -28,7 +28,10 @@ const useFetchData = () => {
     async (url, options = {}) => {
       setLoading(true);
       try {
-        const response = await fetch(url, options);
+        const response = await fetch(url, {
+          credentials: 'include',
+          ...options,
+        });
         const data = await handleResponse(response);
         setLoading(false);
         return data;

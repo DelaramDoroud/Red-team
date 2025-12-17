@@ -11,6 +11,7 @@ import {
 import useChallenge from '#js/useChallenge';
 
 import { ChallengeStatus } from '#js/constants';
+import useRoleGuard from '#js/useRoleGuard';
 import { DurationProvider } from './(context)/DurationContext';
 
 // shared layout for both /match and /result
@@ -21,10 +22,17 @@ export default function ChallengeLayout({ children }) {
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const studentId = 1;
+  const {
+    user,
+    isAuthorized,
+    loading: authLoading,
+  } = useRoleGuard({
+    allowedRoles: ['student'],
+  });
+  const studentId = user?.id;
 
   useEffect(() => {
-    if (!challengeId || !studentId) return () => {};
+    if (!challengeId || !studentId || !isAuthorized) return () => {};
 
     let cancelled = false;
 
@@ -64,8 +72,8 @@ export default function ChallengeLayout({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [challengeId, studentId, getChallengeMatches]);
-  const { status, title, duration, startPhaseOneDateTime } =
+  }, [challengeId, studentId, getChallengeMatches, isAuthorized]);
+  const { status, title, duration, startPhaseOneDateTime, startDatetime } =
     challengeData || {};
   const phaseLabel = () => {
     switch (status) {
@@ -97,15 +105,18 @@ export default function ChallengeLayout({ children }) {
           </CardContent>
         )}
       </Card>
-      <DurationProvider
-        value={{
-          duration: Number(duration) || 0,
-          challengeId,
-          startPhaseOneDateTime,
-        }}
-      >
-        {children}
-      </DurationProvider>
+      {isAuthorized && !authLoading && (
+        <DurationProvider
+          value={{
+            duration: Number(duration) || 0,
+            challengeId,
+            startPhaseOneDateTime,
+            startDatetime,
+          }}
+        >
+          {children}
+        </DurationProvider>
+      )}
     </div>
   );
 }

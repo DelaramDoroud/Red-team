@@ -33,38 +33,88 @@ const formatDateTime = (value) => {
 
 export default function ChallengeDetailPage() {
   const params = useParams();
-  const { getChallengeMatches } = useChallenge();
+  const { getChallengeMatches, assignChallenge, getChallengeParticipants } =
+    useChallenge();
   const challengeId = params?.id;
 
   const [challenge, setChallenge] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [studentCount, setStudentCount] = useState(0);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
     setError(null);
     setLoading(true);
     try {
-      const res = await getChallengeMatches(challengeId);
-      if (res?.success) {
-        setChallenge(res.challenge);
-        setAssignments(res.assignments || []);
+      const [matchesRes, participantsRes] = await Promise.all([
+        getChallengeMatches(challengeId),
+        getChallengeParticipants(challengeId),
+      ]);
+
+      if (matchesRes?.success) {
+        setChallenge(matchesRes.challenge);
+        setAssignments(matchesRes.assignments || []);
       } else {
-        setError(res?.error || res?.message || 'Unable to load matches');
+        setError(
+          matchesRes?.error || matchesRes?.message || 'Unable to load matches'
+        );
         setAssignments([]);
+      }
+
+      if (participantsRes?.success && Array.isArray(participantsRes.data)) {
+        setStudentCount(participantsRes.data.length);
+      } else {
+        setStudentCount(0);
       }
     } catch (_err) {
       setError('Unable to load matches');
       setAssignments([]);
+      setStudentCount(0);
     } finally {
       setLoading(false);
     }
-  }, [challengeId, getChallengeMatches]);
+  }, [challengeId, getChallengeMatches, getChallengeParticipants]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleAssign = useCallback(async () => {
+    if (!challengeId) return;
+    const now = new Date();
+    const canStartNow =
+      challenge?.startDatetime && new Date(challenge.startDatetime) <= now;
+    if (!canStartNow) {
+      setError('The challenge start time has not been reached yet.');
+      return;
+    }
+    if (!studentCount) {
+      setError('No students have joined this challenge yet.');
+      return;
+    }
+    setAssigning(true);
+    setError(null);
+    try {
+      const res = await assignChallenge(challengeId);
+      if (res?.success === false) {
+        setError(res?.error || res?.message || 'Unable to assign students');
+      }
+      await load();
+    } catch (_err) {
+      setError('Unable to assign students');
+    } finally {
+      setAssigning(false);
+    }
+  }, [
+    assignChallenge,
+    challengeId,
+    load,
+    studentCount,
+    challenge?.startDatetime,
+  ]);
 
   const statusBadge = useMemo(() => {
     const tone =
@@ -103,6 +153,11 @@ export default function ChallengeDetailPage() {
           <Button variant='outline' onClick={load} disabled={loading}>
             {loading ? 'Refreshing...' : 'Refresh'}
           </Button>
+          {challenge?.status === ChallengeStatus.PUBLIC ? (
+            <Button onClick={handleAssign} disabled={assigning || loading}>
+              {assigning ? 'Assigning...' : 'Assign students'}
+            </Button>
+          ) : null}
         </div>
       </div>
 

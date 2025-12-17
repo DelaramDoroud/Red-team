@@ -71,11 +71,25 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // Check compilation: exitCode !== 0 or stderr contains "error"
-    const compilationFailed = runResponse.data.results?.some(
+    const results = runResponse.data.results || [];
+    const summary = runResponse.data.summary || {};
+    const passedCount =
+      typeof summary.passed === 'number'
+        ? summary.passed
+        : results.filter((r) => r.passed || r.exitCode === 0).length;
+    const totalCount =
+      typeof summary.total === 'number'
+        ? summary.total
+        : Array.isArray(results)
+          ? results.length
+          : 0;
+
+    // Check compilation / pass status
+    const compilationFailed = results.some(
       (r) =>
         r.exitCode !== 0 ||
-        (r.stderr && r.stderr.toLowerCase().includes('error'))
+        (r.stderr && r.stderr.toLowerCase().includes('error')) ||
+        r.passed === false
     );
 
     if (compilationFailed) {
@@ -94,11 +108,18 @@ router.post('/submissions', async (req, res) => {
       let submission = await Submission.findOne({
         where: { matchId },
         transaction,
+        lock: transaction.LOCK.UPDATE,
       });
 
       if (submission) {
-        submission.code = code;
         submission.submissions_count = (submission.submissions_count || 0) + 1;
+        if (
+          passedCount > (submission.passed_public_tests || 0) ||
+          submission.code == null
+        ) {
+          submission.code = code;
+          submission.passed_public_tests = passedCount;
+        }
         submission.updatedAt = new Date();
         await submission.save({ transaction });
       } else {
@@ -108,6 +129,7 @@ router.post('/submissions', async (req, res) => {
             challengeParticipantId: match.challengeParticipantId,
             code,
             submissions_count: 1,
+            passed_public_tests: passedCount,
           },
           { transaction }
         );
@@ -126,8 +148,13 @@ router.post('/submissions', async (req, res) => {
             challengeParticipantId: submission.challengeParticipantId,
             code: submission.code,
             submissionsCount: submission.submissions_count,
+            passedPublicTests: submission.passed_public_tests,
+            totalPublicTests: totalCount,
             createdAt: submission.createdAt,
             updatedAt: submission.updatedAt,
+            savedNew:
+              submission.code === code &&
+              passedCount >= (submission.passed_public_tests || 0),
           },
         },
       });
@@ -167,6 +194,7 @@ router.get('/submission/:id', async (req, res) => {
           matchId: submission.matchId,
           code: submission.code,
           submissionsCount: submission.submissions_count,
+          passedPublicTests: submission.passed_public_tests,
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         },
@@ -174,6 +202,48 @@ router.get('/submission/:id', async (req, res) => {
     });
   } catch (error) {
     logger.error('Get submission error:', error);
+    handleException(res, error);
+  }
+});
+
+router.get('/submissions/last', async (req, res) => {
+  try {
+    const matchId = Number(req.query.matchId);
+    if (!matchId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'matchId is required' },
+      });
+    }
+
+    const submission = await Submission.findOne({
+      where: { matchId },
+      order: [['updatedAt', 'DESC']],
+    });
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'No submission found for this match' },
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        submission: {
+          id: submission.id,
+          matchId: submission.matchId,
+          code: submission.code,
+          submissionsCount: submission.submissions_count,
+          passedPublicTests: submission.passed_public_tests,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Get last submission error:', error);
     handleException(res, error);
   }
 });

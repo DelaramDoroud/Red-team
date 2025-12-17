@@ -12,6 +12,14 @@ module.exports = {
       'error',
       { devDependencies: ['tests/**', 'vitest.config.js'] },
     ],
+    'jsx-a11y/label-has-associated-control': [
+      'error',
+      {
+        controlComponents: ['Input'],
+        depth: 3,
+        assert: 'either',
+      },
+    ],
   },
   settings: {
     'import/resolver': {

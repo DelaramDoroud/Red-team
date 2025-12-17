@@ -47,7 +47,7 @@ export default function MatchView({
   isTimeUp,
   isCompiled,
 }) {
-  const { duration } = useDuration();
+  const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -193,6 +193,7 @@ export default function MatchView({
         <Timer
           duration={duration}
           challengeId={challengeId}
+          startTime={startPhaseOneDateTime || startDatetime}
           onFinish={timerFinishHandler}
         />
       </div>

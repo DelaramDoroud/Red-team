@@ -2,13 +2,21 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import logo from '#img/logo.jpg';
-import { useEffect, useState } from 'react';
 import { Button } from '#components/common/Button';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { fetchUserInfo, logoutUser } from '#js/store/slices/auth';
 import styles from './Header.module.css';
 
 export default function Header() {
+  const router = useRouter();
+  const dispatch = useAppDispatch();
   const [isDark, setIsDark] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { user, isLoggedIn, loading } = useAppSelector((state) => state.auth);
+  const fetchedUserRef = useRef(false);
 
   useEffect(() => {
     // Initialize theme from localStorage or system preference
@@ -36,6 +44,42 @@ export default function Header() {
     });
   };
 
+  useEffect(() => {
+    if (fetchedUserRef.current || loading || isLoggedIn || user) return;
+    fetchedUserRef.current = true;
+    dispatch(fetchUserInfo());
+  }, [dispatch, isLoggedIn, loading, user]);
+
+  const navLinks = useMemo(() => {
+    if (isLoggedIn && user?.role === 'student') {
+      return [{ href: '/student/challenges', label: 'Students' }];
+    }
+    if (isLoggedIn) {
+      return [
+        { href: '/', label: 'Dashboard' },
+        { href: '/challenges', label: 'Challenges' },
+        { href: '/new-challenge', label: 'New Challenge' },
+      ];
+    }
+    return [];
+  }, [isLoggedIn, user]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await dispatch(logoutUser()).unwrap();
+      router.push('/login');
+    } catch (err) {
+      setIsLoggingOut(false);
+      return;
+    }
+    setIsLoggingOut(false);
+  };
+
+  const handleLogin = () => {
+    router.push('/login');
+  };
+
   return (
     <header className={styles.header}>
       <Link href='/' className={styles.logo}>
@@ -52,20 +96,20 @@ export default function Header() {
         <span className={styles['logo-text']}>CodyMatch</span>
       </Link>
       <div className={styles.actions}>
-        <nav className={styles.nav}>
-          <Link href='/' className={styles['nav-link']}>
-            Dashboard
-          </Link>
-          <Link href='/challenges' className={styles['nav-link']}>
-            Challenges
-          </Link>
-          <Link href='/student/challenges' className={styles['nav-link']}>
-            Students
-          </Link>
-          <Link href='/new-challenge' className={styles['nav-link']}>
-            New Challenge
-          </Link>
-        </nav>
+        {navLinks.length > 0 && (
+          <nav className={styles.nav}>
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={styles['nav-link']}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+
         <Button
           type='button'
           variant='outline'
@@ -78,6 +122,26 @@ export default function Header() {
           <span aria-hidden>{isDark ? '🌞' : '🌙'}</span>
           <span className='sr-only'>Toggle theme</span>
         </Button>
+        {isLoggedIn && user ? (
+          <div className={styles.user}>
+            <div className={styles.userMeta}>
+              <span className={styles.userName}>{user.username}</span>
+              <span className={styles.userRole}>{user.role}</span>
+            </div>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? 'Logout…' : 'Logout'}
+            </Button>
+          </div>
+        ) : (
+          <Button variant='secondary' size='sm' onClick={handleLogin}>
+            Login
+          </Button>
+        )}
       </div>
     </header>
   );

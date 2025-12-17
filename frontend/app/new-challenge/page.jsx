@@ -1,15 +1,19 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useMatchSettings from '#js/useMatchSetting';
 import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
 import * as Constants from '#js/constants';
+import useRoleGuard from '#js/useRoleGuard';
 import styles from './page.module.css';
 
 export default function NewChallengePage() {
+  const { isAuthorized } = useRoleGuard({
+    allowedRoles: ['teacher', 'admin'],
+  });
   const router = useRouter();
   const { getMatchSettingsReady } = useMatchSettings();
   const { createChallenge } = useChallenge();
@@ -78,14 +82,8 @@ export default function NewChallengePage() {
           const day = String(minEndDate.getDate()).padStart(2, '0');
           const hours = String(minEndDate.getHours()).padStart(2, '0');
           const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
-          const minEndStr = `${year}-${month}-${day}T${hours}:${minutes}`;
 
-          // if (
-          //   !newChallenge.endDatetime ||
-          //   newChallenge.endDatetime < minEndStr
-          // ) {
-          newChallenge.endDatetime = minEndStr;
-          // }
+          newChallenge.endDatetime = `${year}-${month}-${day}T${hours}:${minutes}`;
         }
       }
     }
@@ -150,6 +148,7 @@ export default function NewChallengePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     // console.log("Challenge to save: ", challenge);
+    if (!isAuthorized) return;
     if (!challenge.matchSettingIds || challenge.matchSettingIds.length === 0) {
       setError('Select at least one match setting');
       return;
@@ -207,6 +206,8 @@ export default function NewChallengePage() {
       }
     }
   };
+
+  if (!isAuthorized) return null;
 
   return (
     <>

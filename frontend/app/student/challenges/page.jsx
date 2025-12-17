@@ -12,6 +12,7 @@ import {
 } from '#components/common/card';
 import { ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
+import useRoleGuard from '#js/useRoleGuard';
 
 const statusStyles = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/15',
@@ -38,7 +39,8 @@ const formatDateTime = (value) => {
 
 export default function StudentChallengesPage() {
   const router = useRouter();
-  const STUDENT_ID = 1;
+  const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
+  const studentId = user?.id;
   const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
     useChallenge();
 
@@ -81,6 +83,7 @@ export default function StudentChallengesPage() {
   }, [getChallenges]);
 
   useEffect(() => {
+    if (!isAuthorized || !studentId) return undefined;
     setNow(new Date());
     loadChallenges();
 
@@ -90,7 +93,7 @@ export default function StudentChallengesPage() {
     }, 3000);
 
     return () => clearInterval(id);
-  }, [loadChallenges]);
+  }, [loadChallenges, isAuthorized, studentId]);
 
   const visibleChallenges = useMemo(() => {
     const available = filterChallenges(challenges, now);
@@ -98,17 +101,16 @@ export default function StudentChallengesPage() {
   }, [challenges, filterChallenges, now]);
 
   useEffect(() => {
-    if (!visibleChallenges.length) return undefined;
+    if (!visibleChallenges.length || !studentId || !isAuthorized)
+      return undefined;
 
     const challenge = visibleChallenges[0];
     let cancelled = false;
 
     (async () => {
       try {
-        const res = await getChallengeForJoinedStudent(
-          challenge.id,
-          STUDENT_ID
-        );
+        const res = await getChallengeForJoinedStudent(challenge.id, studentId);
+
         if (!cancelled && res?.success && res.data) {
           setJoined((prev) => ({ ...prev, [challenge.id]: true }));
         }
@@ -122,10 +124,16 @@ export default function StudentChallengesPage() {
     return () => {
       cancelled = true;
     };
-  }, [visibleChallenges, getChallengeForJoinedStudent]);
+  }, [
+    visibleChallenges,
+    getChallengeForJoinedStudent,
+    studentId,
+    isAuthorized,
+  ]);
 
   useEffect(() => {
-    if (!visibleChallenges.length) return undefined;
+    if (!visibleChallenges.length || !studentId || !isAuthorized)
+      return undefined;
 
     const challenge = visibleChallenges[0];
     if (!joined[challenge.id]) return undefined;
@@ -133,10 +141,7 @@ export default function StudentChallengesPage() {
     const pollStatus = async () => {
       if (redirectingRef.current) return;
       try {
-        const res = await getChallengeForJoinedStudent(
-          challenge.id,
-          STUDENT_ID
-        );
+        const res = await getChallengeForJoinedStudent(challenge.id, studentId);
         if (!res?.success || !res.data) return;
 
         const { status, startPhaseOneDateTime } = res.data;
@@ -171,7 +176,14 @@ export default function StudentChallengesPage() {
     return () => {
       clearInterval(id);
     };
-  }, [visibleChallenges, joined, getChallengeForJoinedStudent, router]);
+  }, [
+    visibleChallenges,
+    joined,
+    getChallengeForJoinedStudent,
+    router,
+    studentId,
+    isAuthorized,
+  ]);
 
   useEffect(() => {
     if (!countdown) return undefined;
@@ -197,8 +209,17 @@ export default function StudentChallengesPage() {
   const handleJoin = async (challengeId) => {
     setError(null);
     setPendingActions((prev) => ({ ...prev, [challengeId]: { join: true } }));
+    if (!studentId) {
+      setError('Profilo studente non disponibile.');
+      setPendingActions((prev) => {
+        const next = { ...prev };
+        delete next[challengeId];
+        return next;
+      });
+      return;
+    }
     try {
-      const res = await joinChallenge(challengeId, STUDENT_ID);
+      const res = await joinChallenge(challengeId, studentId);
       if (res?.success) {
         setJoined((prev) => ({ ...prev, [challengeId]: true }));
       } else {
@@ -267,6 +288,8 @@ export default function StudentChallengesPage() {
       </div>
     );
   };
+
+  if (!isAuthorized || !studentId) return null;
 
   return (
     <div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>

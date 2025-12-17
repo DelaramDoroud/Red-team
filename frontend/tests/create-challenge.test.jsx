@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import NewChallengePage from '../app/new-challenge/page';
+import { getMockedStoreWrapper } from './test-redux-provider';
 
 // Helper function to get a future datetime string in the format required by datetime-local input
 const getFutureDateTime = (hoursFromNow = 1) => {
@@ -25,6 +26,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  usePathname: () => '/new-challenge',
 }));
 
 const mockGetMatchSettingsReady = vi.fn();
@@ -43,6 +45,27 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+vi.mock('#js/store/hooks', () => ({
+  useAppDispatch: () => vi.fn(),
+  useAppSelector: (selector) =>
+    selector({
+      auth: {
+        user: { id: 1, role: 'teacher' },
+        isLoggedIn: true,
+        loading: false,
+      },
+    }),
+  useAppStore: () => ({}),
+}));
+
+vi.mock('#js/store/slices/auth', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    fetchUserInfo: () => async () => ({}),
+  };
+});
+
 describe('Create Challenge Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,7 +83,7 @@ describe('Create Challenge Page', () => {
       success: true,
       data: [{ id: 1, problemTitle: 'Ready Problem 1', status: 'ready' }],
     });
-    render(<NewChallengePage />);
+    render(<NewChallengePage />, { wrapper: getMockedStoreWrapper() });
     expect(await screen.findByText('Ready Problem 1')).toBeInTheDocument();
     const rows = screen.getAllByRole('row');
     expect(rows).toHaveLength(2);
@@ -68,7 +91,7 @@ describe('Create Challenge Page', () => {
 
   it('AC: Match setting row can be toggled on/off', async () => {
     const user = userEvent.setup();
-    render(<NewChallengePage />);
+    render(<NewChallengePage />, { wrapper: getMockedStoreWrapper() });
     const checkboxes = await screen.findAllByLabelText('select setting', {
       selector: 'input[type="checkbox"]',
     });
@@ -82,7 +105,7 @@ describe('Create Challenge Page', () => {
 
   it('AC: Teacher cannot create a challenge unless at least one match setting is selected', async () => {
     const user = userEvent.setup();
-    render(<NewChallengePage />);
+    render(<NewChallengePage />, { wrapper: getMockedStoreWrapper() });
 
     await screen.findByText('Ready Problem 1');
 
@@ -118,7 +141,7 @@ describe('Create Challenge Page', () => {
       challenge: { id: 123 },
     });
 
-    render(<NewChallengePage />);
+    render(<NewChallengePage />, { wrapper: getMockedStoreWrapper() });
 
     await user.type(
       screen.getByLabelText(/Challenge Name/i),

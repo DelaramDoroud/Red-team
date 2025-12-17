@@ -348,6 +348,7 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         title: challenge.title,
         status: challenge.status,
         startDatetime: challenge.startDatetime,
+        startPhaseOneDateTime: challenge.startPhaseOneDateTime,
         duration: challenge.duration,
       },
       assignments: Object.values(grouped),
