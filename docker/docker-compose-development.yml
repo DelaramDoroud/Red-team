@@ -11,6 +11,7 @@ services:
       - "3000:3000"
     volumes:
       - ${FRONTEND_FOLDER}:/usr/app
+    stop_grace_period: 0s
   code-runner-image:
     image: docker:cli
     volumes:
@@ -18,6 +19,7 @@ services:
     command: sh -c "echo 'Pulling Judge0 compilers image...' && docker pull ${CODE_RUNNER_IMAGE:-judge0/compilers:latest} && echo '✓ Code runner image ready'"
     networks:
       - default
+    stop_grace_period: 0s
   backend:
     # Run as root initially so entrypoint can fix permissions, then it switches to the user
     build:
@@ -37,9 +39,11 @@ services:
       - db
       - frontend
       - code-runner-image
+    stop_grace_period: 0s
   db:
     volumes:
       - db_data:/var/lib/postgresql/data
+    stop_grace_period: 0s
 
 volumes:
   code_runner_temp:
