@@ -5,7 +5,14 @@ import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({ challenge, actions, href }) {
   const router = useRouter();
-  const { title, duration, startDatetime, status, participants } = challenge;
+  const {
+    title,
+    duration,
+    startDatetime,
+    status,
+    participants,
+    allowedNumberOfReview,
+  } = challenge;
 
   const start = startDatetime ? new Date(startDatetime) : null;
   const readableDate = start ? start.toLocaleString() : 'TBD';
@@ -55,6 +62,20 @@ export default function ChallengeCard({ challenge, actions, href }) {
             <dd>{participants}</dd>
           </div>
         )}
+        <div>
+          <dt>Expected reviews / submission</dt>
+          <dd>
+            <input
+              type='number'
+              className={styles.numberInput}
+              disabled
+              value={allowedNumberOfReview ?? 5}
+              min={2}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
+          </dd>
+        </div>
       </dl>
       {actions ? (
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions
