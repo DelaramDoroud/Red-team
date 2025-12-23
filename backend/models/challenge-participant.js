@@ -57,6 +57,12 @@ ChallengeParticipant.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+  ChallengeParticipant.hasMany(models.PeerReviewAssignment, {
+    as: 'assignedReviews',
+    foreignKey: 'reviewerId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
 };
 
 ChallengeParticipant.seed = async function () {

@@ -71,6 +71,12 @@ Submission.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+  Submission.hasMany(models.PeerReviewAssignment, {
+    as: 'peerReviewAssignments',
+    foreignKey: 'submissionId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
 };
 
 export default Submission;
