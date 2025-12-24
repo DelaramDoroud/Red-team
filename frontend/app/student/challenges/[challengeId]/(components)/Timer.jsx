@@ -1,64 +1,69 @@
+'use client';
+
 import { useEffect, useRef, useState } from 'react';
 import { useDuration } from '../(context)/DurationContext';
 
 function Timer({ duration, challengeId, onFinish }) {
   const { startPhaseOneDateTime } = useDuration() || {};
+
+  const endTimeRef = useRef(null);
+  const finishedRef = useRef(false);
+  const intervalRef = useRef(null);
+
   const [timeLeft, setTimeLeft] = useState(null);
-  const hasFinishedRef = useRef(false);
 
   useEffect(() => {
-    // Reset timer state when challenge changes (each challenge has independent timer state)
-    hasFinishedRef.current = false;
-    setTimeLeft(null);
+    if (!duration || duration <= 0) return undefined;
 
-    if (!duration || duration <= 0) {
-      return undefined;
-    }
+    finishedRef.current = false;
+    clearInterval(intervalRef.current);
 
-    const durationSeconds = duration * 60; // convert minutes → seconds
+    const durationSeconds = duration * 60;
 
     // Use server's startPhaseOneDateTime if available, otherwise fallback to localStorage
     let startTime;
-
     if (startPhaseOneDateTime) {
       // Use server's actual challenge start time (challenge-specific)
       startTime = new Date(startPhaseOneDateTime).getTime();
     } else {
       // Fallback: Create a unique storage key for this challenge (challenge-specific)
       const storageKey = `challenge-start-${challengeId}`;
-      const storedStartTime = localStorage.getItem(storageKey);
-
-      if (!storedStartTime) {
-        // first time entering challenge → store Date.now()
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        startTime = Number(stored);
+      } else {
         startTime = Date.now();
         localStorage.setItem(storageKey, startTime);
-      } else {
-        startTime = Number(storedStartTime);
       }
     }
 
-    // Calculate endTime from start time (challenge-specific)
-    const endTime = startTime + durationSeconds * 1000;
-    // 4. Create timer interval
-    const intervalId = setInterval(() => {
-      const diff = Math.floor((endTime - Date.now()) / 1000);
+    endTimeRef.current = startTime + durationSeconds * 1000;
+
+    const tick = () => {
+      const diff = Math.floor((endTimeRef.current - Date.now()) / 1000);
 
       if (diff <= 0) {
         setTimeLeft(0);
-        clearInterval(intervalId);
-        if (!hasFinishedRef.current && typeof onFinish === 'function') {
-          hasFinishedRef.current = true;
-          onFinish();
+
+        if (!finishedRef.current) {
+          finishedRef.current = true;
+          onFinish?.();
         }
-      } else {
-        setTimeLeft(diff);
+
+        clearInterval(intervalRef.current);
+        return;
       }
-    }, 1000);
 
-    return () => clearInterval(intervalId);
-  }, [duration, challengeId, onFinish, startPhaseOneDateTime]); // rerun if challenge changes or server start time updates
+      setTimeLeft(diff);
+    };
 
-  function formatTime(seconds) {
+    tick(); // immediate
+    intervalRef.current = setInterval(tick, 1000);
+
+    return () => clearInterval(intervalRef.current);
+  }, [duration, challengeId, startPhaseOneDateTime, onFinish]);
+
+  const formatTime = (seconds) => {
     if (seconds === null) return '--:--:--';
 
     const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
@@ -66,9 +71,13 @@ function Timer({ duration, challengeId, onFinish }) {
     const secs = String(seconds % 60).padStart(2, '0');
 
     return `${hours}:${mins}:${secs}`;
-  }
+  };
 
-  return <div data-testid='timer-value'>Timer: {formatTime(timeLeft)}</div>;
+  return (
+    <div data-testid='timer-value' className='font-mono tabular-nums'>
+      Timer: {formatTime(timeLeft)}
+    </div>
+  );
 }
 
 export default Timer;
