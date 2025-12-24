@@ -23,6 +23,7 @@ export default function NewChallengePage() {
     startDatetime: '',
     endDatetime: '',
     duration: 30,
+    allowedNumberOfReview: 5,
     matchSettingIds: [],
     status: Constants.ChallengeStatus.PUBLIC,
     durationPeerReview: 30,
@@ -53,7 +54,8 @@ export default function NewChallengePage() {
 
     if (
       event.target.name === 'duration' ||
-      event.target.name === 'durationPeerReview'
+      event.target.name === 'durationPeerReview' ||
+      event.target.name === 'allowedNumberOfReview'
     ) {
       const val = parseInt(event.target.value, 10);
       newChallenge[event.target.name] = Number.isNaN(val) ? 0 : val;
@@ -149,6 +151,15 @@ export default function NewChallengePage() {
     e.preventDefault();
     // console.log("Challenge to save: ", challenge);
     if (!isAuthorized) return;
+    if (
+      !Number.isInteger(challenge.allowedNumberOfReview) ||
+      challenge.allowedNumberOfReview < 2
+    ) {
+      setError(
+        'Expected Reviews per Submission must be an integer greater than or equal to 2.'
+      );
+      return;
+    }
     if (!challenge.matchSettingIds || challenge.matchSettingIds.length === 0) {
       setError('Select at least one match setting');
       return;
@@ -301,6 +312,25 @@ export default function NewChallengePage() {
                     onChange={handleDataField}
                     className={styles.number}
                     min={1}
+                    required
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label htmlFor='allowedNumberOfReview'>
+                  Expected Reviews per Submission
+                  <input
+                    id='allowedNumberOfReview'
+                    type='number'
+                    name='allowedNumberOfReview'
+                    value={challenge.allowedNumberOfReview}
+                    onChange={handleDataField}
+                    className={styles.number}
+                    min={2}
                     required
                   />
                 </label>

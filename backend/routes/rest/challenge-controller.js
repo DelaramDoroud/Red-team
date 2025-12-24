@@ -43,7 +43,7 @@ router.post('/challenges', async (req, res) => {
     startDatetime: req.body.startDatetime,
     endDatetime: req.body.endDatetime,
     durationPeerReview: req.body.durationPeerReview,
-    allowedNumberOfReview: req.body.allowedNumberOfReview || 0,
+    allowedNumberOfReview: req.body.allowedNumberOfReview || 5,
     status: req.body.status || 'private',
   };
   const matchSettingIds = req.body.matchSettingIds || [];
