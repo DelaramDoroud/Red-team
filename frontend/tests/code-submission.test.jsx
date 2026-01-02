@@ -6,10 +6,11 @@ import {
   fireEvent,
   act,
 } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
 import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
 import { given, when, andThen as then } from './bdd';
-import { getMockedStoreWrapper } from './test-redux-provider';
+import { getMockedStore, getMockedStoreWrapper } from './test-redux-provider';
 
 // Mocks
 const mockGetStudentAssignedMatchSetting = vi.fn();
@@ -111,6 +112,27 @@ describe('RT-4 Code Submission', () => {
     });
   };
 
+  const renderMatchContainer = (stateOverrides = {}) => {
+    const baseState = {
+      auth: { user: { id: studentId, role: 'student' }, isLoggedIn: true },
+    };
+    const preloadedState = {
+      ...baseState,
+      ...stateOverrides,
+      auth: {
+        ...baseState.auth,
+        ...(stateOverrides.auth || {}),
+      },
+    };
+
+    return render(
+      <MatchContainer challengeId={challengeId} studentId={studentId} />,
+      {
+        wrapper: getMockedStoreWrapper(preloadedState),
+      }
+    );
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Default successful match setting response
@@ -149,14 +171,7 @@ describe('RT-4 Code Submission', () => {
 
   it('should enable submit button only after running code', async () => {
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />,
-        {
-          wrapper: getMockedStoreWrapper({
-            auth: { user: { id: 1, role: 'student' }, isLoggedIn: true },
-          }),
-        }
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -196,9 +211,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     // Wait for component to be fully loaded
@@ -240,6 +253,57 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
+  it('persists last successful submission in the store', async () => {
+    mockSubmitSubmission.mockResolvedValue({ success: true });
+
+    const store = getMockedStore({
+      auth: { user: { id: studentId, role: 'student' }, isLoggedIn: true },
+    });
+
+    await given(async () => {
+      render(
+        <Provider store={store}>
+          <MatchContainer challengeId={challengeId} studentId={studentId} />
+        </Provider>
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await when(async () => {
+      await clickRunAndWait();
+    });
+
+    await then(async () => {
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('submit-btn')).not.toBeDisabled();
+        },
+        { timeout: 2000 }
+      );
+    });
+
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('submit-btn'));
+    });
+
+    await then(async () => {
+      await waitFor(() => {
+        expect(mockSubmitSubmission).toHaveBeenCalledWith({
+          matchId: 456,
+          code: expect.any(String),
+        });
+      });
+      await waitFor(() => {
+        const entry =
+          store.getState().ui.challengeDrafts?.[studentId]?.['match-456'];
+        expect(entry?.lastSuccessful).toBe('int main() {}');
+      });
+    });
+  });
+
   it('re-submits last successful code if new submission fails to compile', async () => {
     const goodCode = 'int main() {}';
     const badCode = 'broken';
@@ -253,9 +317,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -302,9 +364,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     // Wait for component to be fully loaded
@@ -344,9 +404,7 @@ describe('RT-4 Code Submission', () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     // Wait for component to be fully loaded
@@ -377,9 +435,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -410,9 +466,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -445,9 +499,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -484,9 +536,7 @@ describe('RT-4 Code Submission', () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -527,9 +577,7 @@ describe('RT-4 Code Submission', () => {
     mockSubmitSubmission.mockReturnValue(submissionPromise);
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -577,9 +625,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {
@@ -623,9 +669,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await given(async () => {
-      render(
-        <MatchContainer challengeId={challengeId} studentId={studentId} />
-      );
+      renderMatchContainer();
     });
 
     await waitFor(() => {

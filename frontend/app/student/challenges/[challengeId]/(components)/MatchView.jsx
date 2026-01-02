@@ -48,6 +48,8 @@ export default function MatchView({
   isCompiled,
   onTryAgain,
   onClean,
+  onRestore,
+  hasRestorableCode,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
@@ -68,6 +70,12 @@ export default function MatchView({
     canSubmit && isSubmittingActive && !isSubmittingFinal && !isTimeUp;
   const canClean =
     Boolean(onClean) && !isBusy && !isTimeUp && !isChallengeFinished;
+  const canRestore =
+    Boolean(onRestore) &&
+    hasRestorableCode &&
+    !isBusy &&
+    !isTimeUp &&
+    !isChallengeFinished;
 
   const handleTimerEnd = async () => {
     if (hasTimerFinished.current) return;
@@ -317,6 +325,13 @@ export default function MatchView({
                   disabled={!canClean}
                 >
                   Clean
+                </Button>
+                <Button
+                  variant='outline'
+                  onClick={onRestore}
+                  disabled={!canRestore}
+                >
+                  Restore
                 </Button>
                 <Button onClick={onRun} disabled={isRunning || isTimeUp}>
                   {isRunning && <Loader2 className='h-4 w-4 animate-spin' />}

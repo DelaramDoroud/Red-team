@@ -8,40 +8,36 @@ import logo from '#img/logo.jpg';
 import { Button } from '#components/common/Button';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { fetchUserInfo, logoutUser } from '#js/store/slices/auth';
+import { setTheme } from '#js/store/slices/ui';
 import styles from './Header.module.css';
 
 export default function Header() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const [isDark, setIsDark] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { user, isLoggedIn, loading } = useAppSelector((state) => state.auth);
+  const theme = useAppSelector((state) => state.ui.theme);
+  const isDark = theme === 'dark';
   const fetchedUserRef = useRef(false);
 
   useEffect(() => {
-    // Initialize theme from localStorage or system preference
-    const stored =
-      typeof window !== 'undefined' && localStorage.getItem('theme');
     const prefersDark =
       typeof window !== 'undefined' &&
       window.matchMedia &&
       window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const enableDark = stored ? stored === 'dark' : prefersDark;
-    setIsDark(enableDark);
-    document.documentElement.classList.toggle('dark', enableDark);
-  }, []);
+    if (!theme) {
+      dispatch(setTheme(prefersDark ? 'dark' : 'light'));
+    }
+  }, [dispatch, theme]);
+
+  useEffect(() => {
+    if (!theme) return;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      document.documentElement.classList.toggle('dark', next);
-      try {
-        localStorage.setItem('theme', next ? 'dark' : 'light');
-      } catch (e) {
-        // ignore write errors (private mode, etc.)
-      }
-      return next;
-    });
+    const next = theme === 'dark' ? 'light' : 'dark';
+    dispatch(setTheme(next));
   };
 
   useEffect(() => {

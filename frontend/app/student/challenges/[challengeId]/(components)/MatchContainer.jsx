@@ -2,6 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import useChallenge from '#js/useChallenge';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import {
+  migrateChallengeKey,
+  setDraftCode,
+  setLastCompiledCode,
+  setLastSuccessfulCode,
+} from '#js/store/slices/ui';
 import MatchView from './MatchView';
 
 const CppCodeTemplate = `#include <bits/stdc++.h>
@@ -16,6 +23,7 @@ int main() {
 `;
 
 export default function MatchContainer({ challengeId, studentId }) {
+  const dispatch = useAppDispatch();
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
@@ -33,7 +41,6 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [code, setCode] = useState(CppCodeTemplate);
   const [runResult, setRunResult] = useState(null);
   const [testResults, setTestResults] = useState([]);
-  const [, setLastSuccessfulCode] = useState(null);
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +49,6 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
   const hasLoadedFromStorage = useRef(false);
-  const hasLoadedLastSuccess = useRef(false);
   const lastSuccessRef = useRef(null);
   const storageKeyBase = useMemo(
     () => (matchId ? `match-${matchId}` : `challenge-${challengeId}`),
@@ -55,46 +61,78 @@ export default function MatchContainer({ challengeId, studentId }) {
     return CppCodeTemplate;
   }, [matchData]);
 
+  const savedDraftEntry = useAppSelector((state) => {
+    if (!studentId) return null;
+    return state.ui.challengeDrafts?.[studentId]?.[storageKeyBase] || null;
+  });
+  const savedDraftCode = savedDraftEntry?.code || null;
+  const savedLastCompiled = savedDraftEntry?.lastCompiled || null;
+  const savedLastSuccess = savedDraftEntry?.lastSuccessful || null;
+
+  useEffect(() => {
+    if (!studentId || !matchId) return;
+    const fromKey = `challenge-${challengeId}`;
+    const toKey = `match-${matchId}`;
+    dispatch(
+      migrateChallengeKey({
+        userId: studentId,
+        fromKey,
+        toKey,
+      })
+    );
+  }, [dispatch, studentId, challengeId, matchId]);
+
+  const storeLastCompiled = useCallback(
+    (value) => {
+      if (!value || !value.trim() || !studentId) return;
+      dispatch(
+        setLastCompiledCode({
+          userId: studentId,
+          key: storageKeyBase,
+          code: value,
+        })
+      );
+    },
+    [dispatch, storageKeyBase, studentId]
+  );
+
   useEffect(() => {
     hasLoadedFromStorage.current = false;
-    hasLoadedLastSuccess.current = false;
-  }, [matchId]);
+  }, [matchId, challengeId]);
 
   useEffect(() => {
     if (!matchData) return;
     if (hasLoadedFromStorage.current) return;
-    if (typeof localStorage === 'undefined' || !localStorage.getItem) return;
 
-    const storageKey = `code-${storageKeyBase}`;
-    const savedCode = localStorage.getItem(storageKey);
-
-    if (savedCode !== null && savedCode.trim() !== '') {
-      setCode(savedCode);
-      hasLoadedFromStorage.current = true;
+    if (savedDraftCode && savedDraftCode.trim()) {
+      setCode(savedDraftCode);
     }
-    const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-    const savedLastSuccess = localStorage.getItem(lastSuccessKey);
-    if (
-      savedLastSuccess &&
-      savedLastSuccess.trim() &&
-      !hasLoadedLastSuccess.current
-    ) {
-      setLastSuccessfulCode(savedLastSuccess);
+    hasLoadedFromStorage.current = true;
+  }, [matchData, savedDraftCode]);
+
+  useEffect(() => {
+    if (savedLastSuccess && savedLastSuccess.trim()) {
       lastSuccessRef.current = savedLastSuccess;
-      hasLoadedLastSuccess.current = true;
+    } else {
+      lastSuccessRef.current = null;
     }
-  }, [storageKeyBase, matchData]);
+  }, [savedLastSuccess]);
 
   const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
   useEffect(() => {
     if (!matchData) return;
-    if (typeof localStorage === 'undefined' || !localStorage.setItem) return;
-    const storageKey = `code-${storageKeyBase}`;
-    localStorage.setItem(storageKey, code);
-  }, [code, matchData, storageKeyBase]);
+    if (!studentId) return;
+    dispatch(
+      setDraftCode({
+        userId: studentId,
+        key: storageKeyBase,
+        code,
+      })
+    );
+  }, [code, matchData, storageKeyBase, studentId, dispatch]);
 
-  // load StudentAssignedMatchSetting(Mtach)
+  // load StudentAssignedMatchSetting(Match)
   useEffect(() => {
     if (!challengeId || !studentId) return () => {};
 
@@ -114,9 +152,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       setIsTimeUp(false);
       setMatchData(null);
       setMatchId(null);
-      setLastSuccessfulCode(null);
       lastSuccessRef.current = null;
-      hasLoadedLastSuccess.current = false;
       hasLoadedFromStorage.current = false;
       setCode(CppCodeTemplate);
 
@@ -219,6 +255,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         setCanSubmit(true);
         setIsSubmittingActive(true);
         setTestResults([]);
+        storeLastCompiled(code);
         return;
       }
 
@@ -271,6 +308,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       setIsCompiled(true);
       setCanSubmit(true);
       setIsSubmittingActive(true);
+      storeLastCompiled(code);
     } catch (err) {
       setRunResult({
         type: 'error',
@@ -281,7 +319,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     } finally {
       setIsRunning(false);
     }
-  }, [challengeId, code, isTimeUp, matchData, runCode]);
+  }, [challengeId, code, isTimeUp, matchData, runCode, storeLastCompiled]);
 
   // Manual submit handler
   const handleSubmit = useCallback(async () => {
@@ -308,6 +346,9 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const resolvedMatchId = res.data.id;
       setMatchId(resolvedMatchId);
+      const persistKey = resolvedMatchId
+        ? `match-${resolvedMatchId}`
+        : storageKeyBase;
 
       if (!code.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
@@ -381,15 +422,15 @@ export default function MatchContainer({ challengeId, studentId }) {
         }
 
         setMessage(submissionMessage);
-        setLastSuccessfulCode(code);
         lastSuccessRef.current = code;
-        if (typeof localStorage !== 'undefined') {
-          try {
-            const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
-            localStorage.setItem(lastSuccessKey, code);
-          } catch {
-            // ignore storage failures
-          }
+        if (studentId) {
+          dispatch(
+            setLastSuccessfulCode({
+              userId: studentId,
+              key: persistKey,
+              code,
+            })
+          );
         }
         return true;
       }
@@ -402,15 +443,15 @@ export default function MatchContainer({ challengeId, studentId }) {
           lastValid?.data?.submission?.code || lastSuccessRef.current;
         if (fallbackCode && fallbackCode.trim()) {
           setMessage('New code failed. Kept your last valid submission.');
-          setLastSuccessfulCode(fallbackCode);
           lastSuccessRef.current = fallbackCode;
-          if (typeof localStorage !== 'undefined') {
-            try {
-              const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
-              localStorage.setItem(lastSuccessKey, fallbackCode);
-            } catch {
-              // ignore storage failures
-            }
+          if (studentId) {
+            dispatch(
+              setLastSuccessfulCode({
+                userId: studentId,
+                key: persistKey,
+                code: fallbackCode,
+              })
+            );
           }
           return true;
         }
@@ -443,6 +484,8 @@ export default function MatchContainer({ challengeId, studentId }) {
     code,
     submitSubmission,
     getLastSubmission,
+    dispatch,
+    storageKeyBase,
   ]);
 
   // Automatic submission when timer finishes
@@ -468,10 +511,18 @@ export default function MatchContainer({ challengeId, studentId }) {
         return false;
       }
 
-      setMatchId(res.data.id);
+      const resolvedMatchId = res.data.id;
+      setMatchId(resolvedMatchId);
+      const persistKey = resolvedMatchId
+        ? `match-${resolvedMatchId}`
+        : storageKeyBase;
 
       const trySubmit = async (payloadCode) =>
-        submitSubmission({ matchId, code: payloadCode, isAutomatic: true });
+        submitSubmission({
+          matchId: resolvedMatchId,
+          code: payloadCode,
+          isAutomatic: true,
+        });
 
       if (!code.trim()) {
         const fallbackCode = lastSuccessRef.current;
@@ -490,21 +541,21 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (submissionRes?.success) {
         setMessage('Thanks for your participation');
-        setLastSuccessfulCode(code);
         lastSuccessRef.current = code;
-        if (typeof localStorage !== 'undefined') {
-          try {
-            const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-            localStorage.setItem(lastSuccessKey, code);
-          } catch (e) {
-            // ignore storage failures
-          }
+        if (studentId) {
+          dispatch(
+            setLastSuccessfulCode({
+              userId: studentId,
+              key: persistKey,
+              code,
+            })
+          );
         }
         setIsChallengeFinished(true);
         return true;
       }
 
-      const lastValid = await getLastSubmission(matchId);
+      const lastValid = await getLastSubmission(resolvedMatchId);
       const fallbackCode =
         lastValid?.data?.submission?.code || lastSuccessRef.current;
       if (fallbackCode && fallbackCode.trim()) {
@@ -536,9 +587,9 @@ export default function MatchContainer({ challengeId, studentId }) {
     studentId,
     code,
     getLastSubmission,
-    matchId,
     submitSubmission,
     storageKeyBase,
+    dispatch,
   ]);
 
   const handleTryAgain = useCallback(() => {
@@ -559,6 +610,21 @@ export default function MatchContainer({ challengeId, studentId }) {
     setMessage(null);
     setError(null);
   }, [initialTemplate]);
+
+  const handleRestore = useCallback(() => {
+    const restoredCode = savedLastCompiled;
+    if (!restoredCode || !restoredCode.trim()) return;
+    setCode(restoredCode);
+    setRunResult(null);
+    setTestResults([]);
+    setIsCompiled(null);
+    setCanSubmit(false);
+    setIsSubmittingActive(false);
+    setMessage(null);
+    setError(null);
+  }, [savedLastCompiled]);
+
+  const hasRestorableCode = Boolean(savedLastCompiled?.trim());
 
   return (
     <MatchView
@@ -583,6 +649,8 @@ export default function MatchContainer({ challengeId, studentId }) {
       isChallengeFinished={isChallengeFinished}
       onTryAgain={handleTryAgain}
       onClean={handleClean}
+      onRestore={handleRestore}
+      hasRestorableCode={hasRestorableCode}
     />
   );
 }
