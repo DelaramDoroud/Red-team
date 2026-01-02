@@ -48,6 +48,12 @@ export default function MatchContainer({ challengeId, studentId }) {
     () => (matchId ? `match-${matchId}` : `challenge-${challengeId}`),
     [matchId, challengeId]
   );
+  const initialTemplate = useMemo(() => {
+    if (matchData?.starterCode && matchData.starterCode.trim().length > 0) {
+      return matchData.starterCode;
+    }
+    return CppCodeTemplate;
+  }, [matchData]);
 
   useEffect(() => {
     hasLoadedFromStorage.current = false;
@@ -543,6 +549,17 @@ export default function MatchContainer({ challengeId, studentId }) {
     setTestResults([]);
   }, []);
 
+  const handleClean = useCallback(() => {
+    setCode(initialTemplate);
+    setRunResult(null);
+    setTestResults([]);
+    setIsCompiled(null);
+    setCanSubmit(false);
+    setIsSubmittingActive(false);
+    setMessage(null);
+    setError(null);
+  }, [initialTemplate]);
+
   return (
     <MatchView
       loading={loading}
@@ -565,6 +582,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       isCompiled={isCompiled}
       isChallengeFinished={isChallengeFinished}
       onTryAgain={handleTryAgain}
+      onClean={handleClean}
     />
   );
 }

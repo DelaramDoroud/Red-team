@@ -47,6 +47,7 @@ export default function MatchView({
   isTimeUp,
   isCompiled,
   onTryAgain,
+  onClean,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
@@ -65,6 +66,8 @@ export default function MatchView({
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
   const canSubmitNow =
     canSubmit && isSubmittingActive && !isSubmittingFinal && !isTimeUp;
+  const canClean =
+    Boolean(onClean) && !isBusy && !isTimeUp && !isChallengeFinished;
 
   const handleTimerEnd = async () => {
     if (hasTimerFinished.current) return;
@@ -308,6 +311,13 @@ export default function MatchView({
               </div>
 
               <div className='flex gap-3'>
+                <Button
+                  variant='outline'
+                  onClick={onClean}
+                  disabled={!canClean}
+                >
+                  Clean
+                </Button>
                 <Button onClick={onRun} disabled={isRunning || isTimeUp}>
                   {isRunning && <Loader2 className='h-4 w-4 animate-spin' />}
                   {isRunning ? 'Running...' : 'Run'}
