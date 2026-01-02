@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useDuration } from '../(context)/DurationContext';
+import { useDuration } from '../../../app/student/challenges/[challengeId]/(context)/DurationContext';
 
 function Timer({ duration, challengeId, onFinish }) {
   const { startPhaseOneDateTime } = useDuration() || {};
