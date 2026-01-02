@@ -6,6 +6,7 @@ import useMatchSettings from '#js/useMatchSetting';
 import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
+import { Button } from '#components/common/Button';
 import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import styles from './page.module.css';
@@ -329,7 +330,7 @@ export default function NewChallengePage() {
                     name='allowedNumberOfReview'
                     value={challenge.allowedNumberOfReview}
                     onChange={handleDataField}
-                    className={styles.number}
+                    className={`${styles.number} ${styles.expectedReviewInput}`}
                     min={2}
                     required
                   />
@@ -393,17 +394,17 @@ export default function NewChallengePage() {
           />
 
           <div className={styles.submitWrapper}>
-            <button
+            <Button
               data-testid='create-challenge-button'
               type='submit'
-              className={styles.submitButton}
               disabled={isSubmitting}
               aria-busy={isSubmitting}
               name='submit'
+              title='Create this challenge'
             >
               {isSubmitting && <span className={styles.spinner} aria-hidden />}
               {isSubmitting ? 'Creating…' : 'Create'}
-            </button>
+            </Button>
           </div>
         </form>
       </main>

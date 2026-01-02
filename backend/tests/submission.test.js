@@ -12,6 +12,7 @@ import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
+import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
 // Mock executeCodeTests service
 const mockExecuteCodeTests = vi.fn();
@@ -177,6 +178,25 @@ describe('Submission API', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
+    });
+
+    it('rejects non-include lines before the imports marker', async () => {
+      const badCode = [
+        '#include <iostream>',
+        'int notAllowed = 0;',
+        IMPORTS_END_MARKER,
+        'int main() { return 0; }',
+      ].join('\n');
+
+      const res = await request(app).post('/api/rest/submissions').send({
+        matchId: match.id,
+        code: badCode,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toMatch(/#include/i);
+      expect(mockExecuteCodeTests).not.toHaveBeenCalled();
     });
 
     it('returns 404 for non-existent match', async () => {

@@ -75,6 +75,30 @@
     background 0.2s ease;
 }
 
+.expectedReviewInput {
+  border-color: hsl(var(--primary) / 0.6);
+  background-color: hsl(var(--input));
+  color: hsl(var(--foreground));
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.12) inset;
+}
+
+.expectedReviewInput:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.2);
+}
+
+:global(.dark) .expectedReviewInput {
+  border-color: hsl(var(--secondary) / 0.6);
+  background-color: hsl(var(--input));
+  color: hsl(var(--foreground));
+  box-shadow: 0 0 0 1px hsl(var(--secondary) / 0.2) inset;
+}
+
+:global(.dark) .expectedReviewInput:focus {
+  border-color: hsl(var(--secondary));
+  box-shadow: 0 0 0 4px hsl(var(--secondary) / 0.25);
+}
+
 .input:focus,
 .select:focus,
 .datetime:focus,
@@ -148,46 +172,6 @@
   color: #065f46;
   border: 1px solid #bbf7d0;
   font-weight: 500;
-}
-
-.submitButton {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-
-  padding: 0.8rem 1.25rem;
-  background-color: rgb(var(--color-primary-700));
-  color: #fff;
-  border: 1px solid rgb(var(--color-primary-600));
-  border-radius: 0.75rem;
-  cursor: pointer;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease,
-    background 0.2s ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 22px hsl(var(--foreground) / 0.15);
-    background-color: hsl(var(--primary) / 0.9);
-  }
-}
-
-.submitButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.submitButton:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 22px rgb(2 6 23 / 45%);
-  background-color: rgb(var(--color-primary-600));
 }
 
 .spinner {

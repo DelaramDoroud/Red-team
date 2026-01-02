@@ -50,7 +50,7 @@ vi.mock(
         message,
         error,
         isChallengeFinished,
-        setCode,
+        onStudentCodeChange,
       }) => {
         if (loading) return <div data-testid='loading'>Loading...</div>;
         if (error) return <div data-testid='error'>{error.message}</div>;
@@ -75,7 +75,7 @@ vi.mock(
             </button>
             <button
               type='button'
-              onClick={() => setCode('broken')}
+              onClick={() => onStudentCodeChange('broken')}
               data-testid='set-bad-code'
             >
               Set bad code
@@ -101,6 +101,7 @@ vi.mock(
 describe('RT-4 Code Submission', () => {
   const studentId = 1;
   const challengeId = '123';
+  const sampleStudentCode = 'int answer = 0;';
 
   // Helper to click run button and wait for completion
   const clickRunAndWait = async () => {
@@ -133,13 +134,19 @@ describe('RT-4 Code Submission', () => {
     );
   };
 
+  const setStudentCodeValue = (value) => {
+    const { calls } = vi.mocked(MatchView).mock;
+    const lastCall = calls[calls.length - 1];
+    lastCall[0].onStudentCodeChange(value);
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Default successful match setting response
     mockGetStudentAssignedMatchSetting.mockResolvedValue({
       success: true,
       data: {
-        starterCode: 'int main() {}',
+        starterCode: 'int main() {\n  // STUDENT_CODE\n  return 0;\n}\n',
         problemTitle: 'Test Problem',
         testCases: [],
       },
@@ -219,6 +226,10 @@ describe('RT-4 Code Submission', () => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
@@ -272,6 +283,10 @@ describe('RT-4 Code Submission', () => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
     await when(async () => {
       await clickRunAndWait();
     });
@@ -299,17 +314,20 @@ describe('RT-4 Code Submission', () => {
       await waitFor(() => {
         const entry =
           store.getState().ui.challengeDrafts?.[studentId]?.['match-456'];
-        expect(entry?.lastSuccessful).toBe('int main() {}');
+        expect(entry?.lastSuccessful).toEqual({
+          imports: '#include <iostream>',
+          studentCode: sampleStudentCode,
+        });
       });
     });
   });
 
   it('re-submits last successful code if new submission fails to compile', async () => {
-    const goodCode = 'int main() {}';
+    const goodCode = 'int ok = 1;';
     const badCode = 'broken';
 
     mockSubmitSubmission.mockImplementation(({ code }) =>
-      Promise.resolve({ success: code !== badCode })
+      Promise.resolve({ success: !code.includes(badCode) })
     );
     mockGetLastSubmission.mockResolvedValue({
       success: true,
@@ -322,6 +340,10 @@ describe('RT-4 Code Submission', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(goodCode);
     });
 
     // First run + submit with good code
@@ -343,12 +365,11 @@ describe('RT-4 Code Submission', () => {
 
     await then(async () => {
       await waitFor(() => {
-        expect(mockSubmitSubmission).toHaveBeenCalledTimes(1);
+        expect(mockSubmitSubmission).toHaveBeenCalledTimes(2);
       });
-      expect(mockSubmitSubmission).toHaveBeenCalledWith({
-        matchId: 456,
-        code: badCode,
-      });
+      const secondCall = mockSubmitSubmission.mock.calls[1][0];
+      expect(secondCall.matchId).toBe(456);
+      expect(secondCall.code).toContain(badCode);
       expect(mockGetLastSubmission).toHaveBeenCalledWith(456);
     });
   });
@@ -370,6 +391,10 @@ describe('RT-4 Code Submission', () => {
     // Wait for component to be fully loaded
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
     });
 
     // Enable submit button
@@ -412,6 +437,10 @@ describe('RT-4 Code Submission', () => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
     });
@@ -440,6 +469,10 @@ describe('RT-4 Code Submission', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
     });
 
     await when(async () => {
@@ -473,6 +506,10 @@ describe('RT-4 Code Submission', () => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
     await when(async () => {
       fireEvent.click(screen.getByTestId('timer-finish-btn'));
     });
@@ -504,6 +541,10 @@ describe('RT-4 Code Submission', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
     });
 
     // Enable submit button first
@@ -541,6 +582,10 @@ describe('RT-4 Code Submission', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
     });
 
     // Enable submit button
@@ -582,6 +627,10 @@ describe('RT-4 Code Submission', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
     });
 
     // Enable submit button
@@ -632,6 +681,10 @@ describe('RT-4 Code Submission', () => {
       expect(screen.getByTestId('match-view')).toBeInTheDocument();
     });
 
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
     // Enable submit button
     await when(async () => {
       await clickRunAndWait();
@@ -662,7 +715,7 @@ describe('RT-4 Code Submission', () => {
     mockGetStudentAssignedMatchSetting.mockResolvedValue({
       success: true,
       data: {
-        starterCode: 'int main() {}',
+        starterCode: 'int main() {\n  // STUDENT_CODE\n  return 0;\n}\n',
         problemTitle: 'Test Problem',
         testCases: [],
       },
@@ -680,8 +733,8 @@ describe('RT-4 Code Submission', () => {
     await act(async () => {
       const { calls } = vi.mocked(MatchView).mock;
       const lastCall = calls[calls.length - 1];
-      const { setCode } = lastCall[0];
-      setCode('');
+      const { onStudentCodeChange } = lastCall[0];
+      onStudentCodeChange('');
     });
 
     // Enable submit button

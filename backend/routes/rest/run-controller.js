@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import MatchSetting from '#root/models/match-setting.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { validateImportsBlock } from '#root/services/import-validation.js';
 
 const router = Router();
 
@@ -28,6 +29,13 @@ router.post('/run', async (req, res) => {
         error: { message: 'language is required' },
       });
     }
+
+    const importValidationError = validateImportsBlock(code, language);
+    if (importValidationError)
+      return res.status(400).json({
+        success: false,
+        error: { message: importValidationError },
+      });
 
     const matchSetting = await MatchSetting.findByPk(matchSettingId);
 

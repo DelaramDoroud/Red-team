@@ -9,7 +9,8 @@ const initialState = {
 
 const getDraftEntry = (userDrafts, key) =>
   userDrafts[key] || {
-    code: '',
+    imports: '',
+    studentCode: '',
     lastCompiled: null,
     lastSuccessful: null,
   };
@@ -51,7 +52,7 @@ const uiSlice = createSlice({
       theme: action.payload,
     }),
     setDraftCode: (state, action) => {
-      const { userId, key, code } = action.payload || {};
+      const { userId, key, imports, studentCode } = action.payload || {};
       if (!userId || !key) return state;
       return {
         ...state,
@@ -61,14 +62,18 @@ const uiSlice = createSlice({
           key,
           (entry) => ({
             ...entry,
-            code,
+            imports: imports ?? entry.imports,
+            studentCode: studentCode ?? entry.studentCode,
           })
         ),
       };
     },
     setLastCompiledCode: (state, action) => {
-      const { userId, key, code } = action.payload || {};
-      if (!userId || !key || !code) return state;
+      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const nextImports = imports ?? '';
+      const nextStudentCode = studentCode ?? code ?? '';
+      if (!userId || !key) return state;
+      if (!nextImports && !nextStudentCode) return state;
       return {
         ...state,
         challengeDrafts: upsertUserEntry(
@@ -77,14 +82,20 @@ const uiSlice = createSlice({
           key,
           (entry) => ({
             ...entry,
-            lastCompiled: code,
+            lastCompiled: {
+              imports: nextImports,
+              studentCode: nextStudentCode,
+            },
           })
         ),
       };
     },
     setLastSuccessfulCode: (state, action) => {
-      const { userId, key, code } = action.payload || {};
-      if (!userId || !key || !code) return state;
+      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const nextImports = imports ?? '';
+      const nextStudentCode = studentCode ?? code ?? '';
+      if (!userId || !key) return state;
+      if (!nextImports && !nextStudentCode) return state;
       return {
         ...state,
         challengeDrafts: upsertUserEntry(
@@ -93,7 +104,10 @@ const uiSlice = createSlice({
           key,
           (entry) => ({
             ...entry,
-            lastSuccessful: code,
+            lastSuccessful: {
+              imports: nextImports,
+              studentCode: nextStudentCode,
+            },
           })
         ),
       };

@@ -148,13 +148,24 @@ export default function ChallengeDetailPage() {
         </div>
         <div className='flex items-center gap-2'>
           <Button variant='outline' asChild>
-            <Link href='/challenges'>Back</Link>
+            <Link href='/challenges' title='Back to challenges list'>
+              Back
+            </Link>
           </Button>
-          <Button variant='outline' onClick={load} disabled={loading}>
+          <Button
+            variant='outline'
+            onClick={load}
+            disabled={loading}
+            title='Refresh challenge details'
+          >
             {loading ? 'Refreshing...' : 'Refresh'}
           </Button>
           {challenge?.status === ChallengeStatus.PUBLIC ? (
-            <Button onClick={handleAssign} disabled={assigning || loading}>
+            <Button
+              onClick={handleAssign}
+              disabled={assigning || loading}
+              title='Assign students to this challenge'
+            >
               {assigning ? 'Assigning...' : 'Assign students'}
             </Button>
           ) : null}

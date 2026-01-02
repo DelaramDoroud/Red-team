@@ -276,6 +276,7 @@ export default function StudentChallengesPage() {
           size='lg'
           onClick={() => handleJoin(challenge.id)}
           disabled={isJoining}
+          title='Join this challenge'
         >
           {isJoining ? 'Joining...' : 'Join'}
         </Button>

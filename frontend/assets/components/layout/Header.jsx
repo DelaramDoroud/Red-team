@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Lightbulb, LightbulbOff } from 'lucide-react';
 import logo from '#img/logo.jpg';
 import { Button } from '#components/common/Button';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
@@ -19,6 +20,8 @@ export default function Header() {
   const theme = useAppSelector((state) => state.ui.theme);
   const isDark = theme === 'dark';
   const fetchedUserRef = useRef(false);
+  const audioOnRef = useRef(null);
+  const audioOffRef = useRef(null);
 
   useEffect(() => {
     const prefersDark =
@@ -35,9 +38,35 @@ export default function Header() {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      audioOnRef.current = new Audio('/lamp-on.mp3');
+      audioOffRef.current = new Audio('/lamp-off.mp3');
+      audioOnRef.current.preload = 'auto';
+      audioOffRef.current.preload = 'auto';
+    }
+
+    return () => {
+      audioOnRef.current = null;
+      audioOffRef.current = null;
+    };
+  }, []);
+
+  const playThemeToggleSound = (nextTheme) => {
+    const audio =
+      nextTheme === 'light' ? audioOnRef.current : audioOffRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  };
+
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    dispatch(setTheme(next));
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    playThemeToggleSound(nextTheme);
+    dispatch(setTheme(nextTheme));
   };
 
   useEffect(() => {
@@ -108,14 +137,14 @@ export default function Header() {
 
         <Button
           type='button'
-          variant='outline'
-          size='sm'
+          variant='secondary'
+          size='icon'
           className={styles.themeToggle}
           onClick={toggleTheme}
-          aria-label={isDark ? 'Passa al tema chiaro' : 'Passa al tema scuro'}
-          title={isDark ? 'Tema chiaro' : 'Tema scuro'}
+          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
         >
-          <span aria-hidden>{isDark ? '🌞' : '🌙'}</span>
+          {isDark ? <LightbulbOff aria-hidden /> : <Lightbulb aria-hidden />}
           <span className='sr-only'>Toggle theme</span>
         </Button>
         {isLoggedIn && user ? (
@@ -125,16 +154,17 @@ export default function Header() {
               <span className={styles.userRole}>{user.role}</span>
             </div>
             <Button
-              variant='ghost'
+              variant='secondary'
               size='sm'
               onClick={handleLogout}
               disabled={isLoggingOut}
+              title='Sign out of your account'
             >
               {isLoggingOut ? 'Logout…' : 'Logout'}
             </Button>
           </div>
         ) : (
-          <Button variant='secondary' size='sm' onClick={handleLogin}>
+          <Button size='sm' onClick={handleLogin} title='Go to the login page'>
             Login
           </Button>
         )}

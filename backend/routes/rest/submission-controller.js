@@ -9,6 +9,7 @@ import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
 import logger from '#root/services/logger.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { validateImportsBlock } from '#root/services/import-validation.js';
 
 const router = Router();
 
@@ -28,6 +29,7 @@ function isSubmissionBetter(sub1, sub2) {
 }
 
 router.post('/submissions', async (req, res) => {
+  let transaction;
   try {
     const { matchId, code, language = 'cpp', isAutomatic = false } = req.body;
 
@@ -44,6 +46,13 @@ router.post('/submissions', async (req, res) => {
         error: { message: 'Code cannot be empty' },
       });
     }
+
+    const importValidationError = validateImportsBlock(code, language);
+    if (importValidationError)
+      return res.status(400).json({
+        success: false,
+        error: { message: importValidationError },
+      });
 
     const match = await Match.findByPk(matchId, {
       include: [
@@ -150,90 +159,78 @@ router.post('/submissions', async (req, res) => {
     };
 
     // SAVE SUBMISSION
-    const transaction = await sequelize.transaction();
-    try {
-      let submission = await Submission.findOne({
-        where: { matchId },
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
+    transaction = await sequelize.transaction();
+    let submission = await Submission.findOne({
+      where: { matchId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
 
-      let shouldSaveSubmission = true;
+    let shouldSaveSubmission = true;
 
-      // If this is an automatic submission and there's an existing submission
-      if (isAutomatic && submission) {
-        // Check if existing submission has stored test results
-        // For now, we'll assume existing submission is intentional
-        // and compare test results
+    // If this is an automatic submission and there's an existing submission
+    if (isAutomatic && submission) {
+      // Check if existing submission has stored test results
+      // For now, we'll assume existing submission is intentional
+      // and compare test results
 
-        // Try to get stored test results from submission metadata
-        // If not available, we need to re-run tests on existing code (expensive)
-        // For now, we'll re-run tests to compare properly
-        try {
-          const existingCode = submission.code;
+      // Try to get stored test results from submission metadata
+      // If not available, we need to re-run tests on existing code (expensive)
+      // For now, we'll re-run tests to compare properly
+      try {
+        const existingCode = submission.code;
 
-          // Re-run tests on existing submission code for comparison
-          const existingPublicResult = await executeCodeTests({
-            code: existingCode,
-            language,
-            testCases: publicTests,
-            userId: req.user?.id,
-          });
+        // Re-run tests on existing submission code for comparison
+        const existingPublicResult = await executeCodeTests({
+          code: existingCode,
+          language,
+          testCases: publicTests,
+          userId: req.user?.id,
+        });
 
-          const existingPrivateResult = await executeCodeTests({
-            code: existingCode,
-            language,
-            testCases: privateTests,
-            userId: req.user?.id,
-          });
+        const existingPrivateResult = await executeCodeTests({
+          code: existingCode,
+          language,
+          testCases: privateTests,
+          userId: req.user?.id,
+        });
 
-          const existingTestResults = {
-            publicPassed: existingPublicResult.summary.passed || 0,
-            publicTotal: existingPublicResult.summary.total || 0,
-            privatePassed: existingPrivateResult.summary.passed || 0,
-            privateTotal: existingPrivateResult.summary.total || 0,
-          };
+        const existingTestResults = {
+          publicPassed: existingPublicResult.summary.passed || 0,
+          publicTotal: existingPublicResult.summary.total || 0,
+          privatePassed: existingPrivateResult.summary.passed || 0,
+          privateTotal: existingPrivateResult.summary.total || 0,
+        };
 
-          // Compare: only update if automatic submission is strictly better
-          if (isSubmissionBetter(currentTestResults, existingTestResults)) {
-            // Automatic submission is better - update it
-            submission.code = code;
-            submission.updatedAt = new Date();
-            await submission.save({ transaction });
-            logger.info(
-              `Automatic submission is better for match ${matchId}, updating submission`
-            );
-          } else {
-            // Keep existing submission (intentional submission is better or equal)
-            shouldSaveSubmission = false;
-            logger.info(
-              `Existing submission is better or equal for match ${matchId}, keeping it`
-            );
-            // Use existing submission for response
-          }
-        } catch (error) {
-          logger.error('Error comparing submissions:', error);
-          // On error, keep existing submission
-          shouldSaveSubmission = false;
-        }
-      } else if (!isAutomatic) {
-        // Intentional submission - always save/update
-        if (submission) {
+        // Compare: only update if automatic submission is strictly better
+        if (isSubmissionBetter(currentTestResults, existingTestResults)) {
+          // Automatic submission is better - update it
           submission.code = code;
           submission.updatedAt = new Date();
           await submission.save({ transaction });
-        } else {
-          submission = await Submission.create(
-            {
-              matchId,
-              challengeParticipantId: match.challengeParticipantId,
-              code,
-            },
-            { transaction }
+          logger.info(
+            `Automatic submission is better for match ${matchId}, updating submission`
           );
+        } else {
+          // Keep existing submission (intentional submission is better or equal)
+          shouldSaveSubmission = false;
+          logger.info(
+            `Existing submission is better or equal for match ${matchId}, keeping it`
+          );
+          // Use existing submission for response
         }
-      } else if (isAutomatic && !submission) {
-        // Automatic submission, no existing submission - create it (Rule 1)
+      } catch (error) {
+        logger.error('Error comparing submissions:', error);
+        // On error, keep existing submission
+        shouldSaveSubmission = false;
+      }
+    } else if (!isAutomatic) {
+      // Intentional submission - always save/update
+      if (submission) {
+        submission.code = code;
+        submission.updatedAt = new Date();
+        await submission.save({ transaction });
+      } else {
         submission = await Submission.create(
           {
             matchId,
@@ -243,70 +240,78 @@ router.post('/submissions', async (req, res) => {
           { transaction }
         );
       }
-
-      // If we didn't save the submission (automatic was not better), re-run tests on existing code
-      let finalPublicResults = publicExecutionResult;
-      let finalPrivateResults = privateExecutionResult;
-
-      if (!shouldSaveSubmission && submission) {
-        // Re-run tests on existing submission to get its test results for response
-        try {
-          finalPublicResults = await executeCodeTests({
-            code: submission.code,
-            language,
-            testCases: publicTests,
-            userId: req.user?.id,
-          });
-
-          finalPrivateResults = await executeCodeTests({
-            code: submission.code,
-            language,
-            testCases: privateTests,
-            userId: req.user?.id,
-          });
-        } catch (error) {
-          logger.error('Error re-running tests on existing submission:', error);
-          // Use current test results as fallback
-        }
-      }
-
-      await transaction.commit();
-
-      if (shouldSaveSubmission || !submission) {
-        logger.info(`Submission ${submission.id} saved for match ${matchId}`);
-      } else {
-        logger.info(
-          `Keeping existing submission ${submission.id} for match ${matchId}`
-        );
-      }
-
-      // Build response without code field - explicitly exclude it
-      const submissionData = submission.get({ plain: true });
-      delete submissionData.code;
-
-      return res.json({
-        success: true,
-        data: {
-          submission: {
-            id: submissionData.id,
-            matchId: submissionData.matchId,
-            challengeParticipantId: submissionData.challengeParticipantId,
-            createdAt: submissionData.createdAt,
-            updatedAt: submissionData.updatedAt,
-          },
-          publicTestResults: finalPublicResults.testResults,
-          privateTestResults: finalPrivateResults.testResults,
-          publicSummary: finalPublicResults.summary,
-          privateSummary: finalPrivateResults.summary,
-          isCompiled: finalPrivateResults.isCompiled,
-          isPassed: finalPrivateResults.isPassed,
+    } else if (isAutomatic && !submission) {
+      // Automatic submission, no existing submission - create it (Rule 1)
+      submission = await Submission.create(
+        {
+          matchId,
+          challengeParticipantId: match.challengeParticipantId,
+          code,
         },
-      });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+        { transaction }
+      );
     }
+
+    // If we didn't save the submission (automatic was not better), re-run tests on existing code
+    let finalPublicResults = publicExecutionResult;
+    let finalPrivateResults = privateExecutionResult;
+
+    if (!shouldSaveSubmission && submission) {
+      // Re-run tests on existing submission to get its test results for response
+      try {
+        finalPublicResults = await executeCodeTests({
+          code: submission.code,
+          language,
+          testCases: publicTests,
+          userId: req.user?.id,
+        });
+
+        finalPrivateResults = await executeCodeTests({
+          code: submission.code,
+          language,
+          testCases: privateTests,
+          userId: req.user?.id,
+        });
+      } catch (error) {
+        logger.error('Error re-running tests on existing submission:', error);
+        // Use current test results as fallback
+      }
+    }
+
+    await transaction.commit();
+
+    if (shouldSaveSubmission || !submission) {
+      logger.info(`Submission ${submission.id} saved for match ${matchId}`);
+    } else {
+      logger.info(
+        `Keeping existing submission ${submission.id} for match ${matchId}`
+      );
+    }
+
+    // Build response without code field - explicitly exclude it
+    const submissionData = submission.get({ plain: true });
+    delete submissionData.code;
+
+    return res.json({
+      success: true,
+      data: {
+        submission: {
+          id: submissionData.id,
+          matchId: submissionData.matchId,
+          challengeParticipantId: submissionData.challengeParticipantId,
+          createdAt: submissionData.createdAt,
+          updatedAt: submissionData.updatedAt,
+        },
+        publicTestResults: finalPublicResults.testResults,
+        privateTestResults: finalPrivateResults.testResults,
+        publicSummary: finalPublicResults.summary,
+        privateSummary: finalPrivateResults.summary,
+        isCompiled: finalPrivateResults.isCompiled,
+        isPassed: finalPrivateResults.isPassed,
+      },
+    });
   } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
     logger.error('Submission error:', error);
     handleException(res, error);
   }

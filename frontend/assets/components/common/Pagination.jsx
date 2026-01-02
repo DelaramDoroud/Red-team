@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '#components/common/Button';
 import styles from './Pagination.module.css';
 
 export default function Pagination({ currentPage, totalPages, onPageChange }) {
@@ -20,26 +21,38 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
 
   return (
     <div className={styles.pagination}>
-      <button type='button' onClick={handlePrev} disabled={currentPage === 1}>
+      <Button
+        type='button'
+        onClick={handlePrev}
+        disabled={currentPage === 1}
+        variant='outline'
+        size='sm'
+        title='Go to the previous page'
+      >
         Previous
-      </button>
+      </Button>
       {pages.map((page) => (
-        <button
+        <Button
           type='button'
           key={page}
-          className={page === currentPage ? styles.active : ''}
+          variant={page === currentPage ? 'primary' : 'outline'}
+          size='sm'
           onClick={() => onPageChange(page)}
+          title={`Go to page ${page}`}
         >
           {page}
-        </button>
+        </Button>
       ))}
-      <button
+      <Button
         type='button'
         onClick={handleNext}
         disabled={currentPage === totalPages}
+        variant='outline'
+        size='sm'
+        title='Go to the next page'
       >
         Next
-      </button>
+      </Button>
     </div>
   );
 }
