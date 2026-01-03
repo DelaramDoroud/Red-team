@@ -491,7 +491,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Automatic submission failure handling
-  it('AC: should show compilation failure message on automatic submission if code fails to compile', async () => {
+  it('AC: should show no valid submission message on automatic submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: false });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -521,7 +521,7 @@ describe('RT-4 Code Submission', () => {
       await waitFor(() => {
         const message = screen.getByTestId('message');
         expect(message).toHaveTextContent(
-          'Your code did not compile successfully. Thanks for your participation'
+          "match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review"
         );
       });
     });

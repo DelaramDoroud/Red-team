@@ -39,6 +39,15 @@ const STUDENT_MARKERS = [
   '{{STUDENT_CODE}}',
 ];
 
+const MESSAGE_PARTICIPATION = 'Thanks for your participation.';
+const MESSAGE_SUBMISSION_SUCCESS = 'Thanks for your submission.';
+const MESSAGE_SUBMISSION_PUBLIC_FAIL =
+  'Thanks for your submission. There are problems with your solution, try to improve it.';
+const MESSAGE_SUBMISSION_PRIVATE_FAIL =
+  'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+const MESSAGE_NO_VALID_SUBMISSION =
+  "match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review";
+
 const stripMarkers = (code, markers) =>
   markers.reduce((value, marker) => value.split(marker).join(''), code);
 
@@ -590,7 +599,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         } = submissionRes.data || {};
 
         // Determine message based on test results
-        let submissionMessage = 'Thanks for your submission.';
+        let submissionMessage = MESSAGE_SUBMISSION_SUCCESS;
 
         // Check test results directly for more reliable detection
         if (
@@ -611,12 +620,10 @@ export default function MatchContainer({ challengeId, studentId }) {
 
           if (!allPublicPassed) {
             // Scenario A: Some or all public tests failed
-            submissionMessage =
-              'Thanks for your submission. There are problems with your solution, try to improve it.';
+            submissionMessage = MESSAGE_SUBMISSION_PUBLIC_FAIL;
           } else if (allPublicPassed && !allPrivatePassed) {
             // Scenario B: All public pass, but some private fail
-            submissionMessage =
-              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+            submissionMessage = MESSAGE_SUBMISSION_PRIVATE_FAIL;
           }
           // Scenario C: All public and private pass (default message)
         } else if (publicSummary && privateSummary) {
@@ -632,12 +639,10 @@ export default function MatchContainer({ challengeId, studentId }) {
 
           if (!allPublicPassed) {
             // Scenario A: Some or all public tests failed
-            submissionMessage =
-              'Thanks for your submission. There are problems with your solution, try to improve it.';
+            submissionMessage = MESSAGE_SUBMISSION_PUBLIC_FAIL;
           } else if (allPublicPassed && !allPrivatePassed) {
             // Scenario B: All public pass, but some private fail
-            submissionMessage =
-              'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+            submissionMessage = MESSAGE_SUBMISSION_PRIVATE_FAIL;
           }
           // Scenario C: All public and private pass (default message)
         }
@@ -718,7 +723,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        setMessage('Thanks for your participation.');
+        setMessage(MESSAGE_PARTICIPATION);
         setIsChallengeFinished(true);
         return false;
       }
@@ -744,7 +749,7 @@ export default function MatchContainer({ challengeId, studentId }) {
           setIsChallengeFinished(true);
           return submissionRes?.success ?? false;
         }
-        setMessage('Thanks for your participation');
+        setMessage(MESSAGE_NO_VALID_SUBMISSION);
         setIsChallengeFinished(true);
         return false;
       }
@@ -752,7 +757,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       let submissionRes = await trySubmit(assembledCode);
 
       if (submissionRes?.success) {
-        setMessage('Thanks for your participation');
+        setMessage(MESSAGE_PARTICIPATION);
         lastSuccessRef.current = assembledCode;
         if (studentId) {
           dispatch(
@@ -782,13 +787,11 @@ export default function MatchContainer({ challengeId, studentId }) {
         }
       }
 
-      setMessage(
-        'Your code did not compile successfully. Thanks for your participation'
-      );
+      setMessage(MESSAGE_NO_VALID_SUBMISSION);
       setIsChallengeFinished(true);
       return submissionRes?.success ?? false;
     } catch (err) {
-      setMessage('Thanks for your participation');
+      setMessage(MESSAGE_PARTICIPATION);
       setIsChallengeFinished(true);
       return false;
     } finally {
