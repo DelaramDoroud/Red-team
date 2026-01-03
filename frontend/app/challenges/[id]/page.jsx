@@ -33,8 +33,12 @@ const formatDateTime = (value) => {
 
 export default function ChallengeDetailPage() {
   const params = useParams();
-  const { getChallengeMatches, assignChallenge, getChallengeParticipants } =
-    useChallenge();
+  const {
+    getChallengeMatches,
+    assignChallenge,
+    getChallengeParticipants,
+    startChallenge,
+  } = useChallenge();
   const challengeId = params?.id;
 
   const [challenge, setChallenge] = useState(null);
@@ -42,6 +46,7 @@ export default function ChallengeDetailPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
 
   const load = useCallback(async () => {
@@ -116,6 +121,35 @@ export default function ChallengeDetailPage() {
     challenge?.startDatetime,
   ]);
 
+  const handleStart = useCallback(async () => {
+    if (!challengeId) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await startChallenge(challengeId);
+      if (res?.success === false) {
+        setError(res?.error || res?.message || 'Unable to start challenge');
+      }
+      await load();
+    } catch (_err) {
+      setError('Unable to start challenge');
+    } finally {
+      setStarting(false);
+    }
+  }, [challengeId, load, startChallenge]);
+
+  const hasStudents = studentCount > 0;
+  const hasMatches = assignments.some((group) => group.matches?.length);
+  const canStartNow = useMemo(() => {
+    if (!challenge?.startDatetime) return true;
+    return new Date(challenge.startDatetime) <= new Date();
+  }, [challenge?.startDatetime]);
+  const showStartButton =
+    challenge?.status === ChallengeStatus.ASSIGNED &&
+    hasStudents &&
+    hasMatches &&
+    canStartNow;
+
   const statusBadge = useMemo(() => {
     const tone =
       statusTone[challenge?.status] || statusTone[ChallengeStatus.PRIVATE];
@@ -128,37 +162,89 @@ export default function ChallengeDetailPage() {
     );
   }, [challenge?.status]);
 
+  const detailItems = [
+    {
+      label: 'Start',
+      value: formatDateTime(challenge?.startDatetime),
+    },
+    {
+      label: 'Duration',
+      value: challenge?.duration ? `${challenge.duration} min` : '—',
+    },
+    {
+      label: 'Expected reviews / submission',
+      value: challenge?.allowedNumberOfReview ?? '—',
+    },
+    {
+      label: 'Number of students',
+      value: studentCount,
+    },
+  ];
+
   return (
     <div className='max-w-6xl mx-auto px-6 py-8 space-y-6'>
-      <div className='flex items-center justify-between gap-3'>
-        <div className='space-y-2'>
-          <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-            Challenge overview
-          </p>
-          <div className='flex flex-wrap items-center gap-3'>
-            <h1 className='text-3xl font-bold text-foreground'>
-              {challenge?.title || 'Challenge'}
-            </h1>
-            {statusBadge}
+      <div className='space-y-3'>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div className='space-y-2'>
+            <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+              Challenge overview
+            </p>
+            <div className='flex flex-wrap items-center gap-3'>
+              <h1 className='text-3xl font-bold text-foreground'>
+                {challenge?.title || 'Challenge'}
+              </h1>
+              {statusBadge}
+            </div>
           </div>
-          <p className='text-muted-foreground text-sm'>
-            Start: {formatDateTime(challenge?.startDatetime)} · Duration:{' '}
-            {challenge?.duration || '—'} min
-          </p>
-        </div>
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' asChild>
-            <Link href='/challenges'>Back</Link>
-          </Button>
-          <Button variant='outline' onClick={load} disabled={loading}>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-          {challenge?.status === ChallengeStatus.PUBLIC ? (
-            <Button onClick={handleAssign} disabled={assigning || loading}>
-              {assigning ? 'Assigning...' : 'Assign students'}
+          <div className='flex items-center gap-2'>
+            <Button variant='outline' asChild>
+              <Link href='/challenges' title='Back to challenges list'>
+                Back
+              </Link>
             </Button>
-          ) : null}
+            <Button
+              variant='outline'
+              onClick={load}
+              disabled={loading}
+              title='Refresh challenge details'
+            >
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            {challenge?.status === ChallengeStatus.PUBLIC ? (
+              <Button
+                onClick={handleAssign}
+                disabled={assigning || loading}
+                title='Assign students to this challenge'
+              >
+                {assigning ? 'Assigning...' : 'Assign students'}
+              </Button>
+            ) : null}
+            {showStartButton ? (
+              <Button
+                onClick={handleStart}
+                disabled={starting || loading}
+                title='Start the challenge for assigned students'
+              >
+                {starting ? 'Starting...' : 'Start'}
+              </Button>
+            ) : null}
+          </div>
         </div>
+        <dl className='flex flex-wrap items-center gap-2'>
+          {detailItems.map((item) => (
+            <div
+              key={item.label}
+              className='min-w-[170px] rounded-lg border border-border/60 bg-muted/60 px-3 py-2'
+            >
+              <dt className='text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground'>
+                {item.label}
+              </dt>
+              <dd className='text-sm font-semibold text-foreground'>
+                {item.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       {error && (

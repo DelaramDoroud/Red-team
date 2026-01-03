@@ -7,6 +7,9 @@ export async function joinChallenge({ studentId, challengeId }) {
   if (!challenge) {
     return { status: 'challenge_not_found' };
   }
+  if (challenge.status === 'private') {
+    return { status: 'challenge_private' };
+  }
 
   const student = await User.findByPk(studentId);
   if (!student) {

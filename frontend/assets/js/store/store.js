@@ -10,14 +10,17 @@ import {
   REHYDRATE,
 } from 'redux-persist/es/constants';
 import { authReducer } from './slices/auth';
+import { uiReducer } from './slices/ui';
 
 const rootReducer = combineReducers({
   auth: authReducer,
+  ui: uiReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
+  whitelist: ['auth', 'ui'],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

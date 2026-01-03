@@ -7,7 +7,6 @@ import {
   CardDescription,
   CardContent,
 } from '#components/common/card';
-import { Button } from '#components/common/Button';
 import {
   Table,
   TableHeader,
@@ -16,6 +15,7 @@ import {
   TableCell,
   TableHead,
 } from '#components/common/Table';
+import { Button } from '#components/common/Button';
 
 import Tooltip from '#components/common/Tooltip';
 import Spinner from '#components/common/Spinner';
@@ -32,8 +32,15 @@ export default function MatchView({
   message,
   challengeId,
   matchData,
-  code,
-  setCode,
+  imports,
+  onImportsChange,
+  onImportsBlur,
+  importsWarning,
+  studentCode,
+  onStudentCodeChange,
+  fixedPrefix,
+  fixedSuffix,
+  finalCode,
   isRunning,
   isSubmitting,
   isSubmittingActive,
@@ -47,6 +54,9 @@ export default function MatchView({
   isTimeUp,
   isCompiled,
   onTryAgain,
+  onClean,
+  onRestore,
+  hasRestorableCode,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
@@ -65,6 +75,28 @@ export default function MatchView({
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
   const canSubmitNow =
     canSubmit && isSubmittingActive && !isSubmittingFinal && !isTimeUp;
+  const canClean =
+    Boolean(onClean) && !isBusy && !isTimeUp && !isChallengeFinished;
+  const canRestore =
+    Boolean(onRestore) &&
+    hasRestorableCode &&
+    !isBusy &&
+    !isTimeUp &&
+    !isChallengeFinished;
+  const editorDisabled = isSubmittingFinal || isTimeUp || isChallengeFinished;
+  const showImportsWarning = Boolean(importsWarning);
+  let importsInputClassName =
+    'w-full min-h-[96px] rounded-md border bg-background p-3 font-mono text-sm leading-relaxed';
+  if (showImportsWarning) {
+    importsInputClassName += ' border-amber-500';
+  }
+  const submitTitle = canSubmitNow
+    ? 'Submit your solution for evaluation'
+    : 'Run your code before submitting';
+  const tryAgainTitle = isTimeUp
+    ? 'View your submitted code'
+    : 'Clear the results to try again';
+  const actionButtonSize = 'sm';
 
   const handleTimerEnd = async () => {
     if (hasTimerFinished.current) return;
@@ -157,7 +189,7 @@ export default function MatchView({
           <CardContent>
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
             <pre className='bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm'>
-              {code}
+              {finalCode || ''}
             </pre>
           </CardContent>
         </Card>
@@ -291,11 +323,53 @@ export default function MatchView({
             </CardHeader>
 
             <CardContent className='space-y-4'>
-              <CppEditor
-                value={code}
-                onChange={setCode}
-                disabled={isSubmittingFinal || isTimeUp || isChallengeFinished}
-              />
+              <div className='space-y-4'>
+                <div>
+                  <h2 className='text-sm font-medium mb-1'>Imports</h2>
+                  <textarea
+                    className={importsInputClassName}
+                    value={imports || ''}
+                    onChange={(event) => onImportsChange(event.target.value)}
+                    onBlur={onImportsBlur}
+                    disabled={editorDisabled}
+                    placeholder='#include <iostream>'
+                  />
+                  <p className='text-xs text-muted-foreground mt-1'>
+                    Only <code>#include</code> lines are allowed.
+                  </p>
+                  {showImportsWarning && (
+                    <p className='text-xs text-amber-600 mt-1' role='alert'>
+                      {importsWarning}
+                    </p>
+                  )}
+                </div>
+
+                {fixedPrefix?.trim() && (
+                  <div>
+                    <pre className='rounded-md border bg-muted px-3 py-2 text-xs font-mono whitespace-pre-wrap'>
+                      {fixedPrefix}
+                    </pre>
+                  </div>
+                )}
+
+                <div>
+                  <h2 className='text-sm font-medium mb-1'>Your solution</h2>
+                  <CppEditor
+                    value={studentCode || ''}
+                    onChange={onStudentCodeChange}
+                    disabled={editorDisabled}
+                    height='35vh'
+                  />
+                </div>
+
+                {fixedSuffix?.trim() && (
+                  <div>
+                    <pre className='rounded-md border bg-muted px-3 py-2 text-xs font-mono whitespace-pre-wrap'>
+                      {fixedSuffix}
+                    </pre>
+                  </div>
+                )}
+              </div>
 
               <div className='mt-2'>
                 <h2 className='text-sm font-medium mb-1'>Result</h2>
@@ -308,33 +382,62 @@ export default function MatchView({
               </div>
 
               <div className='flex gap-3'>
-                <Button onClick={onRun} disabled={isRunning || isTimeUp}>
+                <Button
+                  type='button'
+                  onClick={onClean}
+                  disabled={!canClean}
+                  variant='destructive'
+                  size={actionButtonSize}
+                  title='Reset the editor to the default template'
+                >
+                  Clean
+                </Button>
+                <Button
+                  type='button'
+                  onClick={onRestore}
+                  disabled={!canRestore}
+                  variant='outline'
+                  size={actionButtonSize}
+                  title='Restore your last compiled code'
+                >
+                  Restore
+                </Button>
+                <Button
+                  type='button'
+                  onClick={onRun}
+                  disabled={isRunning || isTimeUp}
+                  variant='secondary'
+                  size={actionButtonSize}
+                  title='Compile and run your code against public tests'
+                >
                   {isRunning && <Loader2 className='h-4 w-4 animate-spin' />}
                   {isRunning ? 'Running...' : 'Run'}
                 </Button>
 
                 {canSubmitNow ? (
-                  <button
+                  <Button
                     type='button'
                     onClick={onSubmit}
                     disabled={isBusy}
-                    className='px-4 py-2 rounded-md bg-blue-600 text-white disabled:bg-gray-400 flex items-center gap-2'
+                    size={actionButtonSize}
+                    title={submitTitle}
                   >
                     {isSubmitting && <Spinner label='Submitting…' />}
                     {!isSubmitting && 'Submit'}
-                  </button>
+                  </Button>
                 ) : (
                   <Tooltip
                     text='You cannot submit yet. Run your code first.'
                     position='top'
                   >
-                    <button
+                    <Button
                       type='button'
                       disabled
-                      className='px-4 py-2 rounded-md bg-blue-600 text-white disabled:bg-gray-400'
+                      size={actionButtonSize}
+                      title={submitTitle}
                     >
                       Submit
-                    </button>
+                    </Button>
                   </Tooltip>
                 )}
               </div>
@@ -366,9 +469,12 @@ export default function MatchView({
                   </p>
                   {onTryAgain && !isChallengeFinished && (
                     <Button
+                      type='button'
                       onClick={onTryAgain}
                       variant='outline'
+                      size={actionButtonSize}
                       className='mt-2'
+                      title={tryAgainTitle}
                     >
                       {isTimeUp ? 'View code' : 'Try again'}
                     </Button>

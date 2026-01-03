@@ -67,7 +67,9 @@ export default function HomePage() {
           <Button>Primary</Button>
           <Button variant='secondary'>Secondary</Button>
           <Button variant='outline'>Outline</Button>
-          <Button variant='ghost'>Ghost</Button>
+          <Button variant='ghost' disabled>
+            Disabled
+          </Button>
           <Button variant='destructive'>Destructive</Button>
         </div>
       </div>

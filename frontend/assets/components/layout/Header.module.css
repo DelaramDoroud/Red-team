@@ -82,7 +82,14 @@
 
 .themeToggle {
   backdrop-filter: blur(6px);
-  border-color: rgb(var(--color-primary-400) / 40%);
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-color: hsl(var(--secondary));
+  box-shadow: 0 8px 18px hsl(var(--foreground) / 0.16);
+}
+
+.themeToggle:hover:not(:disabled) {
+  box-shadow: 0 12px 22px hsl(var(--foreground) / 0.2);
 }
 
 .user {

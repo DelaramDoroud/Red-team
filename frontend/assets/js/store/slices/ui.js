@@ -1,0 +1,199 @@
+import { createSlice } from '@reduxjs/toolkit';
+import { clearUser, logoutUser } from './auth';
+
+const initialState = {
+  theme: null,
+  challengeDrafts: {},
+  challengeTimers: {},
+};
+
+const getDraftEntry = (userDrafts, key) =>
+  userDrafts[key] || {
+    imports: '',
+    studentCode: '',
+    lastCompiled: null,
+    lastSuccessful: null,
+  };
+
+const upsertUserEntry = (map, userId, key, updater) => {
+  const userMap = map[userId] || {};
+  const entry = getDraftEntry(userMap, key);
+  return {
+    ...map,
+    [userId]: {
+      ...userMap,
+      [key]: updater(entry),
+    },
+  };
+};
+
+const removeUserKey = (map, userId, key) => {
+  const userMap = map[userId];
+  if (!userMap || !userMap[key]) return map;
+  const next = { ...userMap };
+  delete next[key];
+  if (!Object.keys(next).length) {
+    const rest = { ...map };
+    delete rest[userId];
+    return rest;
+  }
+  return {
+    ...map,
+    [userId]: next,
+  };
+};
+
+const uiSlice = createSlice({
+  name: 'ui',
+  initialState,
+  reducers: {
+    setTheme: (state, action) => ({
+      ...state,
+      theme: action.payload,
+    }),
+    setDraftCode: (state, action) => {
+      const { userId, key, imports, studentCode } = action.payload || {};
+      if (!userId || !key) return state;
+      return {
+        ...state,
+        challengeDrafts: upsertUserEntry(
+          state.challengeDrafts,
+          userId,
+          key,
+          (entry) => ({
+            ...entry,
+            imports: imports ?? entry.imports,
+            studentCode: studentCode ?? entry.studentCode,
+          })
+        ),
+      };
+    },
+    setLastCompiledCode: (state, action) => {
+      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const nextImports = imports ?? '';
+      const nextStudentCode = studentCode ?? code ?? '';
+      if (!userId || !key) return state;
+      if (!nextImports && !nextStudentCode) return state;
+      return {
+        ...state,
+        challengeDrafts: upsertUserEntry(
+          state.challengeDrafts,
+          userId,
+          key,
+          (entry) => ({
+            ...entry,
+            lastCompiled: {
+              imports: nextImports,
+              studentCode: nextStudentCode,
+            },
+          })
+        ),
+      };
+    },
+    setLastSuccessfulCode: (state, action) => {
+      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const nextImports = imports ?? '';
+      const nextStudentCode = studentCode ?? code ?? '';
+      if (!userId || !key) return state;
+      if (!nextImports && !nextStudentCode) return state;
+      return {
+        ...state,
+        challengeDrafts: upsertUserEntry(
+          state.challengeDrafts,
+          userId,
+          key,
+          (entry) => ({
+            ...entry,
+            lastSuccessful: {
+              imports: nextImports,
+              studentCode: nextStudentCode,
+            },
+          })
+        ),
+      };
+    },
+    migrateChallengeKey: (state, action) => {
+      const { userId, fromKey, toKey } = action.payload || {};
+      if (!userId || !fromKey || !toKey || fromKey === toKey) return state;
+      const userDrafts = state.challengeDrafts[userId];
+      if (!userDrafts || !userDrafts[fromKey] || userDrafts[toKey]) {
+        return state;
+      }
+      const migratedDrafts = removeUserKey(
+        state.challengeDrafts,
+        userId,
+        fromKey
+      );
+      return {
+        ...state,
+        challengeDrafts: upsertUserEntry(
+          migratedDrafts,
+          userId,
+          toKey,
+          () => userDrafts[fromKey]
+        ),
+      };
+    },
+    clearChallengeDraft: (state, action) => {
+      const { userId, key } = action.payload || {};
+      if (!userId || !key) return state;
+      return {
+        ...state,
+        challengeDrafts: removeUserKey(state.challengeDrafts, userId, key),
+      };
+    },
+    setChallengeStartTime: (state, action) => {
+      const { userId, challengeId, startTime } = action.payload || {};
+      if (!userId || !challengeId || !startTime) return state;
+      const userTimers = state.challengeTimers[userId] || {};
+      return {
+        ...state,
+        challengeTimers: {
+          ...state.challengeTimers,
+          [userId]: {
+            ...userTimers,
+            [challengeId]: startTime,
+          },
+        },
+      };
+    },
+    clearChallengeTimer: (state, action) => {
+      const { userId, challengeId } = action.payload || {};
+      if (!userId || !challengeId) return state;
+      return {
+        ...state,
+        challengeTimers: removeUserKey(
+          state.challengeTimers,
+          userId,
+          challengeId
+        ),
+      };
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(logoutUser.fulfilled, (state) => ({
+        ...state,
+        challengeDrafts: {},
+        challengeTimers: {},
+      }))
+      .addCase(clearUser, (state) => ({
+        ...state,
+        challengeDrafts: {},
+        challengeTimers: {},
+      }));
+  },
+});
+
+export const {
+  setTheme,
+  setDraftCode,
+  setLastCompiledCode,
+  setLastSuccessfulCode,
+  migrateChallengeKey,
+  clearChallengeDraft,
+  setChallengeStartTime,
+  clearChallengeTimer,
+} = uiSlice.actions;
+
+export const uiReducer = uiSlice.reducer;

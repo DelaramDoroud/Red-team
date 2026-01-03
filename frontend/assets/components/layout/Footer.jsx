@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className={styles.footer}>
       <p>
-        CodyMatch demo frontend ·{' '}
+        CodyMatch ·{' '}
         <span className={styles.muted}>built for the capstone project</span>
       </p>
     </footer>

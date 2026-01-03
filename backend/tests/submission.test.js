@@ -11,7 +11,8 @@ import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
-import { ChallengeStatus } from '#root/models/enum/enums.js';
+import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
 // Mock executeCodeTests service
 const mockExecuteCodeTests = vi.fn();
@@ -179,6 +180,25 @@ describe('Submission API', () => {
       expect(res.body.success).toBe(false);
     });
 
+    it('rejects non-include lines before the imports marker', async () => {
+      const badCode = [
+        '#include <iostream>',
+        'int notAllowed = 0;',
+        IMPORTS_END_MARKER,
+        'int main() { return 0; }',
+      ].join('\n');
+
+      const res = await request(app).post('/api/rest/submissions').send({
+        matchId: match.id,
+        code: badCode,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toMatch(/#include/i);
+      expect(mockExecuteCodeTests).not.toHaveBeenCalled();
+    });
+
     it('returns 404 for non-existent match', async () => {
       const res = await request(app).post('/api/rest/submissions').send({
         matchId: 999999,
@@ -204,13 +224,17 @@ describe('Submission API', () => {
 
       expect(submission).toBeDefined();
       expect(submission.code).toBe('int main() { return 0; }');
+      expect(submission.status).toBe(SubmissionStatus.PROBABLY_CORRECT);
+      expect(submission.isAutomaticSubmission).toBe(false);
+      expect(submission.isFinal).toBe(true);
     });
 
-    it('updates existing submission code', async () => {
+    it('creates a new submission for each intentional submission', async () => {
       const existing = await Submission.create({
         matchId: match.id,
         challengeParticipantId: participant.id,
         code: 'int main() { return 1; }',
+        status: SubmissionStatus.WRONG,
       });
 
       const res = await request(app).post('/api/rest/submissions').send({
@@ -220,8 +244,102 @@ describe('Submission API', () => {
 
       expect(res.status).toBe(200);
 
-      await existing.reload();
-      expect(existing.code).toBe('int main() { return 2; }');
+      const submissions = await Submission.findAll({
+        where: { matchId: match.id },
+        order: [
+          ['createdAt', 'ASC'],
+          ['id', 'ASC'],
+        ],
+      });
+
+      expect(submissions).toHaveLength(2);
+      expect(submissions[0].id).toBe(existing.id);
+      expect(submissions[0].code).toBe('int main() { return 1; }');
+      expect(submissions[0].isFinal).toBe(false);
+      expect(submissions[1].code).toBe('int main() { return 2; }');
+      expect(submissions[1].isFinal).toBe(true);
+    });
+
+    it('selects an automatic submission when it is strictly better', async () => {
+      const publicPassResult = {
+        testResults: [{ passed: true }, { passed: true }],
+        summary: {
+          total: 2,
+          passed: 2,
+          failed: 0,
+          allPassed: true,
+        },
+        isCompiled: true,
+        isPassed: true,
+        errors: [],
+      };
+      const privateImprovableResult = {
+        testResults: [{ passed: true }, { passed: false }],
+        summary: {
+          total: 2,
+          passed: 1,
+          failed: 1,
+          allPassed: false,
+        },
+        isCompiled: true,
+        isPassed: false,
+        errors: [],
+      };
+      const privatePassResult = {
+        testResults: [{ passed: true }, { passed: true }],
+        summary: {
+          total: 2,
+          passed: 2,
+          failed: 0,
+          allPassed: true,
+        },
+        isCompiled: true,
+        isPassed: true,
+        errors: [],
+      };
+
+      mockExecuteCodeTests
+        .mockResolvedValueOnce(publicPassResult)
+        .mockResolvedValueOnce(privateImprovableResult)
+        .mockResolvedValueOnce(publicPassResult)
+        .mockResolvedValueOnce(privatePassResult);
+
+      const intentionalRes = await request(app)
+        .post('/api/rest/submissions')
+        .send({
+          matchId: match.id,
+          code: 'int main() { return 1; }',
+        });
+      expect(intentionalRes.status).toBe(200);
+
+      const automaticRes = await request(app)
+        .post('/api/rest/submissions')
+        .send({
+          matchId: match.id,
+          code: 'int main() { return 2; }',
+          isAutomatic: true,
+        });
+      expect(automaticRes.status).toBe(200);
+
+      const submissions = await Submission.findAll({
+        where: { matchId: match.id },
+        order: [
+          ['createdAt', 'ASC'],
+          ['id', 'ASC'],
+        ],
+      });
+
+      const intentional = submissions.find(
+        (submission) => !submission.isAutomaticSubmission
+      );
+      const automatic = submissions.find(
+        (submission) => submission.isAutomaticSubmission
+      );
+
+      expect(intentional.status).toBe(SubmissionStatus.IMPROVABLE);
+      expect(automatic.status).toBe(SubmissionStatus.PROBABLY_CORRECT);
+      expect(automatic.isFinal).toBe(true);
+      expect(intentional.isFinal).toBe(false);
     });
 
     it('rejects submission when code does not compile', async () => {

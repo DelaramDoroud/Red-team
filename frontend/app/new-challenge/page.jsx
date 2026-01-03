@@ -6,6 +6,8 @@ import useMatchSettings from '#js/useMatchSetting';
 import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
+import { Button } from '#components/common/Button';
+import AlertDialog from '#components/common/AlertDialog';
 import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import styles from './page.module.css';
@@ -32,6 +34,8 @@ export default function NewChallengePage() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
+  const [overlapPayload, setOverlapPayload] = useState(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -98,6 +102,36 @@ export default function NewChallengePage() {
     return dt.toISOString();
   };
 
+  const parseCreateError = (result) => {
+    const fallback = { message: 'An unknown error occurred', code: null };
+    if (!result?.message) return fallback;
+    if (typeof result.message !== 'string') {
+      return fallback;
+    }
+    if (!result.message.startsWith(Constants.NETWORK_RESPONSE_NOT_OK)) {
+      return { message: result.message, code: null };
+    }
+    const rawMessage = result.message.slice(
+      Constants.NETWORK_RESPONSE_NOT_OK.length
+    );
+    try {
+      const jsonError = JSON.parse(rawMessage);
+      const errorCode = jsonError?.error?.code || null;
+      if (jsonError?.error?.errors?.length > 0) {
+        return { message: jsonError.error.errors[0].message, code: errorCode };
+      }
+      if (jsonError?.message) {
+        return { message: jsonError.message, code: errorCode };
+      }
+      if (jsonError?.error?.message) {
+        return { message: jsonError.error.message, code: errorCode };
+      }
+      return fallback;
+    } catch {
+      return { message: fallback.message, code: null };
+    }
+  };
+
   useEffect(() => {
     mountedRef.current = true;
     const loadData = async () => {
@@ -151,6 +185,7 @@ export default function NewChallengePage() {
     e.preventDefault();
     // console.log("Challenge to save: ", challenge);
     if (!isAuthorized) return;
+    setSuccessMessage(null);
     if (
       !Number.isInteger(challenge.allowedNumberOfReview) ||
       challenge.allowedNumberOfReview < 2
@@ -194,22 +229,17 @@ export default function NewChallengePage() {
           setTimeout(() => {
             router.push('/challenges');
           }, 3000);
-        } else {
-          let errorMsg = 'An unknown error occurred';
-          const message = result?.message.slice(
-            Constants.NETWORK_RESPONSE_NOT_OK.length
-          );
-          const jsonError = JSON.parse(message);
-          if (jsonError.error?.errors?.length > 0) {
-            errorMsg = jsonError.error.errors[0].message;
-          } else if (jsonError?.message) {
-            errorMsg = jsonError.message;
-          } else if (jsonError?.error?.message) {
-            errorMsg = jsonError?.error?.message;
-          }
-          setError(errorMsg);
-          setIsSubmitting(false);
+          return;
         }
+        const { message, code } = parseCreateError(result);
+        if (code === 'challenge_overlap') {
+          setOverlapPayload(payload);
+          setOverlapDialogOpen(true);
+          setIsSubmitting(false);
+          return;
+        }
+        setError(message);
+        setIsSubmitting(false);
       } catch (err) {
         // console.error(err);
         setError(`Error: ${err.message}`);
@@ -220,193 +250,270 @@ export default function NewChallengePage() {
 
   if (!isAuthorized) return null;
 
-  return (
-    <>
-      {error && <div className={styles.errorBox}>{error}</div>}
-      {successMessage && (
-        <div className={styles.successBox}>{successMessage}</div>
-      )}
+  const handleOverlapConfirm = async () => {
+    if (!overlapPayload) return;
+    setOverlapDialogOpen(false);
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const overridePayload = {
+        ...overlapPayload,
+        status: Constants.ChallengeStatus.PRIVATE,
+        allowOverlap: true,
+      };
+      const overrideResult = await createChallenge(overridePayload);
+      if (overrideResult?.success) {
+        setChallenge((prev) => ({
+          ...prev,
+          status: Constants.ChallengeStatus.PRIVATE,
+        }));
+        setSuccessMessage(
+          'Challenge created as private because it overlaps another challenge. Redirecting...'
+        );
+        setTimeout(() => {
+          router.push('/challenges');
+        }, 3000);
+        return;
+      }
+      const overrideError = parseCreateError(overrideResult);
+      setError(overrideError.message);
+    } catch (err) {
+      setError(`Error: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+      setOverlapPayload(null);
+    }
+  };
 
-      <main role='main' className={styles.main} aria-labelledby='page-title'>
-        <div className={styles.header}>
-          <h1 id='page-title'>Create New Challenge</h1>
-          <p>Fill out the form below to create a new challenge.</p>
+  const handleOverlapCancel = () => {
+    setOverlapDialogOpen(false);
+    setOverlapPayload(null);
+    setError('Challenge creation cancelled.');
+  };
+
+  return (
+    <main role='main' className={styles.main} aria-labelledby='page-title'>
+      <div className={styles.header}>
+        <h1 id='page-title'>Create New Challenge</h1>
+        <p>Fill out the form below to create a new challenge.</p>
+      </div>
+      <form
+        data-testid='challenge-form'
+        onSubmit={handleSubmit}
+        className={styles.card}
+      >
+        <div className={styles.field}>
+          <label htmlFor='title'>
+            Challenge Name
+            <input
+              id='title'
+              type='text'
+              value={challenge.title}
+              onChange={handleDataField}
+              name='title'
+              className={styles.input}
+              required
+            />
+          </label>
         </div>
-        <form
-          data-testid='challenge-form'
-          onSubmit={handleSubmit}
-          className={styles.card}
-        >
+        <div className={styles.row}>
           <div className={styles.field}>
-            <label htmlFor='title'>
-              Challenge Name
+            <label htmlFor='startDatetime'>
+              Start Date/Time
               <input
-                id='title'
-                type='text'
-                value={challenge.title}
+                id='startDatetime'
+                type='datetime-local'
+                name='startDatetime'
+                value={challenge.startDatetime}
                 onChange={handleDataField}
-                name='title'
-                className={styles.input}
+                className={styles.datetime}
+                min={getMinDateTime()}
                 required
               />
             </label>
           </div>
+          <div className={styles.field}>
+            <label htmlFor='endDatetime'>
+              End Date/Time
+              <input
+                id='endDatetime'
+                type='datetime-local'
+                name='endDatetime'
+                value={challenge.endDatetime}
+                onChange={handleDataField}
+                className={styles.datetime}
+                min={getMinEndDate()}
+                required
+                disabled={!challenge.startDatetime || !challenge.duration}
+              />
+            </label>
+          </div>
+        </div>
+        <div>
           <div className={styles.row}>
             <div className={styles.field}>
-              <label htmlFor='startDatetime'>
-                Start Date/Time
+              <label htmlFor='duration'>
+                Duration (min)
                 <input
-                  id='startDatetime'
-                  type='datetime-local'
-                  name='startDatetime'
-                  value={challenge.startDatetime}
+                  id='duration'
+                  type='number'
+                  name='duration'
+                  value={challenge.duration}
                   onChange={handleDataField}
-                  className={styles.datetime}
-                  min={getMinDateTime()}
+                  className={styles.number}
+                  min={1}
                   required
                 />
               </label>
             </div>
             <div className={styles.field}>
-              <label htmlFor='endDatetime'>
-                End Date/Time
+              <label htmlFor='durationPeerReview'>
+                Duration Peer Review (min)
                 <input
-                  id='endDatetime'
-                  type='datetime-local'
-                  name='endDatetime'
-                  value={challenge.endDatetime}
+                  id='durationPeerReview'
+                  type='number'
+                  name='durationPeerReview'
+                  value={challenge.durationPeerReview}
                   onChange={handleDataField}
-                  className={styles.datetime}
-                  min={getMinEndDate()}
+                  className={styles.number}
+                  min={1}
                   required
-                  disabled={!challenge.startDatetime || !challenge.duration}
                 />
               </label>
             </div>
           </div>
-          <div>
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label htmlFor='duration'>
-                  Duration (min)
-                  <input
-                    id='duration'
-                    type='number'
-                    name='duration'
-                    value={challenge.duration}
-                    onChange={handleDataField}
-                    className={styles.number}
-                    min={1}
-                    required
-                  />
-                </label>
-              </div>
-              <div className={styles.field}>
-                <label htmlFor='durationPeerReview'>
-                  Duration Peer Review (min)
-                  <input
-                    id='durationPeerReview'
-                    type='number'
-                    name='durationPeerReview'
-                    value={challenge.durationPeerReview}
-                    onChange={handleDataField}
-                    className={styles.number}
-                    min={1}
-                    required
-                  />
-                </label>
-              </div>
+        </div>
+        <div>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label htmlFor='allowedNumberOfReview'>
+                Expected Reviews per Submission
+                <input
+                  id='allowedNumberOfReview'
+                  type='number'
+                  name='allowedNumberOfReview'
+                  value={challenge.allowedNumberOfReview}
+                  onChange={handleDataField}
+                  className={`${styles.number} ${styles.expectedReviewInput}`}
+                  min={2}
+                  required
+                />
+              </label>
             </div>
           </div>
-          <div>
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label htmlFor='allowedNumberOfReview'>
-                  Expected Reviews per Submission
-                  <input
-                    id='allowedNumberOfReview'
-                    type='number'
-                    name='allowedNumberOfReview'
-                    value={challenge.allowedNumberOfReview}
-                    onChange={handleDataField}
-                    className={styles.number}
-                    min={2}
-                    required
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className={styles.field}>
-            <span>Status</span>
-            <ToggleSwitch
-              checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
-              label={
-                challenge.status === Constants.ChallengeStatus.PUBLIC
-                  ? 'Public'
-                  : 'Private'
-              }
-              onChange={() =>
-                setChallenge((prev) => ({
-                  ...prev,
-                  status:
-                    prev.status === Constants.ChallengeStatus.PUBLIC
-                      ? Constants.ChallengeStatus.PRIVATE
-                      : Constants.ChallengeStatus.PUBLIC,
-                }))
-              }
-            />
-          </div>
-          <div className={styles.field}>
-            <strong>
-              Selected Match Settings: {challenge?.matchSettingIds?.length}
-            </strong>
-          </div>
+        </div>
+        <div className={styles.field}>
+          <span>Status</span>
+          <ToggleSwitch
+            checked={challenge.status === Constants.ChallengeStatus.PUBLIC}
+            label={
+              challenge.status === Constants.ChallengeStatus.PUBLIC
+                ? 'Public'
+                : 'Private'
+            }
+            onChange={() =>
+              setChallenge((prev) => ({
+                ...prev,
+                status:
+                  prev.status === Constants.ChallengeStatus.PUBLIC
+                    ? Constants.ChallengeStatus.PRIVATE
+                    : Constants.ChallengeStatus.PUBLIC,
+              }))
+            }
+          />
+        </div>
+        <div className={styles.field}>
+          <strong>
+            Selected Match Settings: {challenge?.matchSettingIds?.length}
+          </strong>
+        </div>
 
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Select</th>
-                <th>Title</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map((match) => (
-                <tr key={match.id}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Select</th>
+              <th>Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            {currentItems.map((match) => {
+              const isSelected = challenge.matchSettingIds.includes(match.id);
+              const handleRowToggle = () => toggleSetting(match.id);
+              const handleRowKeyDown = (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleRowToggle();
+                }
+              };
+
+              return (
+                <tr
+                  key={match.id}
+                  role='button'
+                  tabIndex={0}
+                  onClick={handleRowToggle}
+                  onKeyDown={handleRowKeyDown}
+                >
                   <td style={{ textAlign: 'center' }}>
                     <input
                       aria-label='select setting'
                       type='checkbox'
-                      checked={challenge.matchSettingIds.includes(match.id)}
-                      onChange={() => toggleSetting(match.id)}
+                      checked={isSelected}
+                      onChange={handleRowToggle}
+                      onClick={(event) => event.stopPropagation()}
                     />
                   </td>
                   <td style={{ textAlign: 'center' }}>{match.problemTitle}</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-          />
+              );
+            })}
+          </tbody>
+        </table>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
 
-          <div className={styles.submitWrapper}>
-            <button
-              data-testid='create-challenge-button'
-              type='submit'
-              className={styles.submitButton}
-              disabled={isSubmitting}
-              aria-busy={isSubmitting}
-              name='submit'
-            >
-              {isSubmitting && <span className={styles.spinner} aria-hidden />}
-              {isSubmitting ? 'Creating…' : 'Create'}
-            </button>
+        <div className={styles.submitWrapper}>
+          <div className={styles.feedback} aria-live='polite'>
+            {error && (
+              <span className={styles.feedbackError} role='alert'>
+                {error}
+              </span>
+            )}
+            {!error && successMessage && (
+              <span className={styles.feedbackSuccess} role='status'>
+                {successMessage}
+              </span>
+            )}
           </div>
-        </form>
-      </main>
-    </>
+          <Button
+            data-testid='create-challenge-button'
+            type='submit'
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+            name='submit'
+            title='Create this challenge'
+          >
+            {isSubmitting && <span className={styles.spinner} aria-hidden />}
+            {isSubmitting ? 'Creating…' : 'Create'}
+          </Button>
+        </div>
+      </form>
+      <AlertDialog
+        open={overlapDialogOpen}
+        title='Overlap detected'
+        description='This challenge overlaps with an existing one. Create it anyway? It will be saved as private.'
+        confirmLabel='Create as private'
+        cancelLabel='Cancel'
+        confirmVariant='primary'
+        cancelVariant='outline'
+        confirmDisabled={isSubmitting}
+        cancelDisabled={isSubmitting}
+        onConfirm={handleOverlapConfirm}
+        onCancel={handleOverlapCancel}
+      />
+    </main>
   );
 }

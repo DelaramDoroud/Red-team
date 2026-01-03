@@ -3,17 +3,7 @@ export const errorTypes = {
   SequelizeUniqueConstraintError: 'SequelizeUniqueConstraintError',
   NotExistsError: 'NotExistsError',
   NotFoundError: 'NotFoundError',
-  NotFoundResearchItemError: 'NotFoundResearchItemError',
-  NotFoundResearchEntityError: 'NotFoundResearchEntityError',
   VerificationError: 'VerificationError',
-  VerificationMissingAffiliationError: 'VerificationMissingAffiliationError',
-  VerificationMissingAuthorPositionError:
-    'VerificationMissingAuthorPositionError',
-  VerificationMissingAuthorInPositionError:
-    'VerificationMissingAuthorInPositionError',
-  VerificationAlreadyVerifiedError: 'VerificationAlreadyVerifiedError',
-  VerificationIsDuplicateError: 'VerificationIsDuplicateError',
-  VerificationNotDraftCreatorError: 'VerificationNotDraftCreatorError',
   UnverificationError: 'UnverificationError',
   UnverificationAlreadyVerifiedError: 'UnverificationAlreadyVerifiedError',
 };
@@ -24,17 +14,7 @@ export const inputErrors = [
   errorTypes.NotExistsError,
 ];
 
-export const verificationErrors = [
-  errorTypes.NotFoundResearchItemError,
-  errorTypes.NotFoundResearchEntityError,
-  errorTypes.VerificationError,
-  errorTypes.VerificationMissingAffiliationError,
-  errorTypes.VerificationMissingAuthorPositionError,
-  errorTypes.VerificationIsDuplicateError,
-  errorTypes.VerificationAlreadyVerifiedError,
-  errorTypes.VerificationNotDraftCreatorError,
-  errorTypes.VerificationMissingAuthorInPositionError,
-];
+export const verificationErrors = [errorTypes.VerificationError];
 
 export const unverificationErrors = [
   errorTypes.ValidationError,

@@ -8,12 +8,10 @@ const initialState = {
   user: null,
   isLoggedIn: false,
   roles: null,
-  researchEntities: null,
   loading: false,
   error: null,
   loginRedirectPath: null,
   permissions: null,
-  personResearchEntity: null,
 };
 
 export const fetchUserInfo = createAsyncThunk(
@@ -95,12 +93,7 @@ const authSlice = createSlice({
           ...state,
           user,
           isLoggedIn,
-          researchEntities: action.payload?.researchEntities || null,
           roles: user?.role ? [user.role] : null,
-          personResearchEntity:
-            action.payload?.researchEntities?.find(
-              (re) => re.type === 'person'
-            ) ?? null,
           permissions: action.payload?.permissions || null,
           loading: false,
           error: null,

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import NewChallengePage from '../app/new-challenge/page';
@@ -85,8 +91,9 @@ describe('Create Challenge Page', () => {
     });
     render(<NewChallengePage />, { wrapper: getMockedStoreWrapper() });
     expect(await screen.findByText('Ready Problem 1')).toBeInTheDocument();
-    const rows = screen.getAllByRole('row');
-    expect(rows).toHaveLength(2);
+    const table = screen.getByRole('table');
+    const rows = within(table).getAllByRole('button');
+    expect(rows).toHaveLength(1);
   });
 
   it('AC: Match setting row can be toggled on/off', async () => {

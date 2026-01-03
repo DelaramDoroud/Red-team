@@ -154,7 +154,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type='submit' disabled={loading} className={styles.submit}>
+            <Button
+              type='submit'
+              disabled={loading}
+              className={styles.submit}
+              title='Sign in to your account'
+            >
               {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>

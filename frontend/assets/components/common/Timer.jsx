@@ -1,10 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setChallengeStartTime } from '#js/store/slices/ui';
 import { useDuration } from '../../../app/student/challenges/[challengeId]/(context)/DurationContext';
 
 function Timer({ duration, challengeId, onFinish }) {
   const { startPhaseOneDateTime } = useDuration() || {};
+  const dispatch = useAppDispatch();
+  const userId = useAppSelector((state) => state.auth.user?.id);
+  const storedStartTime = useAppSelector((state) => {
+    if (!userId) return null;
+    return state.ui.challengeTimers?.[userId]?.[challengeId] || null;
+  });
 
   const endTimeRef = useRef(null);
   const finishedRef = useRef(false);
@@ -20,20 +28,19 @@ function Timer({ duration, challengeId, onFinish }) {
 
     const durationSeconds = duration * 60;
 
-    // Use server's startPhaseOneDateTime if available, otherwise fallback to localStorage
-    let startTime;
+    // Use server's startPhaseOneDateTime if available, otherwise fallback to persisted store
+    let startTime = null;
     if (startPhaseOneDateTime) {
       // Use server's actual challenge start time (challenge-specific)
       startTime = new Date(startPhaseOneDateTime).getTime();
+      if (userId && storedStartTime !== startTime)
+        dispatch(setChallengeStartTime({ userId, challengeId, startTime }));
+    } else if (storedStartTime) {
+      startTime = storedStartTime;
     } else {
-      // Fallback: Create a unique storage key for this challenge (challenge-specific)
-      const storageKey = `challenge-start-${challengeId}`;
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        startTime = Number(stored);
-      } else {
-        startTime = Date.now();
-        localStorage.setItem(storageKey, startTime);
+      startTime = Date.now();
+      if (userId) {
+        dispatch(setChallengeStartTime({ userId, challengeId, startTime }));
       }
     }
 
@@ -61,7 +68,15 @@ function Timer({ duration, challengeId, onFinish }) {
     intervalRef.current = setInterval(tick, 1000);
 
     return () => clearInterval(intervalRef.current);
-  }, [duration, challengeId, startPhaseOneDateTime, onFinish]);
+  }, [
+    duration,
+    challengeId,
+    startPhaseOneDateTime,
+    onFinish,
+    dispatch,
+    storedStartTime,
+    userId,
+  ]);
 
   const formatTime = (seconds) => {
     if (seconds === null) return '--:--:--';

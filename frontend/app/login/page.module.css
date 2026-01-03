@@ -31,18 +31,18 @@
   background:
     radial-gradient(
       120% 120% at 0% 0%,
-      rgb(var(--color-primary-100) / 0.25),
+      hsl(var(--muted) / 0.6),
       transparent 50%
     ),
     radial-gradient(
       120% 120% at 100% 0%,
-      rgb(var(--color-secondary-200) / 0.25),
+      hsl(var(--muted) / 0.5),
       transparent 55%
     ),
     hsl(var(--card));
   box-shadow:
-    0 20px 30px -20px rgb(var(--color-primary-900) / 0.35),
-    0 10px 20px -15px rgb(var(--color-secondary-900) / 0.25);
+    0 20px 30px -20px hsl(var(--foreground) / 0.28),
+    0 10px 20px -15px hsl(var(--foreground) / 0.18);
 }
 
 .form {

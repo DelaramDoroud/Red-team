@@ -180,6 +180,7 @@ export default function ChallengeList() {
           }}
           disabled={pending[challenge.id]?.assign}
           size='sm'
+          title='Assign students to this challenge'
         >
           {pending[challenge.id]?.assign ? 'Assigning...' : 'Assign students'}
         </Button>
@@ -200,6 +201,7 @@ export default function ChallengeList() {
             handleStart(challenge.id);
           }}
           disabled={pending[challenge.id]?.start}
+          title='Start this challenge'
         >
           {pending[challenge.id]?.start ? 'Starting...' : 'Start'}
         </Button>
@@ -240,7 +242,7 @@ export default function ChallengeList() {
     <section className={styles.section}>
       <div className={styles.header}>
         <h2>Challenges</h2>
-        <Button variant='outline' onClick={load}>
+        <Button variant='outline' onClick={load} title='Refresh challenges'>
           Refresh
         </Button>
       </div>

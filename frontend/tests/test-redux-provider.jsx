@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { authReducer } from '#js/store/slices/auth';
+import { uiReducer } from '#js/store/slices/ui';
 
 export function getMockedStore(preloadedState) {
   return configureStore({
     reducer: {
       auth: authReducer,
+      ui: uiReducer,
     },
     preloadedState,
   });

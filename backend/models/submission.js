@@ -1,5 +1,6 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '#root/services/sequelize.js';
+import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 class Submission extends Model {}
 
@@ -23,6 +24,22 @@ Submission.init(
     code: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    status: {
+      type: DataTypes.ENUM(...Object.values(SubmissionStatus)),
+      allowNull: true,
+    },
+    isAutomaticSubmission: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      field: 'is_automatic_submission',
+      defaultValue: false,
+    },
+    isFinal: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      field: 'is_final',
+      defaultValue: false,
     },
     createdAt: {
       type: DataTypes.DATE,

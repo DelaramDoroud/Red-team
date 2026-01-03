@@ -16,6 +16,12 @@ export default {
         ],
       },
     ],
+    'selector-pseudo-class-no-unknown': [
+      true,
+      {
+        ignorePseudoClasses: ['global', 'local'],
+      },
+    ],
     'declaration-property-value-no-unknown': null,
   },
 };

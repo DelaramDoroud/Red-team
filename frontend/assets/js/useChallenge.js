@@ -112,7 +112,13 @@ export default function useChallenge() {
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, code, isAutomatic, language }),
+        body: JSON.stringify({
+          matchId,
+          code,
+          isAutomatic,
+          is_automatic_submission: isAutomatic,
+          language,
+        }),
       });
     },
     [fetchData]

@@ -1,21 +1,217 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import {
+  migrateChallengeKey,
+  setDraftCode,
+  setLastCompiledCode,
+  setLastSuccessfulCode,
+} from '#js/store/slices/ui';
+import { NETWORK_RESPONSE_NOT_OK } from '#js/constants';
 import MatchView from './MatchView';
 
-const CppCodeTemplate = `#include <bits/stdc++.h>
-using namespace std;
+const DEFAULT_IMPORTS = '#include <iostream>';
+const IMPORTS_END_MARKER = '// __CODYMATCH_IMPORTS_END__';
+const DEFAULT_PREFIX = `using namespace std;
 
 int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
-    //TODO: write your solution based on the problem description
+`;
+const DEFAULT_SUFFIX = `
     return 0;
 }
 `;
 
+const IMPORT_MARKERS = [
+  '/* IMPORTS */',
+  '// IMPORTS',
+  '//IMPORTS',
+  '{{IMPORTS}}',
+];
+const STUDENT_MARKERS = [
+  '/* STUDENT_CODE */',
+  '// STUDENT_CODE',
+  '//STUDENT_CODE',
+  '// TODO',
+  '//TODO',
+  '/* TODO */',
+  '{{STUDENT_CODE}}',
+];
+
+const stripMarkers = (code, markers) =>
+  markers.reduce((value, marker) => value.split(marker).join(''), code);
+
+const extractImports = (code) => {
+  const lines = code.split('\n');
+  const importLines = [];
+  const restLines = [];
+  lines.forEach((line) => {
+    if (/^\s*#include\b/.test(line)) {
+      importLines.push(line);
+    } else {
+      restLines.push(line);
+    }
+  });
+  return {
+    imports: importLines.join('\n'),
+    code: restLines.join('\n'),
+  };
+};
+
+const splitAtMarker = (code, markers) => {
+  const marker = markers.find((candidate) => code.includes(candidate));
+  if (!marker) return null;
+  const [before, after] = code.split(marker);
+  return { before, after };
+};
+
+const splitAtReturn = (code) => {
+  const marker = 'return 0;';
+  const index = code.indexOf(marker);
+  if (index === -1) return null;
+  return {
+    before: code.slice(0, index),
+    after: code.slice(index),
+  };
+};
+
+const buildTemplateParts = (starterCode) => {
+  if (!starterCode || !starterCode.trim()) {
+    return {
+      imports: DEFAULT_IMPORTS,
+      fixedPrefix: DEFAULT_PREFIX,
+      fixedSuffix: DEFAULT_SUFFIX,
+    };
+  }
+
+  let working = stripMarkers(starterCode, IMPORT_MARKERS);
+  const extracted = extractImports(working);
+  const imports = extracted.imports.trim()
+    ? extracted.imports
+    : DEFAULT_IMPORTS;
+  working = extracted.code;
+
+  let split = splitAtMarker(working, STUDENT_MARKERS);
+  if (!split) {
+    split = splitAtReturn(working);
+  }
+  if (!split) {
+    return {
+      imports,
+      fixedPrefix: working,
+      fixedSuffix: '',
+    };
+  }
+  return {
+    imports,
+    fixedPrefix: split.before,
+    fixedSuffix: split.after,
+  };
+};
+
+const analyzeImports = (value) => {
+  const rawValue = typeof value === 'string' ? value : '';
+  const lines = rawValue.split('\n');
+  const sanitizedLines = [];
+  const invalidLines = [];
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      sanitizedLines.push(line);
+      return;
+    }
+    if (/^\s*#include\b/.test(line)) {
+      sanitizedLines.push(line);
+      return;
+    }
+    invalidLines.push(line);
+  });
+  return {
+    sanitized: sanitizedLines.join('\n'),
+    invalidLines,
+  };
+};
+
+const assembleCode = (imports, fixedPrefix, studentCode, fixedSuffix) => {
+  const trimmedImports = imports && imports.trim();
+  let importBlock = '';
+  if (trimmedImports) {
+    importBlock = `${trimmedImports}\n${IMPORTS_END_MARKER}\n\n`;
+  }
+  const prefix = fixedPrefix || '';
+  const student = studentCode || '';
+  const suffix = fixedSuffix || '';
+  return `${importBlock}${prefix}${student}${suffix}`;
+};
+
+const normalizeSnapshot = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    return { imports: '', studentCode: value };
+  }
+  return {
+    imports: value.imports || '',
+    studentCode: value.studentCode || '',
+  };
+};
+
+const IMPORTS_VALIDATION_MESSAGE =
+  'Only #include lines are allowed in the imports section.';
+const IMPORTS_USER_MESSAGE =
+  'Imports can only contain #include lines. Remove any other statements.';
+
+const parseNetworkErrorMessage = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  if (!value.startsWith(NETWORK_RESPONSE_NOT_OK)) return value;
+
+  const raw = value.slice(NETWORK_RESPONSE_NOT_OK.length);
+  try {
+    const parsed = JSON.parse(raw);
+    const parsedMessage =
+      parsed?.error?.message ||
+      parsed?.message ||
+      parsed?.error?.errors?.[0]?.message;
+    if (typeof parsedMessage === 'string' && parsedMessage.trim()) {
+      return parsedMessage;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const parseApiErrorMessage = (result) => {
+  if (!result) return null;
+  if (typeof result === 'string') return parseNetworkErrorMessage(result);
+
+  const directError = result?.error?.message;
+  const parsedDirect = parseNetworkErrorMessage(directError);
+  if (typeof parsedDirect === 'string' && parsedDirect.trim()) {
+    return parsedDirect;
+  }
+
+  if (result?.error instanceof Error && result.error.message) {
+    return parseNetworkErrorMessage(result.error.message);
+  }
+
+  const message = result?.message;
+  return parseNetworkErrorMessage(message);
+};
+
+const getUserFacingErrorMessage = (result, fallback) => {
+  const parsed = parseApiErrorMessage(result);
+  if (!parsed) return fallback;
+  if (parsed === IMPORTS_VALIDATION_MESSAGE) return IMPORTS_USER_MESSAGE;
+  if (parsed.includes(IMPORTS_VALIDATION_MESSAGE)) {
+    return IMPORTS_USER_MESSAGE;
+  }
+  return parsed;
+};
+
 export default function MatchContainer({ challengeId, studentId }) {
+  const dispatch = useAppDispatch();
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
@@ -30,10 +226,11 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
 
-  const [code, setCode] = useState(CppCodeTemplate);
+  const [imports, setImports] = useState(DEFAULT_IMPORTS);
+  const [studentCode, setStudentCode] = useState('');
+  const [importsWarning, setImportsWarning] = useState('');
   const [runResult, setRunResult] = useState(null);
   const [testResults, setTestResults] = useState([]);
-  const [, setLastSuccessfulCode] = useState(null);
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,53 +239,117 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
   const hasLoadedFromStorage = useRef(false);
-  const hasLoadedLastSuccess = useRef(false);
   const lastSuccessRef = useRef(null);
   const storageKeyBase = useMemo(
     () => (matchId ? `match-${matchId}` : `challenge-${challengeId}`),
     [matchId, challengeId]
   );
+  const templateParts = useMemo(
+    () => buildTemplateParts(matchData?.starterCode),
+    [matchData]
+  );
+  const { imports: defaultImports, fixedPrefix, fixedSuffix } = templateParts;
+
+  const assembledCode = useMemo(
+    () => assembleCode(imports, fixedPrefix, studentCode, fixedSuffix),
+    [imports, fixedPrefix, studentCode, fixedSuffix]
+  );
+
+  const savedDraftEntry = useAppSelector((state) => {
+    if (!studentId) return null;
+    return state.ui.challengeDrafts?.[studentId]?.[storageKeyBase] || null;
+  });
+  const savedDraftImports = savedDraftEntry?.imports || '';
+  const savedDraftStudentCode =
+    savedDraftEntry?.studentCode || savedDraftEntry?.code || '';
+  const savedLastCompiledSnapshot = normalizeSnapshot(
+    savedDraftEntry?.lastCompiled
+  );
+  const savedLastSuccessSnapshot = normalizeSnapshot(
+    savedDraftEntry?.lastSuccessful
+  );
+
+  useEffect(() => {
+    if (!studentId || !matchId) return;
+    const fromKey = `challenge-${challengeId}`;
+    const toKey = `match-${matchId}`;
+    dispatch(
+      migrateChallengeKey({
+        userId: studentId,
+        fromKey,
+        toKey,
+      })
+    );
+  }, [dispatch, studentId, challengeId, matchId]);
+
+  const storeLastCompiled = useCallback(() => {
+    if (!studentId) return;
+    if (!imports.trim() && !studentCode.trim()) return;
+    dispatch(
+      setLastCompiledCode({
+        userId: studentId,
+        key: storageKeyBase,
+        imports,
+        studentCode,
+      })
+    );
+  }, [dispatch, storageKeyBase, studentId, imports, studentCode]);
 
   useEffect(() => {
     hasLoadedFromStorage.current = false;
-    hasLoadedLastSuccess.current = false;
-  }, [matchId]);
+  }, [matchId, challengeId]);
 
   useEffect(() => {
     if (!matchData) return;
     if (hasLoadedFromStorage.current) return;
-    if (typeof localStorage === 'undefined' || !localStorage.getItem) return;
 
-    const storageKey = `code-${storageKeyBase}`;
-    const savedCode = localStorage.getItem(storageKey);
+    if (savedDraftImports || savedDraftStudentCode) {
+      setImports(savedDraftImports || defaultImports);
+      setStudentCode(savedDraftStudentCode);
+    } else {
+      setImports(defaultImports);
+      setStudentCode('');
+    }
+    setImportsWarning('');
 
-    if (savedCode !== null && savedCode.trim() !== '') {
-      setCode(savedCode);
-      hasLoadedFromStorage.current = true;
+    if (savedLastSuccessSnapshot) {
+      lastSuccessRef.current = assembleCode(
+        savedLastSuccessSnapshot.imports || defaultImports,
+        fixedPrefix,
+        savedLastSuccessSnapshot.studentCode,
+        fixedSuffix
+      );
+    } else {
+      lastSuccessRef.current = null;
     }
-    const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-    const savedLastSuccess = localStorage.getItem(lastSuccessKey);
-    if (
-      savedLastSuccess &&
-      savedLastSuccess.trim() &&
-      !hasLoadedLastSuccess.current
-    ) {
-      setLastSuccessfulCode(savedLastSuccess);
-      lastSuccessRef.current = savedLastSuccess;
-      hasLoadedLastSuccess.current = true;
-    }
-  }, [storageKeyBase, matchData]);
+
+    hasLoadedFromStorage.current = true;
+  }, [
+    matchData,
+    savedDraftImports,
+    savedDraftStudentCode,
+    savedLastSuccessSnapshot,
+    defaultImports,
+    fixedPrefix,
+    fixedSuffix,
+  ]);
 
   const [isChallengeFinished, setIsChallengeFinished] = useState(false);
 
   useEffect(() => {
     if (!matchData) return;
-    if (typeof localStorage === 'undefined' || !localStorage.setItem) return;
-    const storageKey = `code-${storageKeyBase}`;
-    localStorage.setItem(storageKey, code);
-  }, [code, matchData, storageKeyBase]);
+    if (!studentId) return;
+    dispatch(
+      setDraftCode({
+        userId: studentId,
+        key: storageKeyBase,
+        imports,
+        studentCode,
+      })
+    );
+  }, [imports, studentCode, matchData, storageKeyBase, studentId, dispatch]);
 
-  // load StudentAssignedMatchSetting(Mtach)
+  // load StudentAssignedMatchSetting(Match)
   useEffect(() => {
     if (!challengeId || !studentId) return () => {};
 
@@ -108,11 +369,11 @@ export default function MatchContainer({ challengeId, studentId }) {
       setIsTimeUp(false);
       setMatchData(null);
       setMatchId(null);
-      setLastSuccessfulCode(null);
       lastSuccessRef.current = null;
-      hasLoadedLastSuccess.current = false;
       hasLoadedFromStorage.current = false;
-      setCode(CppCodeTemplate);
+      setImports(DEFAULT_IMPORTS);
+      setStudentCode('');
+      setImportsWarning('');
 
       try {
         const res = await getStudentAssignedMatchSetting(
@@ -148,14 +409,6 @@ export default function MatchContainer({ challengeId, studentId }) {
             }
           } catch {
             setMatchId(null);
-          }
-
-          if (
-            !hasLoadedFromStorage.current &&
-            data?.starterCode &&
-            data.starterCode.trim().length > 0
-          ) {
-            setCode(data.starterCode);
           }
         }
       } catch (_err) {
@@ -213,6 +466,7 @@ export default function MatchContainer({ challengeId, studentId }) {
         setCanSubmit(true);
         setIsSubmittingActive(true);
         setTestResults([]);
+        storeLastCompiled();
         return;
       }
 
@@ -222,7 +476,7 @@ export default function MatchContainer({ challengeId, studentId }) {
           matchData.matchSettingId ||
           matchData.challengeMatchSettingId ||
           challengeId,
-        code,
+        code: assembledCode,
         language: 'cpp',
       };
       const res = await runCode(payload);
@@ -230,9 +484,13 @@ export default function MatchContainer({ challengeId, studentId }) {
       setTestResults(results);
 
       if (!res?.success) {
+        const errorMessage = getUserFacingErrorMessage(
+          res,
+          'Unable to run your code.'
+        );
         setRunResult({
           type: 'error',
-          message: res?.message || 'Unable to run your code.',
+          message: errorMessage,
         });
         setIsCompiled(false);
         setCanSubmit(false);
@@ -242,9 +500,8 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const compiled =
         res?.data?.isCompiled !== undefined ? res.data.isCompiled : true;
-      // Only block submission if compilation actually failed
-      // Error message can exist even when compiled (e.g., test failures)
-      if (!compiled || res?.data?.error) {
+      // Only block submission if compilation actually failed.
+      if (!compiled) {
         setRunResult({
           type: 'error',
           message: res?.data?.error || 'Compilation failed.',
@@ -265,6 +522,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       setIsCompiled(true);
       setCanSubmit(true);
       setIsSubmittingActive(true);
+      storeLastCompiled();
     } catch (err) {
       setRunResult({
         type: 'error',
@@ -275,7 +533,14 @@ export default function MatchContainer({ challengeId, studentId }) {
     } finally {
       setIsRunning(false);
     }
-  }, [challengeId, code, isTimeUp, matchData, runCode]);
+  }, [
+    challengeId,
+    assembledCode,
+    isTimeUp,
+    matchData,
+    runCode,
+    storeLastCompiled,
+  ]);
 
   // Manual submit handler
   const handleSubmit = useCallback(async () => {
@@ -302,15 +567,18 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const resolvedMatchId = res.data.id;
       setMatchId(resolvedMatchId);
+      const persistKey = resolvedMatchId
+        ? `match-${resolvedMatchId}`
+        : storageKeyBase;
 
-      if (!code.trim()) {
+      if (!studentCode.trim()) {
         setError({ message: 'Empty code cannot be submitted.' });
         return false;
       }
 
       const submissionRes = await submitSubmission({
         matchId: resolvedMatchId,
-        code,
+        code: assembledCode,
       });
 
       if (submissionRes?.success) {
@@ -375,15 +643,16 @@ export default function MatchContainer({ challengeId, studentId }) {
         }
 
         setMessage(submissionMessage);
-        setLastSuccessfulCode(code);
-        lastSuccessRef.current = code;
-        if (typeof localStorage !== 'undefined') {
-          try {
-            const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
-            localStorage.setItem(lastSuccessKey, code);
-          } catch {
-            // ignore storage failures
-          }
+        lastSuccessRef.current = assembledCode;
+        if (studentId) {
+          dispatch(
+            setLastSuccessfulCode({
+              userId: studentId,
+              key: persistKey,
+              imports,
+              studentCode,
+            })
+          );
         }
         return true;
       }
@@ -396,29 +665,17 @@ export default function MatchContainer({ challengeId, studentId }) {
           lastValid?.data?.submission?.code || lastSuccessRef.current;
         if (fallbackCode && fallbackCode.trim()) {
           setMessage('New code failed. Kept your last valid submission.');
-          setLastSuccessfulCode(fallbackCode);
           lastSuccessRef.current = fallbackCode;
-          if (typeof localStorage !== 'undefined') {
-            try {
-              const lastSuccessKey = `last-successful-code-match-${resolvedMatchId}`;
-              localStorage.setItem(lastSuccessKey, fallbackCode);
-            } catch {
-              // ignore storage failures
-            }
-          }
           return true;
         }
       } catch {
         // Ignore fallback failures and surface original submission error below.
       }
 
-      const errorMessage =
-        submissionRes?.error?.message ||
-        (submissionRes?.error instanceof Error
-          ? submissionRes.error.message
-          : null) ||
-        submissionRes?.message ||
-        'Submission failed.';
+      const errorMessage = getUserFacingErrorMessage(
+        submissionRes,
+        'Submission failed.'
+      );
       setError({ message: errorMessage });
       return false;
     } catch (err) {
@@ -434,9 +691,13 @@ export default function MatchContainer({ challengeId, studentId }) {
     getStudentAssignedMatch,
     challengeId,
     studentId,
-    code,
+    studentCode,
+    assembledCode,
+    imports,
     submitSubmission,
     getLastSubmission,
+    dispatch,
+    storageKeyBase,
   ]);
 
   // Automatic submission when timer finishes
@@ -462,12 +723,20 @@ export default function MatchContainer({ challengeId, studentId }) {
         return false;
       }
 
-      setMatchId(res.data.id);
+      const resolvedMatchId = res.data.id;
+      setMatchId(resolvedMatchId);
+      const persistKey = resolvedMatchId
+        ? `match-${resolvedMatchId}`
+        : storageKeyBase;
 
       const trySubmit = async (payloadCode) =>
-        submitSubmission({ matchId, code: payloadCode, isAutomatic: true });
+        submitSubmission({
+          matchId: resolvedMatchId,
+          code: payloadCode,
+          isAutomatic: true,
+        });
 
-      if (!code.trim()) {
+      if (!studentCode.trim()) {
         const fallbackCode = lastSuccessRef.current;
         if (fallbackCode && fallbackCode.trim()) {
           const submissionRes = await trySubmit(fallbackCode);
@@ -480,25 +749,26 @@ export default function MatchContainer({ challengeId, studentId }) {
         return false;
       }
 
-      let submissionRes = await trySubmit(code);
+      let submissionRes = await trySubmit(assembledCode);
 
       if (submissionRes?.success) {
         setMessage('Thanks for your participation');
-        setLastSuccessfulCode(code);
-        lastSuccessRef.current = code;
-        if (typeof localStorage !== 'undefined') {
-          try {
-            const lastSuccessKey = `last-successful-code-${storageKeyBase}`;
-            localStorage.setItem(lastSuccessKey, code);
-          } catch (e) {
-            // ignore storage failures
-          }
+        lastSuccessRef.current = assembledCode;
+        if (studentId) {
+          dispatch(
+            setLastSuccessfulCode({
+              userId: studentId,
+              key: persistKey,
+              imports,
+              studentCode,
+            })
+          );
         }
         setIsChallengeFinished(true);
         return true;
       }
 
-      const lastValid = await getLastSubmission(matchId);
+      const lastValid = await getLastSubmission(resolvedMatchId);
       const fallbackCode =
         lastValid?.data?.submission?.code || lastSuccessRef.current;
       if (fallbackCode && fallbackCode.trim()) {
@@ -528,11 +798,13 @@ export default function MatchContainer({ challengeId, studentId }) {
     getStudentAssignedMatch,
     challengeId,
     studentId,
-    code,
+    studentCode,
+    assembledCode,
+    imports,
     getLastSubmission,
-    matchId,
     submitSubmission,
     storageKeyBase,
+    dispatch,
   ]);
 
   const handleTryAgain = useCallback(() => {
@@ -543,6 +815,61 @@ export default function MatchContainer({ challengeId, studentId }) {
     setTestResults([]);
   }, []);
 
+  const handleImportsChange = useCallback((value) => {
+    setImports(value);
+    setImportsWarning('');
+  }, []);
+
+  const handleImportsBlur = useCallback(
+    (event) => {
+      const { invalidLines } = analyzeImports(event.target.value);
+      if (invalidLines.length > 0) {
+        const suffix = invalidLines.length === 1 ? '' : 's';
+        setImportsWarning(
+          `Found ${invalidLines.length} non-#include line${suffix}.`
+        );
+      } else {
+        setImportsWarning('');
+      }
+    },
+    [setImportsWarning]
+  );
+
+  const handleClean = useCallback(() => {
+    setImports(defaultImports);
+    setStudentCode('');
+    setImportsWarning('');
+    setRunResult(null);
+    setTestResults([]);
+    setIsCompiled(null);
+    setCanSubmit(false);
+    setIsSubmittingActive(false);
+    setMessage(null);
+    setError(null);
+  }, [defaultImports]);
+
+  const handleRestore = useCallback(() => {
+    if (!savedLastCompiledSnapshot) return;
+    const restoredImports = savedLastCompiledSnapshot.imports || defaultImports;
+    const restoredStudentCode = savedLastCompiledSnapshot.studentCode || '';
+    if (!restoredImports.trim() && !restoredStudentCode.trim()) return;
+    setImports(restoredImports);
+    setStudentCode(restoredStudentCode);
+    setImportsWarning('');
+    setRunResult(null);
+    setTestResults([]);
+    setIsCompiled(null);
+    setCanSubmit(false);
+    setIsSubmittingActive(false);
+    setMessage(null);
+    setError(null);
+  }, [savedLastCompiledSnapshot, defaultImports]);
+
+  const hasRestorableCode = Boolean(
+    savedLastCompiledSnapshot?.imports?.trim() ||
+    savedLastCompiledSnapshot?.studentCode?.trim()
+  );
+
   return (
     <MatchView
       loading={loading}
@@ -550,8 +877,15 @@ export default function MatchContainer({ challengeId, studentId }) {
       message={message}
       challengeId={challengeId}
       matchData={matchData}
-      code={code}
-      setCode={setCode}
+      imports={imports}
+      onImportsChange={handleImportsChange}
+      onImportsBlur={handleImportsBlur}
+      importsWarning={importsWarning}
+      studentCode={studentCode}
+      onStudentCodeChange={setStudentCode}
+      fixedPrefix={fixedPrefix}
+      fixedSuffix={fixedSuffix}
+      finalCode={assembledCode}
       isRunning={isRunning}
       isSubmitting={isSubmitting}
       isSubmittingActive={isSubmittingActive}
@@ -565,6 +899,9 @@ export default function MatchContainer({ challengeId, studentId }) {
       isCompiled={isCompiled}
       isChallengeFinished={isChallengeFinished}
       onTryAgain={handleTryAgain}
+      onClean={handleClean}
+      onRestore={handleRestore}
+      hasRestorableCode={hasRestorableCode}
     />
   );
 }
