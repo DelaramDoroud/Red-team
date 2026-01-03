@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { setChallengeStartTime } from '#js/store/slices/ui';
-import { useDuration } from '../(context)/DurationContext';
+import { useDuration } from '../../../app/student/challenges/[challengeId]/(context)/DurationContext';
 
 function Timer({ duration, challengeId, onFinish }) {
   const { startPhaseOneDateTime } = useDuration() || {};

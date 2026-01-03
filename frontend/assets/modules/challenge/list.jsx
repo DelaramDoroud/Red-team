@@ -1,14 +1,13 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 'use client';
 
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import { ChallengeStatus } from '#js/constants';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
+import Timer from '#components/common/Timer';
 import styles from './list.module.css';
 
 export default function ChallengeList() {
@@ -24,14 +23,14 @@ export default function ChallengeList() {
   const [participantsMap, setParticipantsMap] = useState({});
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
+  const [countdowns, setCountdowns] = useState({});
+  const [timerStarted, setTimerStarted] = useState({}); // Track which timers have started
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
   const totalPages = Math.ceil(challenges.length / pageSize);
 
-  // Store getChallengeParticipants in a ref to avoid infinite loops
   const getChallengeParticipantsRef = useRef(getChallengeParticipants);
-
   useEffect(() => {
     getChallengeParticipantsRef.current = getChallengeParticipants;
   }, [getChallengeParticipants]);
@@ -45,14 +44,40 @@ export default function ChallengeList() {
       setChallenges([]);
       return;
     }
-    if (Array.isArray(result)) {
-      setChallenges(result);
-    } else if (Array.isArray(result?.data)) {
-      setChallenges(result.data);
-    } else {
-      setChallenges([]);
-    }
+    if (Array.isArray(result)) setChallenges(result);
+    else if (Array.isArray(result?.data)) setChallenges(result.data);
+    else setChallenges([]);
   }, [getChallenges]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const currentItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return challenges.slice(startIndex, endIndex);
+  }, [challenges, currentPage]);
+
+  useEffect(() => {
+    if (!currentItems.length) return;
+    const fetchParticipantsForPage = async () => {
+      const newCounts = {};
+      await Promise.all(
+        currentItems.map(async (challenge) => {
+          try {
+            const res = await getChallengeParticipantsRef.current(challenge.id);
+            newCounts[challenge.id] =
+              res?.success && Array.isArray(res.data) ? res.data.length : 0;
+          } catch {
+            newCounts[challenge.id] = 0;
+          }
+        })
+      );
+      setParticipantsMap((prev) => ({ ...prev, ...newCounts }));
+    };
+    fetchParticipantsForPage();
+  }, [currentItems]);
 
   const setPendingAction = (id, key, value) => {
     setPending((prev) => ({
@@ -66,128 +91,91 @@ export default function ChallengeList() {
     setPendingAction(challengeId, 'assign', true);
     try {
       const res = await assignChallenge(challengeId);
-      if (res?.success) {
+      if (res?.success)
         setChallenges((prev) =>
-          prev.map((item) =>
-            item.id === challengeId
-              ? { ...item, status: ChallengeStatus.ASSIGNED }
-              : item
+          prev.map((c) =>
+            c.id === challengeId
+              ? { ...c, status: ChallengeStatus.ASSIGNED }
+              : c
           )
         );
-      } else {
-        setError(
-          res?.error?.message ||
-            res?.message ||
-            'Unable to assign students to challenge'
-        );
-      }
-    } catch (_err) {
+      else setError(res?.message || 'Unable to assign students to challenge');
+    } catch {
       setError('Unable to assign students to challenge');
     } finally {
       setPendingAction(challengeId, 'assign', false);
     }
   };
+
   const handleStart = async (challengeId) => {
     setError(null);
     setPendingAction(challengeId, 'start', true);
     try {
       const res = await startChallenge(challengeId);
-
-      if (res?.success) {
+      if (res?.success)
         setChallenges((prev) =>
-          prev.map((item) =>
-            item.id === challengeId
-              ? { ...item, status: ChallengeStatus.STARTED_PHASE_ONE }
-              : item
+          prev.map((c) =>
+            c.id === challengeId
+              ? { ...c, status: ChallengeStatus.STARTED_PHASE_ONE }
+              : c
           )
         );
-      } else {
-        setError(
-          res?.error?.message || res?.message || 'Unable to start challenge'
-        );
-      }
-    } catch (_err) {
+      else setError(res?.message || 'Unable to start challenge');
+    } catch {
       setError('Unable to start challenge');
     } finally {
       setPendingAction(challengeId, 'start', false);
     }
   };
+
+  // Countdown con persistenza
   useEffect(() => {
-    load();
-  }, [load]);
+    const timers = {};
+    currentItems.forEach((challenge) => {
+      if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
+        const storageKey = `challenge-countdown-${challenge.id}`;
+        let countdownValue = parseInt(localStorage.getItem(storageKey), 10);
 
-  const currentItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return challenges.slice(startIndex, endIndex);
-  }, [challenges, currentPage]);
+        if (!countdownValue || countdownValue <= 0) countdownValue = 3;
 
-  useEffect(() => {
-    if (!currentItems.length) return undefined;
+        if (countdowns[challenge.id] == null)
+          setCountdowns((prev) => ({
+            ...prev,
+            [challenge.id]: countdownValue,
+          }));
 
-    const fetchParticipantsForPage = async () => {
-      const newCounts = {};
-
-      await Promise.all(
-        currentItems.map(async (challenge) => {
-          try {
-            const res = await getChallengeParticipantsRef.current(challenge.id);
-            if (res?.success && Array.isArray(res.data)) {
-              newCounts[challenge.id] = res.data.length;
-            } else {
-              newCounts[challenge.id] = 0;
+        timers[challenge.id] = setInterval(() => {
+          setCountdowns((prev) => {
+            const current = prev[challenge.id];
+            if (current <= 1) {
+              clearInterval(timers[challenge.id]);
+              localStorage.setItem(storageKey, 0);
+              return { ...prev, [challenge.id]: 0 };
             }
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error(err);
-            newCounts[challenge.id] = 0;
-          }
-        })
-      );
+            localStorage.setItem(storageKey, current - 1);
+            return { ...prev, [challenge.id]: current - 1 };
+          });
+        }, 1000);
+      }
+    });
+    return () => Object.values(timers).forEach(clearInterval);
+  }, [currentItems, countdowns]);
 
-      setParticipantsMap((prev) => ({ ...prev, ...newCounts }));
-    };
-
-    fetchParticipantsForPage();
-    return undefined;
-    // participantsMap is intentionally excluded to prevent infinite loop:
-    // - We read from it to filter items, but updating it would retrigger this effect
-    // - The effect should only run when currentItems changes (new challenges to fetch)
-    // const pollInterval = setInterval(fetchParticipantsForPage, 3000);
-    //
-    // return () => clearInterval(pollInterval);
-  }, [currentItems]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading && !challenges.length && !error) {
-    return (
-      <div className={styles.center}>
-        <Spinner label='Loading challenges…' />
-      </div>
-    );
-  }
   const renderActions = (challenge, studentCount) => {
     const hasStudents = studentCount > 0;
     const now = new Date();
     const canStartNow =
       challenge.startDatetime && new Date(challenge.startDatetime) <= now;
 
-    // show Assign Student Button and handle assign
     if (challenge.status === ChallengeStatus.PUBLIC && canStartNow) {
       return (
         <Button
           onClick={(e) => {
             e.preventDefault();
-
             if (!hasStudents) {
               setError('No students have joined this challenge yet.');
               return;
             }
-
-            if (!canStartNow) {
-              setError('The challenge start time has not been reached yet.');
-              return;
-            }
-
             handleAssign(challenge.id);
           }}
           disabled={pending[challenge.id]?.assign}
@@ -199,7 +187,6 @@ export default function ChallengeList() {
       );
     }
 
-    // show Start Button and handle start
     if (challenge.status === ChallengeStatus.ASSIGNED) {
       return (
         <Button
@@ -207,17 +194,10 @@ export default function ChallengeList() {
           size='sm'
           onClick={(e) => {
             e.preventDefault();
-
             if (!hasStudents) {
               setError('No students have joined this challenge yet.');
               return;
             }
-
-            if (!canStartNow) {
-              setError('The challenge start time has not been reached yet.');
-              return;
-            }
-
             handleStart(challenge.id);
           }}
           disabled={pending[challenge.id]?.start}
@@ -228,18 +208,36 @@ export default function ChallengeList() {
       );
     }
 
-    // hide Start button if status=== STARTED_PHASE_ONE and show message instead
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-      return (
-        <span className={styles.inProgress}>
-          The challenge is in progress...
-        </span>
-      );
+      const countdownValue = countdowns[challenge.id] ?? 0;
+
+      // Mostra il countdown solo se > 0
+      if (countdownValue > 0) {
+        return (
+          <span className={styles.countdown}>
+            Challenge starting in {countdownValue}…
+          </span>
+        );
+      }
+
+      // Mostra il timer se countdown finito
+      if (!timerStarted[challenge.id]) {
+        setTimerStarted((prev) => ({ ...prev, [challenge.id]: true }));
+      }
+      return <Timer duration={challenge.duration} challengeId={challenge.id} />;
     }
 
-    // No actions
     return null;
   };
+
+  if (loading && !challenges.length && !error) {
+    return (
+      <div className={styles.center}>
+        <Spinner label='Loading challenges…' />
+      </div>
+    );
+  }
+
   return (
     <section className={styles.section}>
       <div className={styles.header}>

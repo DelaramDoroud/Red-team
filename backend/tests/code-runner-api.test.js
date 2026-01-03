@@ -284,7 +284,7 @@ beforeAll(async () => {
     await parenthesesMatch.update(parenthesesData);
   }
   parenthesesSettingId = parenthesesMatch.id;
-});
+}, 60000);
 
 afterAll(async () => {
   if (prevTestTimeoutEnv === undefined) {

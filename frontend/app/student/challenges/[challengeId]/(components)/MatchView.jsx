@@ -22,8 +22,8 @@ import Spinner from '#components/common/Spinner';
 
 import { useState, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
+import Timer from '#components/common/Timer';
 import CppEditor from './CppEditor';
-import Timer from './Timer';
 import { useDuration } from '../(context)/DurationContext';
 
 export default function MatchView({

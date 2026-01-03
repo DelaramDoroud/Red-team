@@ -480,6 +480,7 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
+        endPhaseOneDateTime: challenge.endPhaseOneDateTime,
       },
     });
   } catch (error) {
