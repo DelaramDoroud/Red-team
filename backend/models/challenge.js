@@ -62,7 +62,7 @@ const Challenge = sequelize.define(
     allowedNumberOfReview: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 0,
+      defaultValue: 5,
     },
     status: {
       type: DataTypes.ENUM(...Object.values(ChallengeStatus)),

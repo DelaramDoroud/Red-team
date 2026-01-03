@@ -9,6 +9,7 @@ import {
   setLastCompiledCode,
   setLastSuccessfulCode,
 } from '#js/store/slices/ui';
+import { NETWORK_RESPONSE_NOT_OK } from '#js/constants';
 import MatchView from './MatchView';
 
 const DEFAULT_IMPORTS = '#include <iostream>';
@@ -153,6 +154,60 @@ const normalizeSnapshot = (value) => {
     imports: value.imports || '',
     studentCode: value.studentCode || '',
   };
+};
+
+const IMPORTS_VALIDATION_MESSAGE =
+  'Only #include lines are allowed in the imports section.';
+const IMPORTS_USER_MESSAGE =
+  'Imports can only contain #include lines. Remove any other statements.';
+
+const parseNetworkErrorMessage = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  if (!value.startsWith(NETWORK_RESPONSE_NOT_OK)) return value;
+
+  const raw = value.slice(NETWORK_RESPONSE_NOT_OK.length);
+  try {
+    const parsed = JSON.parse(raw);
+    const parsedMessage =
+      parsed?.error?.message ||
+      parsed?.message ||
+      parsed?.error?.errors?.[0]?.message;
+    if (typeof parsedMessage === 'string' && parsedMessage.trim()) {
+      return parsedMessage;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const parseApiErrorMessage = (result) => {
+  if (!result) return null;
+  if (typeof result === 'string') return parseNetworkErrorMessage(result);
+
+  const directError = result?.error?.message;
+  const parsedDirect = parseNetworkErrorMessage(directError);
+  if (typeof parsedDirect === 'string' && parsedDirect.trim()) {
+    return parsedDirect;
+  }
+
+  if (result?.error instanceof Error && result.error.message) {
+    return parseNetworkErrorMessage(result.error.message);
+  }
+
+  const message = result?.message;
+  return parseNetworkErrorMessage(message);
+};
+
+const getUserFacingErrorMessage = (result, fallback) => {
+  const parsed = parseApiErrorMessage(result);
+  if (!parsed) return fallback;
+  if (parsed === IMPORTS_VALIDATION_MESSAGE) return IMPORTS_USER_MESSAGE;
+  if (parsed.includes(IMPORTS_VALIDATION_MESSAGE)) {
+    return IMPORTS_USER_MESSAGE;
+  }
+  return parsed;
 };
 
 export default function MatchContainer({ challengeId, studentId }) {
@@ -429,9 +484,13 @@ export default function MatchContainer({ challengeId, studentId }) {
       setTestResults(results);
 
       if (!res?.success) {
+        const errorMessage = getUserFacingErrorMessage(
+          res,
+          'Unable to run your code.'
+        );
         setRunResult({
           type: 'error',
-          message: res?.message || 'Unable to run your code.',
+          message: errorMessage,
         });
         setIsCompiled(false);
         setCanSubmit(false);
@@ -441,9 +500,8 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       const compiled =
         res?.data?.isCompiled !== undefined ? res.data.isCompiled : true;
-      // Only block submission if compilation actually failed
-      // Error message can exist even when compiled (e.g., test failures)
-      if (!compiled || res?.data?.error) {
+      // Only block submission if compilation actually failed.
+      if (!compiled) {
         setRunResult({
           type: 'error',
           message: res?.data?.error || 'Compilation failed.',
@@ -614,13 +672,10 @@ export default function MatchContainer({ challengeId, studentId }) {
         // Ignore fallback failures and surface original submission error below.
       }
 
-      const errorMessage =
-        submissionRes?.error?.message ||
-        (submissionRes?.error instanceof Error
-          ? submissionRes.error.message
-          : null) ||
-        submissionRes?.message ||
-        'Submission failed.';
+      const errorMessage = getUserFacingErrorMessage(
+        submissionRes,
+        'Submission failed.'
+      );
       setError({ message: errorMessage });
       return false;
     } catch (err) {

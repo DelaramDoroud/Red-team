@@ -4,6 +4,7 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
+import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
@@ -13,25 +14,99 @@ import { validateImportsBlock } from '#root/services/import-validation.js';
 
 const router = Router();
 
-/**
- * Compare two submissions based on test results
- * Returns true if submission1 is strictly better than submission2
- * @param {Object} sub1 - First submission test results { publicPassed, publicTotal, privatePassed, privateTotal }
- * @param {Object} sub2 - Second submission test results { publicPassed, publicTotal, privatePassed, privateTotal }
- * @returns {boolean} True if sub1 is strictly better than sub2
- */
-function isSubmissionBetter(sub1, sub2) {
-  const sub1TotalPassed = (sub1.publicPassed || 0) + (sub1.privatePassed || 0);
-  const sub2TotalPassed = (sub2.publicPassed || 0) + (sub2.privatePassed || 0);
+const submissionStatusRank = {
+  [SubmissionStatus.WRONG]: 0,
+  [SubmissionStatus.IMPROVABLE]: 1,
+  [SubmissionStatus.PROBABLY_CORRECT]: 2,
+};
 
-  // Strictly better means more total tests passed
-  return sub1TotalPassed > sub2TotalPassed;
-}
+const didAllTestsPass = (summary, testResults) => {
+  if (summary) {
+    if (summary.allPassed === true) return true;
+    if (Number.isFinite(summary.passed) && Number.isFinite(summary.total)) {
+      return summary.total > 0 && summary.passed === summary.total;
+    }
+  }
+
+  if (Array.isArray(testResults) && testResults.length > 0) {
+    return testResults.every((result) => result.passed === true);
+  }
+
+  return false;
+};
+
+const getSubmissionStatus = (publicResult, privateResult) => {
+  const allPublicPassed = didAllTestsPass(
+    publicResult?.summary,
+    publicResult?.testResults
+  );
+  const allPrivatePassed = didAllTestsPass(
+    privateResult?.summary,
+    privateResult?.testResults
+  );
+
+  if (!allPublicPassed) return SubmissionStatus.WRONG;
+  if (!allPrivatePassed) return SubmissionStatus.IMPROVABLE;
+  return SubmissionStatus.PROBABLY_CORRECT;
+};
+
+const getStatusRank = (status) => submissionStatusRank[status] ?? 0;
+
+const computeFinalSubmissionForMatch = async ({ matchId, transaction }) => {
+  const submissions = await Submission.findAll({
+    where: { matchId },
+    order: [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+  });
+
+  const latestIntentional = submissions.find(
+    (submission) => !submission.isAutomaticSubmission
+  );
+  const latestAutomatic = submissions.find(
+    (submission) => submission.isAutomaticSubmission
+  );
+
+  let finalSubmission;
+
+  if (!latestIntentional) {
+    finalSubmission = latestAutomatic || null;
+  } else if (!latestAutomatic) {
+    finalSubmission = latestIntentional;
+  } else {
+    const automaticRank = getStatusRank(latestAutomatic.status);
+    const intentionalRank = getStatusRank(latestIntentional.status);
+    finalSubmission =
+      automaticRank > intentionalRank ? latestAutomatic : latestIntentional;
+  }
+
+  await Submission.update(
+    { isFinal: false },
+    { where: { matchId }, transaction }
+  );
+
+  if (finalSubmission) {
+    await Submission.update(
+      { isFinal: true },
+      { where: { id: finalSubmission.id }, transaction }
+    );
+  }
+
+  return finalSubmission;
+};
 
 router.post('/submissions', async (req, res) => {
   let transaction;
   try {
     const { matchId, code, language = 'cpp', isAutomatic = false } = req.body;
+    const isAutomaticSubmission = Boolean(
+      req.body.isAutomaticSubmission ??
+      req.body.is_automatic_submission ??
+      isAutomatic
+    );
 
     if (!matchId || !code) {
       return res.status(400).json({
@@ -150,143 +225,31 @@ router.post('/submissions', async (req, res) => {
       });
     }
 
-    // Calculate test results for comparison
-    const currentTestResults = {
-      publicPassed: publicExecutionResult.summary.passed || 0,
-      publicTotal: publicExecutionResult.summary.total || 0,
-      privatePassed: privateExecutionResult.summary.passed || 0,
-      privateTotal: privateExecutionResult.summary.total || 0,
-    };
+    const submissionStatus = getSubmissionStatus(
+      publicExecutionResult,
+      privateExecutionResult
+    );
 
-    // SAVE SUBMISSION
     transaction = await sequelize.transaction();
-    let submission = await Submission.findOne({
-      where: { matchId },
+    const submission = await Submission.create(
+      {
+        matchId,
+        challengeParticipantId: match.challengeParticipantId,
+        code,
+        isAutomaticSubmission,
+        status: submissionStatus,
+      },
+      { transaction }
+    );
+
+    const finalSubmission = await computeFinalSubmissionForMatch({
+      matchId,
       transaction,
-      lock: transaction.LOCK.UPDATE,
     });
-
-    let shouldSaveSubmission = true;
-
-    // If this is an automatic submission and there's an existing submission
-    if (isAutomatic && submission) {
-      // Check if existing submission has stored test results
-      // For now, we'll assume existing submission is intentional
-      // and compare test results
-
-      // Try to get stored test results from submission metadata
-      // If not available, we need to re-run tests on existing code (expensive)
-      // For now, we'll re-run tests to compare properly
-      try {
-        const existingCode = submission.code;
-
-        // Re-run tests on existing submission code for comparison
-        const existingPublicResult = await executeCodeTests({
-          code: existingCode,
-          language,
-          testCases: publicTests,
-          userId: req.user?.id,
-        });
-
-        const existingPrivateResult = await executeCodeTests({
-          code: existingCode,
-          language,
-          testCases: privateTests,
-          userId: req.user?.id,
-        });
-
-        const existingTestResults = {
-          publicPassed: existingPublicResult.summary.passed || 0,
-          publicTotal: existingPublicResult.summary.total || 0,
-          privatePassed: existingPrivateResult.summary.passed || 0,
-          privateTotal: existingPrivateResult.summary.total || 0,
-        };
-
-        // Compare: only update if automatic submission is strictly better
-        if (isSubmissionBetter(currentTestResults, existingTestResults)) {
-          // Automatic submission is better - update it
-          submission.code = code;
-          submission.updatedAt = new Date();
-          await submission.save({ transaction });
-          logger.info(
-            `Automatic submission is better for match ${matchId}, updating submission`
-          );
-        } else {
-          // Keep existing submission (intentional submission is better or equal)
-          shouldSaveSubmission = false;
-          logger.info(
-            `Existing submission is better or equal for match ${matchId}, keeping it`
-          );
-          // Use existing submission for response
-        }
-      } catch (error) {
-        logger.error('Error comparing submissions:', error);
-        // On error, keep existing submission
-        shouldSaveSubmission = false;
-      }
-    } else if (!isAutomatic) {
-      // Intentional submission - always save/update
-      if (submission) {
-        submission.code = code;
-        submission.updatedAt = new Date();
-        await submission.save({ transaction });
-      } else {
-        submission = await Submission.create(
-          {
-            matchId,
-            challengeParticipantId: match.challengeParticipantId,
-            code,
-          },
-          { transaction }
-        );
-      }
-    } else if (isAutomatic && !submission) {
-      // Automatic submission, no existing submission - create it (Rule 1)
-      submission = await Submission.create(
-        {
-          matchId,
-          challengeParticipantId: match.challengeParticipantId,
-          code,
-        },
-        { transaction }
-      );
-    }
-
-    // If we didn't save the submission (automatic was not better), re-run tests on existing code
-    let finalPublicResults = publicExecutionResult;
-    let finalPrivateResults = privateExecutionResult;
-
-    if (!shouldSaveSubmission && submission) {
-      // Re-run tests on existing submission to get its test results for response
-      try {
-        finalPublicResults = await executeCodeTests({
-          code: submission.code,
-          language,
-          testCases: publicTests,
-          userId: req.user?.id,
-        });
-
-        finalPrivateResults = await executeCodeTests({
-          code: submission.code,
-          language,
-          testCases: privateTests,
-          userId: req.user?.id,
-        });
-      } catch (error) {
-        logger.error('Error re-running tests on existing submission:', error);
-        // Use current test results as fallback
-      }
-    }
 
     await transaction.commit();
 
-    if (shouldSaveSubmission || !submission) {
-      logger.info(`Submission ${submission.id} saved for match ${matchId}`);
-    } else {
-      logger.info(
-        `Keeping existing submission ${submission.id} for match ${matchId}`
-      );
-    }
+    logger.info(`Submission ${submission.id} saved for match ${matchId}`);
 
     // Build response without code field - explicitly exclude it
     const submissionData = submission.get({ plain: true });
@@ -301,13 +264,16 @@ router.post('/submissions', async (req, res) => {
           challengeParticipantId: submissionData.challengeParticipantId,
           createdAt: submissionData.createdAt,
           updatedAt: submissionData.updatedAt,
+          status: submissionStatus,
+          isAutomaticSubmission,
+          isFinal: finalSubmission?.id === submission.id,
         },
-        publicTestResults: finalPublicResults.testResults,
-        privateTestResults: finalPrivateResults.testResults,
-        publicSummary: finalPublicResults.summary,
-        privateSummary: finalPrivateResults.summary,
-        isCompiled: finalPrivateResults.isCompiled,
-        isPassed: finalPrivateResults.isPassed,
+        publicTestResults: publicExecutionResult.testResults,
+        privateTestResults: privateExecutionResult.testResults,
+        publicSummary: publicExecutionResult.summary,
+        privateSummary: privateExecutionResult.summary,
+        isCompiled: privateExecutionResult.isCompiled,
+        isPassed: privateExecutionResult.isPassed,
       },
     });
   } catch (error) {

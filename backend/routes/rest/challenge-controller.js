@@ -18,9 +18,18 @@ import { Op } from 'sequelize';
 
 const router = Router();
 
-router.get('/challenges', async (_req, res) => {
+const getRequestRole = (req) =>
+  req.session?.user?.role || req.user?.role || null;
+const isPrivilegedRole = (role) => role === 'teacher' || role === 'admin';
+const shouldHidePrivate = (req) => !isPrivilegedRole(getRequestRole(req));
+
+router.get('/challenges', async (req, res) => {
   try {
+    const where = shouldHidePrivate(req)
+      ? { status: { [Op.ne]: 'private' } }
+      : undefined;
     const challenges = await Challenge.findAll({
+      where,
       include: [
         {
           model: MatchSetting,
@@ -100,13 +109,18 @@ router.post('/challenges', async (req, res) => {
       },
     });
 
-    if (overlappingChallenge) {
+    const allowOverlap = Boolean(req.body.allowOverlap);
+    if (overlappingChallenge && !allowOverlap) {
       return res.status(400).json({
         success: false,
         error: {
           message: 'Challenge time overlaps with an existing challenge.',
+          code: 'challenge_overlap',
         },
       });
+    }
+    if (overlappingChallenge && allowOverlap) {
+      payload.status = 'private';
     }
 
     transaction = await sequelize.transaction();
@@ -175,6 +189,13 @@ router.post('/challenges/:challengeId/join', async (req, res) => {
       });
     }
 
+    if (status === 'challenge_private') {
+      return res.status(403).json({
+        success: false,
+        error: 'Challenge is private',
+      });
+    }
+
     if (status === 'student_not_found') {
       return res.status(404).json({
         success: false,
@@ -206,6 +227,22 @@ router.get('/challenges/:challengeId/participants', async (req, res) => {
         success: false,
         error: 'Invalid challengeId',
       });
+    }
+
+    if (shouldHidePrivate(req)) {
+      const challenge = await Challenge.findByPk(challengeId);
+      if (!challenge) {
+        return res.status(404).json({
+          success: false,
+          error: 'Challenge not found',
+        });
+      }
+      if (challenge.status === 'private') {
+        return res.status(403).json({
+          success: false,
+          error: 'Challenge is private',
+        });
+      }
     }
 
     const result = await getChallengeParticipants({ challengeId });
@@ -292,6 +329,12 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         .status(404)
         .json({ success: false, error: 'Challenge not found' });
     }
+    if (shouldHidePrivate(req) && challenge.status === 'private') {
+      return res.status(403).json({
+        success: false,
+        error: 'Challenge is private',
+      });
+    }
 
     const matches = await Match.findAll({
       include: [
@@ -350,6 +393,7 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         startDatetime: challenge.startDatetime,
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
         duration: challenge.duration,
+        allowedNumberOfReview: challenge.allowedNumberOfReview,
       },
       assignments: Object.values(grouped),
     });
@@ -478,6 +522,12 @@ router.get('/challenges/:challengeId/for-student', async (req, res) => {
         error: 'Challenge not found',
       });
     }
+    if (shouldHidePrivate(req) && challenge.status === 'private') {
+      return res.status(403).json({
+        success: false,
+        error: 'Challenge is private',
+      });
+    }
     return res.json({
       success: true,
       data: {
@@ -503,6 +553,20 @@ router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'challengeId and studentId are required',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found',
+      });
+    }
+    if (shouldHidePrivate(req) && challenge.status === 'private') {
+      return res.status(403).json({
+        success: false,
+        message: 'Challenge is private',
       });
     }
 
@@ -568,6 +632,20 @@ router.get('/challenges/:challengeId/match', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'challengeId and studentId are required',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Challenge not found',
+      });
+    }
+    if (shouldHidePrivate(req) && challenge.status === 'private') {
+      return res.status(403).json({
+        success: false,
+        message: 'Challenge is private',
       });
     }
 

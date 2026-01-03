@@ -103,7 +103,7 @@ describe('Challenge API - GET /api/rest/challenges', () => {
       endDatetime: new Date('2025-12-01T11:00:00Z'),
       durationPeerReview: 60,
       allowedNumberOfReview: 2,
-      status: 'private',
+      status: 'public',
     });
     createdChallengeIds.push(challenge.id);
 
@@ -306,6 +306,38 @@ describe('Challenge API - POST /api/rest/challenges', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toMatch(/overlaps/i);
+  });
+
+  it('should create a challenge as private when overlap is allowed', async () => {
+    const existing = await Challenge.create({
+      title: 'Overlap Anchor',
+      duration: 60,
+      startDatetime: '2025-12-02T10:00:00Z',
+      endDatetime: '2025-12-02T12:00:00Z',
+      durationPeerReview: 60,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(existing.id);
+
+    const payload = {
+      title: 'Overlap Override Challenge',
+      duration: 120,
+      startDatetime: '2025-12-02T11:00:00Z',
+      endDatetime: '2025-12-02T13:00:00Z',
+      durationPeerReview: 60,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      allowOverlap: true,
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenges').send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('private');
+    createdChallengeIds.push(res.body.challenge.id);
   });
 
   it('should NOT create a challenge if duration is longer than the time window', async () => {

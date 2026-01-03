@@ -59,6 +59,13 @@ export async function down({ context: queryInterface }) {
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
           AND e.enumlabel = 'started_phase_one'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_enum e ON t.oid = e.enumtypid
+        WHERE t.typname = 'enum_challenge_status'
+          AND e.enumlabel = 'started'
       ) THEN
         ALTER TYPE "enum_challenge_status"
         RENAME VALUE 'started_phase_one' TO 'started';
@@ -74,6 +81,13 @@ export async function down({ context: queryInterface }) {
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
           AND e.enumlabel = 'ended_phase_one'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_enum e ON t.oid = e.enumtypid
+        WHERE t.typname = 'enum_challenge_status'
+          AND e.enumlabel = 'ended'
       ) THEN
         ALTER TYPE "enum_challenge_status"
         RENAME VALUE 'ended_phase_one' TO 'ended';
