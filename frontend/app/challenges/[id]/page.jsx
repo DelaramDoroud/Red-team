@@ -24,6 +24,12 @@ const statusTone = {
     'bg-muted text-muted-foreground ring-1 ring-border',
 };
 
+const peerReviewTones = {
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700',
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-700',
+  error: 'border-destructive/30 bg-destructive/5 text-destructive',
+};
+
 const formatDateTime = (value) => {
   if (!value) return '—';
   const parsed = new Date(value);
@@ -38,6 +44,7 @@ export default function ChallengeDetailPage() {
     assignChallenge,
     getChallengeParticipants,
     startChallenge,
+    assignPeerReviews,
   } = useChallenge();
   const challengeId = params?.id;
 
@@ -46,8 +53,12 @@ export default function ChallengeDetailPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [assigningReviews, setAssigningReviews] = useState(false);
   const [starting, setStarting] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
+  const [expectedReviews, setExpectedReviews] = useState('');
+  const [expectedReviewsError, setExpectedReviewsError] = useState('');
+  const [peerReviewMessages, setPeerReviewMessages] = useState([]);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -62,6 +73,11 @@ export default function ChallengeDetailPage() {
       if (matchesRes?.success) {
         setChallenge(matchesRes.challenge);
         setAssignments(matchesRes.assignments || []);
+        setExpectedReviews(
+          matchesRes.challenge?.allowedNumberOfReview != null
+            ? String(matchesRes.challenge.allowedNumberOfReview)
+            : ''
+        );
       } else {
         setError(
           matchesRes?.error || matchesRes?.message || 'Unable to load matches'
@@ -138,6 +154,97 @@ export default function ChallengeDetailPage() {
     }
   }, [challengeId, load, startChallenge]);
 
+  const parseExpectedReviews = useCallback((value) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 2) {
+      return null;
+    }
+    return parsed;
+  }, []);
+
+  const handleAssignReviews = useCallback(async () => {
+    if (!challengeId) return;
+    const parsed = parseExpectedReviews(expectedReviews);
+    if (!parsed) {
+      setExpectedReviewsError(
+        'Enter a whole number greater than or equal to 2.'
+      );
+      return;
+    }
+    setExpectedReviewsError('');
+    setAssigningReviews(true);
+    setError(null);
+    setPeerReviewMessages([]);
+    try {
+      const res = await assignPeerReviews(challengeId, parsed);
+      if (res?.success === false) {
+        setError(res?.error || res?.message || 'Unable to assign peer reviews');
+        return;
+      }
+      if (Array.isArray(res?.results)) {
+        const assignmentMap = new Map(
+          assignments.map((group) => [
+            group.challengeMatchSettingId,
+            group.matchSetting?.problemTitle || null,
+          ])
+        );
+        const messages = [];
+        let assignedCount = 0;
+        res.results.forEach((result) => {
+          const label = assignmentMap.get(result.challengeMatchSettingId);
+          const prefix = label
+            ? `${label}: `
+            : `Match setting ${result.challengeMatchSettingId}: `;
+          if (result.status === 'assigned') {
+            assignedCount += 1;
+            if (result.teacherMessage) {
+              messages.push({
+                tone: 'warning',
+                text: `${prefix}${result.teacherMessage}`,
+              });
+            }
+          } else if (result.status === 'insufficient_valid_submissions') {
+            messages.push({
+              tone: 'warning',
+              text: `${prefix}Not enough valid submissions to assign peer reviews.`,
+            });
+          } else if (result.teacherMessage) {
+            messages.push({
+              tone: 'error',
+              text: `${prefix}${result.teacherMessage}`,
+            });
+          } else {
+            messages.push({
+              tone: 'error',
+              text: `${prefix}Unable to assign peer reviews.`,
+            });
+          }
+        });
+        if (assignedCount > 0) {
+          messages.unshift({
+            tone: 'success',
+            text: `Peer reviews assigned for ${assignedCount} match setting${
+              assignedCount === 1 ? '' : 's'
+            }.`,
+          });
+        }
+        setPeerReviewMessages(messages);
+      }
+      await load();
+    } catch (_err) {
+      setError('Unable to assign peer reviews');
+    } finally {
+      setAssigningReviews(false);
+    }
+  }, [
+    assignPeerReviews,
+    challengeId,
+    expectedReviews,
+    load,
+    parseExpectedReviews,
+    assignments,
+  ]);
+
   const hasStudents = studentCount > 0;
   const hasMatches = assignments.some((group) => group.matches?.length);
   const canStartNow = useMemo(() => {
@@ -149,6 +256,8 @@ export default function ChallengeDetailPage() {
     hasStudents &&
     hasMatches &&
     canStartNow;
+  const showAssignReviewsButton =
+    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE;
 
   const statusBadge = useMemo(() => {
     const tone =
@@ -162,6 +271,26 @@ export default function ChallengeDetailPage() {
     );
   }, [challenge?.status]);
 
+  const expectedReviewsInput = (
+    <div className='space-y-1'>
+      <input
+        type='number'
+        min='2'
+        className='h-9 w-24 rounded-md border border-border/60 bg-background px-2 text-sm font-semibold text-foreground'
+        value={expectedReviews}
+        onChange={(event) => {
+          setExpectedReviews(event.target.value);
+          setExpectedReviewsError('');
+        }}
+      />
+      {expectedReviewsError ? (
+        <p className='text-xs font-medium text-destructive'>
+          {expectedReviewsError}
+        </p>
+      ) : null}
+    </div>
+  );
+
   const detailItems = [
     {
       label: 'Start',
@@ -173,7 +302,7 @@ export default function ChallengeDetailPage() {
     },
     {
       label: 'Expected reviews / submission',
-      value: challenge?.allowedNumberOfReview ?? '—',
+      value: expectedReviewsInput,
     },
     {
       label: 'Number of students',
@@ -228,6 +357,15 @@ export default function ChallengeDetailPage() {
                 {starting ? 'Starting...' : 'Start'}
               </Button>
             ) : null}
+            {showAssignReviewsButton ? (
+              <Button
+                onClick={handleAssignReviews}
+                disabled={assigningReviews || loading}
+                title='Assign peer reviews for this challenge'
+              >
+                {assigningReviews ? 'Assigning...' : 'Assign'}
+              </Button>
+            ) : null}
           </div>
         </div>
         <dl className='flex flex-wrap items-center gap-2'>
@@ -255,6 +393,21 @@ export default function ChallengeDetailPage() {
         </Card>
       )}
 
+      {peerReviewMessages.length > 0 && (
+        <div className='space-y-2'>
+          {peerReviewMessages.map((message) => (
+            <Card
+              key={`${message.tone}-${message.text}`}
+              className={`border ${peerReviewTones[message.tone] || peerReviewTones.error}`}
+            >
+              <CardContent className='py-3'>
+                <p className='text-sm font-medium'>{message.text}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {!assignments.length && !error ? (
         <Card className='border border-dashed border-border bg-card text-card-foreground shadow-sm'>
           <CardContent className='py-6'>
@@ -275,9 +428,14 @@ export default function ChallengeDetailPage() {
               <CardTitle className='text-lg font-semibold text-foreground'>
                 {group.matchSetting?.problemTitle || 'Match setting'}
               </CardTitle>
-              <CardDescription className='text-sm text-muted-foreground'>
-                Match setting ID:{' '}
-                {group.matchSetting?.id ?? group.challengeMatchSettingId}
+              <CardDescription className='text-sm text-muted-foreground space-y-1'>
+                <span className='block'>
+                  Match setting ID:{' '}
+                  {group.matchSetting?.id ?? group.challengeMatchSettingId}
+                </span>
+                <span className='block'>
+                  Valid submissions: {group.validSubmissionsCount ?? 0}
+                </span>
               </CardDescription>
             </CardHeader>
             <CardContent>

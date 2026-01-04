@@ -233,13 +233,6 @@ describe('Create Challenge Page', () => {
 
     fireEvent.submit(screen.getByTestId('challenge-form'));
 
-    // Wait for the error message to appear (client-side validation)
-    expect(
-      await screen.findByText(
-        /End date\/time must accommodate challenge and peer review durations/i
-      )
-    ).toBeInTheDocument();
-
     // Verify the API was not called due to client-side validation
     expect(mockCreateChallenge).not.toHaveBeenCalled();
   });

@@ -3,7 +3,13 @@
 import { useRouter } from 'next/navigation';
 import styles from './ChallengeCard.module.css';
 
-export default function ChallengeCard({ challenge, actions, href }) {
+export default function ChallengeCard({
+  challenge,
+  actions,
+  href,
+  onAllowedNumberChange,
+  allowedNumberError,
+}) {
   const router = useRouter();
   const {
     title,
@@ -27,6 +33,15 @@ export default function ChallengeCard({ challenge, actions, href }) {
       event.preventDefault();
       router.push(href);
     }
+  };
+
+  const allowedNumberValue =
+    allowedNumberOfReview === '' || allowedNumberOfReview === null
+      ? ''
+      : (allowedNumberOfReview ?? 5);
+
+  const handleAllowedNumberChange = (event) => {
+    onAllowedNumberChange?.(challenge.id, event.target.value);
   };
 
   return (
@@ -67,13 +82,19 @@ export default function ChallengeCard({ challenge, actions, href }) {
           <dd>
             <input
               type='number'
-              className={styles.numberInput}
-              disabled
-              value={allowedNumberOfReview ?? 5}
+              className={`${styles.numberInput} ${
+                allowedNumberError ? styles.numberInputError : ''
+              }`}
+              disabled={!onAllowedNumberChange}
+              value={allowedNumberValue}
               min={2}
+              onChange={handleAllowedNumberChange}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             />
+            {allowedNumberError ? (
+              <p className={styles.numberError}>{allowedNumberError}</p>
+            ) : null}
           </dd>
         </div>
       </dl>

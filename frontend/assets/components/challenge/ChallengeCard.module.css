@@ -130,3 +130,14 @@
   opacity: 1;
   cursor: not-allowed;
 }
+
+.numberInputError {
+  border-color: hsl(var(--destructive));
+}
+
+.numberError {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--destructive));
+}

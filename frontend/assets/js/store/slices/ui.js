@@ -13,6 +13,7 @@ const getDraftEntry = (userDrafts, key) =>
     studentCode: '',
     lastCompiled: null,
     lastSuccessful: null,
+    signature: null,
   };
 
 const upsertUserEntry = (map, userId, key, updater) => {
@@ -52,7 +53,8 @@ const uiSlice = createSlice({
       theme: action.payload,
     }),
     setDraftCode: (state, action) => {
-      const { userId, key, imports, studentCode } = action.payload || {};
+      const { userId, key, imports, studentCode, signature } =
+        action.payload || {};
       if (!userId || !key) return state;
       return {
         ...state,
@@ -64,12 +66,14 @@ const uiSlice = createSlice({
             ...entry,
             imports: imports ?? entry.imports,
             studentCode: studentCode ?? entry.studentCode,
+            signature: signature ?? entry.signature,
           })
         ),
       };
     },
     setLastCompiledCode: (state, action) => {
-      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const { userId, key, code, imports, studentCode, signature } =
+        action.payload || {};
       const nextImports = imports ?? '';
       const nextStudentCode = studentCode ?? code ?? '';
       if (!userId || !key) return state;
@@ -86,12 +90,14 @@ const uiSlice = createSlice({
               imports: nextImports,
               studentCode: nextStudentCode,
             },
+            signature: signature ?? entry.signature,
           })
         ),
       };
     },
     setLastSuccessfulCode: (state, action) => {
-      const { userId, key, code, imports, studentCode } = action.payload || {};
+      const { userId, key, code, imports, studentCode, signature } =
+        action.payload || {};
       const nextImports = imports ?? '';
       const nextStudentCode = studentCode ?? code ?? '';
       if (!userId || !key) return state;
@@ -108,6 +114,7 @@ const uiSlice = createSlice({
               imports: nextImports,
               studentCode: nextStudentCode,
             },
+            signature: signature ?? entry.signature,
           })
         ),
       };

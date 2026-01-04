@@ -12,6 +12,60 @@ import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import styles from './page.module.css';
 
+const parsePositiveInt = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const isValidYearValue = (value) => {
+  if (typeof value !== 'string') return false;
+  return /^20\d{2}-/.test(value);
+};
+
+const normalizeDateTimeInput = (value) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  const slashMatch = trimmed.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4,})(?:,\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/
+  );
+  if (slashMatch) {
+    const [, part1, part2, yearRaw, hourRaw, minuteRaw, meridianRaw] =
+      slashMatch;
+    const year = yearRaw.slice(0, 4);
+    let month = Number.parseInt(part1, 10);
+    let day = Number.parseInt(part2, 10);
+
+    if (month > 12 && day <= 12) {
+      const swap = day;
+      day = month;
+      month = swap;
+    }
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      let hour = hourRaw ? Number.parseInt(hourRaw, 10) : 0;
+      const minute = minuteRaw ? Number.parseInt(minuteRaw, 10) : 0;
+      const meridian = meridianRaw?.toUpperCase();
+      if (meridian === 'PM' && hour < 12) hour += 12;
+      if (meridian === 'AM' && hour === 12) hour = 0;
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+    }
+  }
+
+  const yearMatch = trimmed.match(/^(\d{4,})(.*)$/);
+  if (yearMatch && yearMatch[1].length > 4) {
+    return `${yearMatch[1].slice(0, 4)}${yearMatch[2] || ''}`;
+  }
+
+  return value;
+};
+
 export default function NewChallengePage() {
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
@@ -24,11 +78,11 @@ export default function NewChallengePage() {
     title: '',
     startDatetime: '',
     endDatetime: '',
-    duration: 30,
-    allowedNumberOfReview: 5,
+    duration: '30',
+    allowedNumberOfReview: '5',
     matchSettingIds: [],
     status: Constants.ChallengeStatus.PUBLIC,
-    durationPeerReview: 30,
+    durationPeerReview: '30',
   });
   const [matchSettings, setMatchSettings] = useState([]);
   const [error, setError] = useState(null);
@@ -55,16 +109,23 @@ export default function NewChallengePage() {
 
   const handleDataField = (event) => {
     const newChallenge = { ...challenge };
+    let { value } = event.target;
+
+    if (
+      event.target.name === 'startDatetime' ||
+      event.target.name === 'endDatetime'
+    ) {
+      value = normalizeDateTimeInput(value);
+    }
 
     if (
       event.target.name === 'duration' ||
       event.target.name === 'durationPeerReview' ||
       event.target.name === 'allowedNumberOfReview'
     ) {
-      const val = parseInt(event.target.value, 10);
-      newChallenge[event.target.name] = Number.isNaN(val) ? 0 : val;
+      newChallenge[event.target.name] = value;
     } else {
-      newChallenge[event.target.name] = event.target.value;
+      newChallenge[event.target.name] = value;
     }
     if (
       event.target.name === 'startDatetime' ||
@@ -72,9 +133,11 @@ export default function NewChallengePage() {
       event.target.name === 'durationPeerReview'
     ) {
       const startVal = newChallenge.startDatetime;
-      const durationVal = newChallenge.duration;
-      const durationPeerReviewVal = newChallenge.durationPeerReview;
-      if (startVal && durationVal && durationPeerReviewVal) {
+      const durationVal = parsePositiveInt(newChallenge.duration);
+      const durationPeerReviewVal = parsePositiveInt(
+        newChallenge.durationPeerReview
+      );
+      if (startVal && durationVal !== null && durationPeerReviewVal !== null) {
         const start = new Date(startVal);
         if (!Number.isNaN(start.getTime())) {
           const durationMs = (durationVal || 0) * 60 * 1000;
@@ -170,9 +233,11 @@ export default function NewChallengePage() {
     if (!challenge.startDatetime) return getMinDateTime();
     const start = new Date(challenge.startDatetime);
     if (Number.isNaN(start.getTime())) return getMinDateTime();
-    const durationMs =
-      (challenge.duration + challenge.durationPeerReview || 0) * 60 * 1000;
+    const durationMs = (parsePositiveInt(challenge.duration) || 0) * 60 * 1000;
+    const durationPeerReviewMs =
+      (parsePositiveInt(challenge.durationPeerReview) || 0) * 60 * 1000;
     const minEndDate = new Date(start.getTime() + durationMs);
+    minEndDate.setTime(minEndDate.getTime() + durationPeerReviewMs);
     const year = minEndDate.getFullYear();
     const month = String(minEndDate.getMonth() + 1).padStart(2, '0');
     const day = String(minEndDate.getDate()).padStart(2, '0');
@@ -186,65 +251,87 @@ export default function NewChallengePage() {
     // console.log("Challenge to save: ", challenge);
     if (!isAuthorized) return;
     setSuccessMessage(null);
+    setError(null);
+
+    const form = e.currentTarget;
+    const titleInput = form?.querySelector?.('#title');
+    const trimmedTitle = challenge.title.trim();
+    if (titleInput && titleInput.value !== trimmedTitle) {
+      titleInput.value = trimmedTitle;
+    }
+    if (trimmedTitle !== challenge.title) {
+      setChallenge((prev) => ({
+        ...prev,
+        title: trimmedTitle,
+      }));
+    }
+    const startInput = form?.querySelector?.('#startDatetime');
+    const endInput = form?.querySelector?.('#endDatetime');
+    if (startInput) startInput.setCustomValidity('');
+    if (endInput) endInput.setCustomValidity('');
     if (
-      !Number.isInteger(challenge.allowedNumberOfReview) ||
-      challenge.allowedNumberOfReview < 2
+      startInput &&
+      challenge.startDatetime &&
+      !isValidYearValue(challenge.startDatetime)
     ) {
-      setError(
-        'Expected Reviews per Submission must be an integer greater than or equal to 2.'
-      );
+      startInput.setCustomValidity('Invalid date.');
+    }
+    if (
+      endInput &&
+      challenge.endDatetime &&
+      !isValidYearValue(challenge.endDatetime)
+    ) {
+      endInput.setCustomValidity('Invalid date.');
+    }
+
+    const isValid = form?.checkValidity ? form.checkValidity() : true;
+    if (!isValid) {
+      form?.reportValidity?.();
       return;
     }
     if (!challenge.matchSettingIds || challenge.matchSettingIds.length === 0) {
       setError('Select at least one match setting');
       return;
     }
-    setError(null);
-    const start = new Date(challenge.startDatetime);
-    const end = new Date(challenge.endDatetime);
-    const finalTime = new Date(
-      start.getTime() +
-        (challenge.duration + challenge.durationPeerReview) * 60000
-    );
-
-    if (start > end) {
-      setError('End date/time cannot be before start date/time.');
-    } else if (finalTime > end) {
-      setError(
-        'End date/time must accommodate challenge and peer review durations'
-      );
-    } else {
-      setIsSubmitting(true);
-      const payload = {
-        ...challenge,
-        startDatetime: toISODateTime(challenge.startDatetime),
-        endDatetime: toISODateTime(challenge.endDatetime),
-      };
-      try {
-        const result = await createChallenge(payload);
-        // console.log("Result: ", result)
-        if (result?.success) {
-          setSuccessMessage('Challenge created successfully! Redirecting...');
-          // console.log("Challenge:", result);
-          setTimeout(() => {
-            router.push('/challenges');
-          }, 3000);
-          return;
-        }
-        const { message, code } = parseCreateError(result);
-        if (code === 'challenge_overlap') {
-          setOverlapPayload(payload);
-          setOverlapDialogOpen(true);
-          setIsSubmitting(false);
-          return;
-        }
-        setError(message);
-        setIsSubmitting(false);
-      } catch (err) {
-        // console.error(err);
-        setError(`Error: ${err.message}`);
-        setIsSubmitting(false);
+    const durationValue = parsePositiveInt(challenge.duration) ?? 0;
+    const durationPeerReviewValue =
+      parsePositiveInt(challenge.durationPeerReview) ?? 0;
+    const allowedNumberValue =
+      parsePositiveInt(challenge.allowedNumberOfReview) ?? 0;
+    setIsSubmitting(true);
+    const payload = {
+      ...challenge,
+      title: trimmedTitle,
+      duration: durationValue,
+      durationPeerReview: durationPeerReviewValue,
+      allowedNumberOfReview: allowedNumberValue,
+      startDatetime: toISODateTime(challenge.startDatetime),
+      endDatetime: toISODateTime(challenge.endDatetime),
+    };
+    try {
+      const result = await createChallenge(payload);
+      // console.log("Result: ", result)
+      if (result?.success) {
+        setSuccessMessage('Challenge created successfully! Redirecting...');
+        // console.log("Challenge:", result);
+        setTimeout(() => {
+          router.push('/challenges');
+        }, 3000);
+        return;
       }
+      const { message, code } = parseCreateError(result);
+      if (code === 'challenge_overlap') {
+        setOverlapPayload(payload);
+        setOverlapDialogOpen(true);
+        setIsSubmitting(false);
+        return;
+      }
+      setError(message);
+      setIsSubmitting(false);
+    } catch (err) {
+      // console.error(err);
+      setError(`Error: ${err.message}`);
+      setIsSubmitting(false);
     }
   };
 
@@ -290,6 +377,17 @@ export default function NewChallengePage() {
     setOverlapPayload(null);
     setError('Challenge creation cancelled.');
   };
+
+  const durationValue = parsePositiveInt(challenge.duration);
+  const durationPeerReviewValue = parsePositiveInt(
+    challenge.durationPeerReview
+  );
+  const canPickEndDate =
+    Boolean(challenge.startDatetime) &&
+    Number.isInteger(durationValue) &&
+    durationValue >= 2 &&
+    Number.isInteger(durationPeerReviewValue) &&
+    durationPeerReviewValue >= 2;
 
   return (
     <main role='main' className={styles.main} aria-labelledby='page-title'>
@@ -344,7 +442,7 @@ export default function NewChallengePage() {
                 className={styles.datetime}
                 min={getMinEndDate()}
                 required
-                disabled={!challenge.startDatetime || !challenge.duration}
+                disabled={!canPickEndDate}
               />
             </label>
           </div>
@@ -361,7 +459,7 @@ export default function NewChallengePage() {
                   value={challenge.duration}
                   onChange={handleDataField}
                   className={styles.number}
-                  min={1}
+                  min={2}
                   required
                 />
               </label>
@@ -376,7 +474,7 @@ export default function NewChallengePage() {
                   value={challenge.durationPeerReview}
                   onChange={handleDataField}
                   className={styles.number}
-                  min={1}
+                  min={2}
                   required
                 />
               </label>

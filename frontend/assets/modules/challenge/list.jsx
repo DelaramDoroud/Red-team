@@ -17,6 +17,7 @@ export default function ChallengeList() {
     getChallengeParticipants,
     assignChallenge,
     startChallenge,
+    assignPeerReviews,
   } = useChallenge();
 
   const [challenges, setChallenges] = useState([]);
@@ -25,6 +26,8 @@ export default function ChallengeList() {
   const [pending, setPending] = useState({});
   const [countdowns, setCountdowns] = useState({});
   const [timerStarted, setTimerStarted] = useState({}); // Track which timers have started
+  const [reviewErrors, setReviewErrors] = useState({});
+  const [assignNotice, setAssignNotice] = useState(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -128,7 +131,97 @@ export default function ChallengeList() {
     }
   };
 
-  // Countdown con persistenza
+  const handleAllowedNumberChange = (challengeId, value) => {
+    setChallenges((prev) =>
+      prev.map((challenge) =>
+        challenge.id === challengeId
+          ? { ...challenge, allowedNumberOfReview: value }
+          : challenge
+      )
+    );
+    setReviewErrors((prev) => {
+      if (!prev[challengeId]) return prev;
+      const next = { ...prev };
+      delete next[challengeId];
+      return next;
+    });
+  };
+
+  const parseExpectedReviews = (value) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 2) {
+      return null;
+    }
+    return parsed;
+  };
+
+  const handleAssignReviews = async (challengeId, expectedValue) => {
+    const parsed = parseExpectedReviews(expectedValue);
+    if (!parsed) {
+      setReviewErrors((prev) => ({
+        ...prev,
+        [challengeId]:
+          'Enter a whole number greater than or equal to 2 before assigning.',
+      }));
+      return;
+    }
+    setAssignNotice(null);
+    setReviewErrors((prev) => {
+      if (!prev[challengeId]) return prev;
+      const next = { ...prev };
+      delete next[challengeId];
+      return next;
+    });
+    setPendingAction(challengeId, 'assignReviews', true);
+    setError(null);
+    try {
+      const res = await assignPeerReviews(challengeId, parsed);
+      if (res?.success === false) {
+        setError(res?.message || 'Unable to assign peer reviews');
+        return;
+      }
+      if (Array.isArray(res?.results)) {
+        const assignedCount = res.results.filter(
+          (result) => result.status === 'assigned'
+        ).length;
+        const insufficient = res.results.find(
+          (result) => result.status === 'insufficient_valid_submissions'
+        );
+        const failed = res.results.find(
+          (result) =>
+            result.status !== 'assigned' &&
+            result.status !== 'insufficient_valid_submissions'
+        );
+        const reduced = res.results.find(
+          (result) => result.status === 'assigned' && result.teacherMessage
+        );
+        if (assignedCount > 0) {
+          setAssignNotice({
+            tone: reduced ? 'warning' : 'success',
+            text: reduced
+              ? 'Peer reviews assigned, but expected reviews per submission were reduced.'
+              : 'Peer reviews assigned successfully.',
+          });
+        } else if (failed) {
+          setAssignNotice({
+            tone: 'error',
+            text: failed.teacherMessage || 'Unable to assign peer reviews.',
+          });
+        } else if (insufficient) {
+          setAssignNotice({
+            tone: 'warning',
+            text: 'Peer review could not be assigned because there are not enough valid submissions.',
+          });
+        }
+      }
+    } catch {
+      setError('Unable to assign peer reviews');
+    } finally {
+      setPendingAction(challengeId, 'assignReviews', false);
+    }
+  };
+
+  // Countdown with persistence
   useEffect(() => {
     const timers = {};
     currentItems.forEach((challenge) => {
@@ -227,7 +320,29 @@ export default function ChallengeList() {
       return <Timer duration={challenge.duration} challengeId={challenge.id} />;
     }
 
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE) {
+      return (
+        <Button
+          size='sm'
+          onClick={(event) => {
+            event.preventDefault();
+            handleAssignReviews(challenge.id, challenge.allowedNumberOfReview);
+          }}
+          disabled={pending[challenge.id]?.assignReviews}
+          title='Assign peer reviews for this challenge'
+        >
+          {pending[challenge.id]?.assignReviews ? 'Assigning...' : 'Assign'}
+        </Button>
+      );
+    }
+
     return null;
+  };
+
+  const getNoticeClassName = (tone) => {
+    if (tone === 'success') return styles.noticeSuccess;
+    if (tone === 'warning') return styles.noticeWarning;
+    return styles.noticeError;
   };
 
   if (loading && !challenges.length && !error) {
@@ -247,6 +362,13 @@ export default function ChallengeList() {
         </Button>
       </div>
       {error && <p className={styles.error}>{error}</p>}
+      {assignNotice && (
+        <p
+          className={`${styles.notice} ${getNoticeClassName(assignNotice.tone)}`}
+        >
+          {assignNotice.text}
+        </p>
+      )}
       {!error && !challenges.length && !loading && (
         <p className={styles.empty}>
           No challenges yet. Try creating one from the backend.
@@ -261,6 +383,8 @@ export default function ChallengeList() {
               challenge={{ ...challenge, participants: studentCount }}
               href={`/challenges/${challenge.id}`}
               actions={renderActions(challenge, studentCount)}
+              onAllowedNumberChange={handleAllowedNumberChange}
+              allowedNumberError={reviewErrors[challenge.id]}
             />
           );
         })}

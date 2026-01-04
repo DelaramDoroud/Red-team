@@ -14,25 +14,27 @@
     },
     "duration": {
       "type": "integer",
-      "minimum": 1,
+      "minimum": 2,
       "description": "Duration in minutes"
     },
     "startDatetime": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^20\\d{2}-"
     },
     "endDatetime": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^20\\d{2}-"
     },
     "durationPeerReview": {
       "type": "integer",
-      "minimum": 1,
+      "minimum": 2,
       "description": "Duration peer review in minutes"
     },
     "allowedNumberOfReview": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 2
     },
     "matchSettingIds": {
       "type": "array",

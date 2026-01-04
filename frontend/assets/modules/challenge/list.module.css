@@ -34,6 +34,23 @@
   font-size: 0.9rem;
 }
 
+.notice {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.noticeSuccess {
+  color: hsl(142 76% 26%);
+}
+
+.noticeWarning {
+  color: hsl(38 92% 45%);
+}
+
+.noticeError {
+  color: hsl(var(--destructive));
+}
+
 .empty {
   font-size: 0.9rem;
   opacity: 0.8;

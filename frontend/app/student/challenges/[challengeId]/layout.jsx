@@ -18,7 +18,7 @@ import { DurationProvider } from './(context)/DurationContext';
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const { getChallengeMatches } = useChallenge();
+  const { getChallengeForJoinedStudent } = useChallenge();
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,11 +41,10 @@ export default function ChallengeLayout({ children }) {
       setError(null);
 
       try {
-        const res = await getChallengeMatches(challengeId);
+        const res = await getChallengeForJoinedStudent(challengeId, studentId);
         if (!cancelled) {
           if (res?.success) {
-            // challenge: { id, title, status, startDatetime, duration }
-            setchallengeData(res.challenge);
+            setchallengeData(res.data);
           } else {
             setError({
               message:
@@ -72,7 +71,7 @@ export default function ChallengeLayout({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [challengeId, studentId, getChallengeMatches, isAuthorized]);
+  }, [challengeId, studentId, getChallengeForJoinedStudent, isAuthorized]);
   const { status, title, duration, startPhaseOneDateTime, startDatetime } =
     challengeData || {};
   const phaseLabel = () => {

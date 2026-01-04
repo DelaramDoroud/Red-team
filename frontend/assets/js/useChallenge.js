@@ -78,6 +78,17 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const assignPeerReviews = useCallback(
+    async (challengeId, expectedReviewsPerSubmission) => {
+      const url = `${API_BASE}/challenges/${challengeId}/peer-reviews/assign`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedReviewsPerSubmission }),
+      });
+    },
+    [fetchData]
+  );
   const getChallengeForJoinedStudent = useCallback(
     async (challengeId, studentId) => {
       const url = `${API_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
@@ -159,6 +170,7 @@ export default function useChallenge() {
     assignChallenge,
     unpublishChallenge,
     startChallenge,
+    assignPeerReviews,
     getChallengeForJoinedStudent,
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,

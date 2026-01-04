@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import {
+  clearChallengeDraft,
   migrateChallengeKey,
   setDraftCode,
   setLastCompiledCode,
@@ -11,6 +12,7 @@ import {
 } from '#js/store/slices/ui';
 import { NETWORK_RESPONSE_NOT_OK } from '#js/constants';
 import MatchView from './MatchView';
+import { useDuration } from '../(context)/DurationContext';
 
 const DEFAULT_IMPORTS = '#include <iostream>';
 const IMPORTS_END_MARKER = '// __CODYMATCH_IMPORTS_END__';
@@ -221,6 +223,14 @@ const getUserFacingErrorMessage = (result, fallback) => {
 
 export default function MatchContainer({ challengeId, studentId }) {
   const dispatch = useAppDispatch();
+  const durationContext = useDuration();
+  const startSignature =
+    durationContext?.startPhaseOneDateTime || durationContext?.startDatetime;
+  const challengeSignature = useMemo(
+    () =>
+      startSignature ? `${challengeId}-${startSignature}` : `${challengeId}`,
+    [challengeId, startSignature]
+  );
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
@@ -268,15 +278,33 @@ export default function MatchContainer({ challengeId, studentId }) {
     if (!studentId) return null;
     return state.ui.challengeDrafts?.[studentId]?.[storageKeyBase] || null;
   });
-  const savedDraftImports = savedDraftEntry?.imports || '';
+  const hasSignatureToken = Boolean(startSignature);
+  const shouldIgnoreSavedDraft = Boolean(
+    savedDraftEntry &&
+    ((savedDraftEntry.signature &&
+      savedDraftEntry.signature !== challengeSignature) ||
+      (hasSignatureToken && !savedDraftEntry.signature))
+  );
+  const activeDraftEntry = shouldIgnoreSavedDraft ? null : savedDraftEntry;
+  const savedDraftImports = activeDraftEntry?.imports || '';
   const savedDraftStudentCode =
-    savedDraftEntry?.studentCode || savedDraftEntry?.code || '';
+    activeDraftEntry?.studentCode || activeDraftEntry?.code || '';
   const savedLastCompiledSnapshot = normalizeSnapshot(
-    savedDraftEntry?.lastCompiled
+    activeDraftEntry?.lastCompiled
   );
   const savedLastSuccessSnapshot = normalizeSnapshot(
-    savedDraftEntry?.lastSuccessful
+    activeDraftEntry?.lastSuccessful
   );
+
+  useEffect(() => {
+    if (!studentId || !shouldIgnoreSavedDraft) return;
+    dispatch(
+      clearChallengeDraft({
+        userId: studentId,
+        key: storageKeyBase,
+      })
+    );
+  }, [dispatch, shouldIgnoreSavedDraft, storageKeyBase, studentId]);
 
   useEffect(() => {
     if (!studentId || !matchId) return;
@@ -300,9 +328,17 @@ export default function MatchContainer({ challengeId, studentId }) {
         key: storageKeyBase,
         imports,
         studentCode,
+        signature: challengeSignature,
       })
     );
-  }, [dispatch, storageKeyBase, studentId, imports, studentCode]);
+  }, [
+    dispatch,
+    storageKeyBase,
+    studentId,
+    imports,
+    studentCode,
+    challengeSignature,
+  ]);
 
   useEffect(() => {
     hasLoadedFromStorage.current = false;
@@ -354,9 +390,18 @@ export default function MatchContainer({ challengeId, studentId }) {
         key: storageKeyBase,
         imports,
         studentCode,
+        signature: challengeSignature,
       })
     );
-  }, [imports, studentCode, matchData, storageKeyBase, studentId, dispatch]);
+  }, [
+    imports,
+    studentCode,
+    matchData,
+    storageKeyBase,
+    studentId,
+    dispatch,
+    challengeSignature,
+  ]);
 
   // load StudentAssignedMatchSetting(Match)
   useEffect(() => {
@@ -656,6 +701,7 @@ export default function MatchContainer({ challengeId, studentId }) {
               key: persistKey,
               imports,
               studentCode,
+              signature: challengeSignature,
             })
           );
         }
@@ -696,13 +742,14 @@ export default function MatchContainer({ challengeId, studentId }) {
     getStudentAssignedMatch,
     challengeId,
     studentId,
-    studentCode,
-    assembledCode,
-    imports,
-    submitSubmission,
-    getLastSubmission,
-    dispatch,
     storageKeyBase,
+    studentCode,
+    submitSubmission,
+    assembledCode,
+    dispatch,
+    imports,
+    challengeSignature,
+    getLastSubmission,
   ]);
 
   // Automatic submission when timer finishes
@@ -766,6 +813,7 @@ export default function MatchContainer({ challengeId, studentId }) {
               key: persistKey,
               imports,
               studentCode,
+              signature: challengeSignature,
             })
           );
         }
@@ -801,13 +849,14 @@ export default function MatchContainer({ challengeId, studentId }) {
     getStudentAssignedMatch,
     challengeId,
     studentId,
+    storageKeyBase,
     studentCode,
     assembledCode,
-    imports,
     getLastSubmission,
     submitSubmission,
-    storageKeyBase,
     dispatch,
+    imports,
+    challengeSignature,
   ]);
 
   const handleTryAgain = useCallback(() => {

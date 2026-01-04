@@ -250,25 +250,7 @@ export default function StudentChallengesPage() {
 
   const renderAction = (challenge) => {
     const isJoined = joined[challenge.id];
-    const isStarted = startedStatuses.has(challenge.status);
     const isJoining = pendingActions[challenge.id]?.join;
-    const isCounting = countdown && countdown.challengeId === challenge.id;
-
-    if (isCounting) {
-      return (
-        <div className='text-primary font-semibold text-sm'>
-          Challenge starting in {countdown.value}…
-        </div>
-      );
-    }
-
-    if (!isJoined && isStarted) {
-      return (
-        <div className='text-destructive font-semibold text-sm'>
-          The challenge is already in progress.
-        </div>
-      );
-    }
 
     if (!isJoined) {
       return (
@@ -294,18 +276,6 @@ export default function StudentChallengesPage() {
 
   return (
     <div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
-      {countdown && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
-          <div className='bg-card rounded-2xl px-10 py-8 text-center shadow-xl border border-border'>
-            <p className='text-sm text-muted-foreground mb-2'>Get ready…</p>
-            <p className='text-6xl font-bold mb-4'>{countdown.value}</p>
-            <p className='text-sm text-muted-foreground'>
-              The challenge is about to start.
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className='space-y-2'>
         <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
           Student area
