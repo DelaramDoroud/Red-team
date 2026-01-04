@@ -14,6 +14,13 @@ import { ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
 
+const startedStatuses = new Set([
+  ChallengeStatus.STARTED_PHASE_ONE,
+  ChallengeStatus.ENDED_PHASE_ONE,
+  ChallengeStatus.STARTED_PHASE_TWO,
+  ChallengeStatus.ENDED_PHASE_TWO,
+]);
+
 const statusStyles = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/15',
   [ChallengeStatus.ASSIGNED]:
@@ -22,19 +29,6 @@ const statusStyles = {
     'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-200',
   [ChallengeStatus.PRIVATE]:
     'bg-muted text-muted-foreground ring-1 ring-border',
-};
-
-const startedStatuses = new Set([
-  ChallengeStatus.STARTED_PHASE_ONE,
-  ChallengeStatus.ENDED_PHASE_ONE,
-  ChallengeStatus.STARTED_PHASE_TWO,
-  ChallengeStatus.ENDED_PHASE_TWO,
-]);
-
-const formatDateTime = (value) => {
-  if (!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
 };
 
 export default function StudentChallengesPage() {
@@ -46,7 +40,6 @@ export default function StudentChallengesPage() {
 
   const [challenges, setChallenges] = useState([]);
   const [joined, setJoined] = useState({});
-  const [countdown, setCountdown] = useState(null);
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
   const [pendingActions, setPendingActions] = useState({});
@@ -67,18 +60,17 @@ export default function StudentChallengesPage() {
       if (!res || res.success === false) {
         setError(res?.message || 'Unable to load challenges');
         setChallenges([]);
-        return;
+        return undefined;
       }
       let list = [];
-      if (Array.isArray(res)) {
-        list = res;
-      } else if (Array.isArray(res?.data)) {
-        list = res.data;
-      }
+      if (Array.isArray(res)) list = res;
+      else if (Array.isArray(res?.data)) list = res.data;
       setChallenges(list);
+      return undefined;
     } catch {
       setError('Unable to load challenges');
       setChallenges([]);
+      return undefined;
     }
   }, [getChallenges]);
 
@@ -86,12 +78,10 @@ export default function StudentChallengesPage() {
     if (!isAuthorized || !studentId) return undefined;
     setNow(new Date());
     loadChallenges();
-
     const id = setInterval(() => {
       setNow(new Date());
       loadChallenges();
     }, 3000);
-
     return () => clearInterval(id);
   }, [loadChallenges, isAuthorized, studentId]);
 
@@ -110,14 +100,13 @@ export default function StudentChallengesPage() {
     (async () => {
       try {
         const res = await getChallengeForJoinedStudent(challenge.id, studentId);
-
         if (!cancelled && res?.success && res.data) {
           setJoined((prev) => ({ ...prev, [challenge.id]: true }));
         }
+        return undefined;
       } catch {
-        if (!cancelled) {
-          setError('Unable to verify challenge status');
-        }
+        if (!cancelled) setError('Unable to verify challenge status');
+        return undefined;
       }
     })();
 
@@ -131,102 +120,26 @@ export default function StudentChallengesPage() {
     isAuthorized,
   ]);
 
-  useEffect(() => {
-    if (!visibleChallenges.length || !studentId || !isAuthorized)
-      return undefined;
-
-    const challenge = visibleChallenges[0];
-    if (!joined[challenge.id]) return undefined;
-
-    const pollStatus = async () => {
-      if (redirectingRef.current) return;
-      try {
-        const res = await getChallengeForJoinedStudent(challenge.id, studentId);
-        if (!res?.success || !res.data) return;
-
-        const { status, startPhaseOneDateTime } = res.data;
-        if (!startedStatuses.has(status)) return;
-
-        const startedTime =
-          startPhaseOneDateTime ||
-          challenge.startPhaseOneDateTime ||
-          challenge.startDatetime;
-
-        const startMs = startedTime
-          ? new Date(startedTime).getTime()
-          : Date.now();
-        const elapsed = Math.floor((Date.now() - startMs) / 1000);
-        const remaining = Math.max(3 - elapsed, 0);
-
-        if (remaining <= 0) {
-          redirectingRef.current = true;
-          router.push(`/student/challenges/${challenge.id}/match`);
-          return;
-        }
-
-        setCountdown({ challengeId: challenge.id, value: remaining });
-      } catch {
-        // ignore transient errors
-      }
-    };
-
-    pollStatus();
-    const id = setInterval(pollStatus, 1000);
-
-    return () => {
-      clearInterval(id);
-    };
-  }, [
-    visibleChallenges,
-    joined,
-    getChallengeForJoinedStudent,
-    router,
-    studentId,
-    isAuthorized,
-  ]);
-
-  useEffect(() => {
-    if (!countdown) return undefined;
-
-    if (countdown.value <= 0) {
-      if (!redirectingRef.current) {
-        redirectingRef.current = true;
-        router.push(`/student/challenges/${countdown.challengeId}/match`);
-      }
-      return undefined;
-    }
-
-    const timer = setTimeout(() => {
-      setCountdown((prev) => {
-        if (!prev || prev.challengeId !== countdown.challengeId) return prev;
-        return { ...prev, value: prev.value - 1 };
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [countdown, router]);
-
   const handleJoin = async (challengeId) => {
     setError(null);
     setPendingActions((prev) => ({ ...prev, [challengeId]: { join: true } }));
     if (!studentId) {
-      setError('Profilo studente non disponibile.');
+      setError('Student profile not available.');
       setPendingActions((prev) => {
         const next = { ...prev };
         delete next[challengeId];
         return next;
       });
-      return;
+      return undefined;
     }
     try {
       const res = await joinChallenge(challengeId, studentId);
-      if (res?.success) {
-        setJoined((prev) => ({ ...prev, [challengeId]: true }));
-      } else {
-        setError(res?.message || 'Unable to join challenge');
-      }
+      if (res?.success) setJoined((prev) => ({ ...prev, [challengeId]: true }));
+      else setError(res?.message || 'Unable to join challenge');
+      return undefined;
     } catch {
       setError('Unable to join challenge');
+      return undefined;
     } finally {
       setPendingActions((prev) => {
         const next = { ...prev };
@@ -235,6 +148,19 @@ export default function StudentChallengesPage() {
       });
     }
   };
+
+  useEffect(() => {
+    if (!visibleChallenges.length) return undefined;
+    const challenge = visibleChallenges[0];
+    const isJoined = joined[challenge.id];
+    const isStarted = startedStatuses.has(challenge.status);
+
+    if (isJoined && isStarted && !redirectingRef.current) {
+      redirectingRef.current = true;
+      router.push(`/student/challenges/${challenge.id}/match`);
+    }
+    return undefined;
+  }, [visibleChallenges, joined, router]);
 
   const renderStatusBadge = (status) => {
     const styles =
@@ -250,22 +176,23 @@ export default function StudentChallengesPage() {
 
   const renderAction = (challenge) => {
     const isJoined = joined[challenge.id];
+    const isStarted = startedStatuses.has(challenge.status);
     const isJoining = pendingActions[challenge.id]?.join;
 
+    if (!isJoined && isStarted) {
+      return (
+        <div className='text-destructive font-semibold text-sm'>
+          The challenge has already started. You cannot join now.
+        </div>
+      );
+    }
+
     if (!isJoined) {
-      if (startedStatuses.has(challenge.status)) {
-        return (
-          <div className='text-primary font-semibold text-sm'>
-            The challenge is already in progress.
-          </div>
-        );
-      }
       return (
         <Button
           size='lg'
           onClick={() => handleJoin(challenge.id)}
           disabled={isJoining}
-          title='Join this challenge'
         >
           {isJoining ? 'Joining...' : 'Join'}
         </Button>
@@ -282,7 +209,7 @@ export default function StudentChallengesPage() {
   if (!isAuthorized || !studentId) return null;
 
   return (
-    <div className='max-w-5xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6'>
+    <div className='max-w-5xl mx-auto px-6 py-8 space-y-6 relative'>
       <div className='space-y-2'>
         <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
           Student area
@@ -341,7 +268,7 @@ export default function StudentChallengesPage() {
                     Start
                   </dt>
                   <dd className='text-foreground font-medium'>
-                    {formatDateTime(challenge.startDatetime)}
+                    {new Date(challenge.startDatetime).toLocaleString()}
                   </dd>
                 </div>
                 <div className='space-y-1'>

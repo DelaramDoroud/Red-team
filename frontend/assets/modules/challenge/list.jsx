@@ -26,7 +26,6 @@ export default function ChallengeList() {
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
   const [countdowns, setCountdowns] = useState({});
-  const [timerStarted, setTimerStarted] = useState({}); // Track which timers have started
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
 
@@ -345,21 +344,6 @@ export default function ChallengeList() {
     }
 
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-      const countdownValue = countdowns[challenge.id] ?? 0;
-
-      // Mostra il countdown solo se > 0
-      if (countdownValue > 0) {
-        return (
-          <span className={styles.countdown}>
-            Challenge starting in {countdownValue}…
-          </span>
-        );
-      }
-
-      // Mostra il timer se countdown finito
-      if (!timerStarted[challenge.id]) {
-        setTimerStarted((prev) => ({ ...prev, [challenge.id]: true }));
-      }
       return <Timer duration={challenge.duration} challengeId={challenge.id} />;
     }
 

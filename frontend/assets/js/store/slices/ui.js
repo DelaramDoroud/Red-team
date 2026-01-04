@@ -182,12 +182,10 @@ const uiSlice = createSlice({
       .addCase(logoutUser.fulfilled, (state) => ({
         ...state,
         challengeDrafts: {},
-        challengeTimers: {},
       }))
       .addCase(clearUser, (state) => ({
         ...state,
         challengeDrafts: {},
-        challengeTimers: {},
       }));
   },
 });
