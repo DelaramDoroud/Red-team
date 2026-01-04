@@ -182,7 +182,7 @@ export default function StudentChallengesPage() {
     if (!isJoined && isStarted) {
       return (
         <div className='text-destructive font-semibold text-sm'>
-          the challenge is already in progress
+          the challenge is already in progress.
         </div>
       );
     }
