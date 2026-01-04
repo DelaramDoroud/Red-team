@@ -188,3 +188,29 @@
     transform: rotate(360deg);
   }
 }
+
+@media (max-width: 400px) {
+  .main {
+    padding: 1.25rem 0.5rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .submitWrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+    border-radius: 0.75rem;
+  }
+
+  .table th,
+  .table td {
+    white-space: nowrap;
+  }
+}

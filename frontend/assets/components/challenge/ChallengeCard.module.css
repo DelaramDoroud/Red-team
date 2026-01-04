@@ -141,3 +141,27 @@
   font-weight: 600;
   color: hsl(var(--destructive));
 }
+
+@media (max-width: 400px) {
+  .card {
+    padding: 0.85rem 1rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .meta {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .numberInput {
+    width: 100%;
+  }
+}

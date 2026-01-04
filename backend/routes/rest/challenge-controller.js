@@ -7,7 +7,8 @@ import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
-import { SubmissionStatus } from '#root/models/enum/enums.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import {
@@ -16,6 +17,7 @@ import {
 } from '#root/services/challenge-participant.js';
 import assignMatches from '#root/services/assign-matches.js';
 import startChallengeService from '#root/services/start-challenge.js';
+import startPeerReviewService from '#root/services/start-peer-review.js';
 import assignPeerReviews from '#root/services/assign-peer-reviews.js';
 import { Op } from 'sequelize';
 
@@ -365,11 +367,31 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
     const matchSettingByMatchId = new Map(
       matches.map((matchRow) => [matchRow.id, matchRow.challengeMatchSettingId])
     );
+    const participantById = new Map();
+    matches.forEach((matchRow) => {
+      const student = matchRow.challengeParticipant?.student;
+      if (!student) return;
+      participantById.set(matchRow.challengeParticipantId, {
+        participantId: matchRow.challengeParticipantId,
+        studentId: student.id,
+        username: student.username,
+      });
+    });
+
     const validSubmissionCounts = {};
+    const validSubmissionIds = [];
+    let totalSubmissionsCount = 0;
 
     if (matchIds.length > 0) {
+      totalSubmissionsCount = await Submission.count({
+        where: {
+          matchId: { [Op.in]: matchIds },
+          isFinal: true,
+        },
+      });
+
       const validSubmissions = await Submission.findAll({
-        attributes: ['matchId'],
+        attributes: ['id', 'matchId', 'challengeParticipantId'],
         where: {
           matchId: { [Op.in]: matchIds },
           isFinal: true,
@@ -383,12 +405,98 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         raw: true,
       });
 
-      validSubmissions.forEach(({ matchId }) => {
+      validSubmissions.forEach(({ id, matchId }) => {
         const cmsId = matchSettingByMatchId.get(matchId);
         if (!cmsId) return;
+        validSubmissionIds.push(id);
         validSubmissionCounts[cmsId] = (validSubmissionCounts[cmsId] || 0) + 1;
       });
     }
+
+    const peerReviewAssignmentsByCms = {};
+    const peerReviewAssignmentsCountByCms = {};
+
+    if (validSubmissionIds.length > 0) {
+      const peerAssignments = await PeerReviewAssignment.findAll({
+        where: { submissionId: { [Op.in]: validSubmissionIds } },
+        include: [
+          {
+            model: Submission,
+            as: 'submission',
+            attributes: ['id', 'matchId', 'challengeParticipantId'],
+          },
+          {
+            model: ChallengeParticipant,
+            as: 'reviewer',
+            attributes: ['id'],
+            include: [
+              { model: User, as: 'student', attributes: ['id', 'username'] },
+            ],
+          },
+        ],
+      });
+
+      const reviewerMaps = new Map();
+
+      peerAssignments.forEach((assignment) => {
+        const submission = assignment.submission;
+        if (!submission) return;
+        const cmsId = matchSettingByMatchId.get(submission.matchId);
+        if (!cmsId) return;
+
+        if (!reviewerMaps.has(cmsId)) {
+          reviewerMaps.set(cmsId, new Map());
+        }
+
+        const reviewerMap = reviewerMaps.get(cmsId);
+        const reviewerParticipantId = assignment.reviewerId;
+        const reviewerInfo = participantById.get(reviewerParticipantId) || {
+          participantId: reviewerParticipantId,
+          studentId: assignment.reviewer?.student?.id ?? null,
+          username:
+            assignment.reviewer?.student?.username ||
+            `Student ${reviewerParticipantId}`,
+        };
+
+        if (!reviewerMap.has(reviewerParticipantId)) {
+          reviewerMap.set(reviewerParticipantId, {
+            reviewer: reviewerInfo,
+            reviewees: [],
+          });
+        }
+
+        const revieweeInfo = participantById.get(
+          submission.challengeParticipantId
+        ) || {
+          participantId: submission.challengeParticipantId,
+          studentId: null,
+          username: `Student ${submission.challengeParticipantId}`,
+        };
+
+        reviewerMap.get(reviewerParticipantId).reviewees.push({
+          ...revieweeInfo,
+          submissionId: submission.id,
+          isExtra: assignment.isExtra,
+        });
+
+        peerReviewAssignmentsCountByCms[cmsId] =
+          (peerReviewAssignmentsCountByCms[cmsId] || 0) + 1;
+      });
+
+      reviewerMaps.forEach((reviewerMap, cmsId) => {
+        peerReviewAssignmentsByCms[cmsId] = Array.from(reviewerMap.values());
+      });
+    }
+
+    const eligibleGroupIds = Object.entries(validSubmissionCounts)
+      .filter(([, count]) => count > 1)
+      .map(([cmsId]) => Number(cmsId));
+    const peerReviewReady =
+      eligibleGroupIds.length > 0 &&
+      eligibleGroupIds.every(
+        (cmsId) => (peerReviewAssignmentsCountByCms[cmsId] || 0) > 0
+      );
+    const totalValidSubmissions = validSubmissionIds.length;
 
     const grouped = {};
     matches.forEach((matchRow) => {
@@ -404,6 +512,7 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
               }
             : null,
           validSubmissionsCount: validSubmissionCounts[cmsId] || 0,
+          peerReviewAssignments: peerReviewAssignmentsByCms[cmsId] || [],
           matches: [],
         };
       }
@@ -427,8 +536,15 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         status: challenge.status,
         startDatetime: challenge.startDatetime,
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
+        endPhaseOneDateTime: challenge.endPhaseOneDateTime,
+        startPhaseTwoDateTime: challenge.startPhaseTwoDateTime,
+        endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
         duration: challenge.duration,
+        durationPeerReview: challenge.durationPeerReview,
         allowedNumberOfReview: challenge.allowedNumberOfReview,
+        validSubmissionsCount: totalValidSubmissions,
+        totalSubmissionsCount,
+        peerReviewReady,
       },
       assignments: Object.values(grouped),
     });
@@ -436,6 +552,69 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.patch('/challenges/:challengeId/expected-reviews', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const expectedReviews = Number(
+      req.body?.expectedReviewsPerSubmission ?? req.body?.allowedNumberOfReview
+    );
+    if (!Number.isInteger(expectedReviews) || expectedReviews < 2) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Expected reviews per submission must be an integer greater than or equal to 2.',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (shouldHidePrivate(req) && challenge.status === 'private') {
+      return res.status(403).json({
+        success: false,
+        error: 'Challenge is private',
+      });
+    }
+
+    if (
+      challenge.status === ChallengeStatus.STARTED_PHASE_TWO ||
+      challenge.status === ChallengeStatus.ENDED_PHASE_TWO
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: 'Expected reviews cannot be updated after peer review starts.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    if (challenge.allowedNumberOfReview !== expectedReviews) {
+      await challenge.update({ allowedNumberOfReview: expectedReviews });
+    }
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: challenge.id,
+        allowedNumberOfReview: challenge.allowedNumberOfReview,
+        status: challenge.status,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
 router.post(
   '/challenges/:challengeId/peer-reviews/assign',
   async (req, res) => {
@@ -498,6 +677,85 @@ router.post(
     }
   }
 );
+router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const result = await startPeerReviewService({ challengeId });
+
+    if (result.status === 'challenge_not_found') {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (result.status === 'invalid_status') {
+      return res.status(409).json({
+        success: false,
+        error: 'Peer review can only start after phase one ends.',
+        currentStatus: result.challengeStatus,
+      });
+    }
+
+    if (result.status === 'already_started') {
+      return res.status(409).json({
+        success: false,
+        error: 'Peer review already started.',
+      });
+    }
+
+    if (result.status === 'no_matches') {
+      return res.status(400).json({
+        success: false,
+        error: 'No matches assigned for this challenge.',
+      });
+    }
+
+    if (result.status === 'insufficient_valid_submissions') {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Peer review cannot start because there are not enough valid submissions.',
+      });
+    }
+
+    if (result.status === 'no_assignments') {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Peer review cannot start because review assignments are missing.',
+      });
+    }
+
+    if (result.status !== 'ok') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to start peer review.',
+      });
+    }
+
+    const { challenge: updatedChallenge } = result;
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: updatedChallenge.id,
+        title: updatedChallenge.title,
+        status: updatedChallenge.status,
+        startPhaseTwoDateTime: updatedChallenge.startPhaseTwoDateTime,
+        endPhaseTwoDateTime: updatedChallenge.endPhaseTwoDateTime,
+        durationPeerReview: updatedChallenge.durationPeerReview,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
 router.post('/challenges/:challengeId/start', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);

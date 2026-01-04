@@ -87,7 +87,7 @@ export default function ChallengeLayout({ children }) {
     }
   };
   return (
-    <div className='max-w-7xl mx-auto py-1 space-y-1 '>
+    <div className='max-w-7xl mx-auto px-3 py-2 space-y-2 sm:px-4'>
       <Card>
         <CardHeader>
           <CardTitle>

@@ -20,6 +20,12 @@ const statusTone = {
     'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-200',
   [ChallengeStatus.STARTED_PHASE_ONE]:
     'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-200',
+  [ChallengeStatus.ENDED_PHASE_ONE]:
+    'bg-slate-500/10 text-slate-700 ring-1 ring-slate-500/25 dark:text-slate-200',
+  [ChallengeStatus.STARTED_PHASE_TWO]:
+    'bg-indigo-500/10 text-indigo-700 ring-1 ring-indigo-500/25 dark:text-indigo-200',
+  [ChallengeStatus.ENDED_PHASE_TWO]:
+    'bg-slate-500/10 text-slate-700 ring-1 ring-slate-500/25 dark:text-slate-200',
   [ChallengeStatus.PRIVATE]:
     'bg-muted text-muted-foreground ring-1 ring-border',
 };
@@ -37,6 +43,32 @@ const formatDateTime = (value) => {
   return parsed.toLocaleString();
 };
 
+const formatTimer = (seconds) => {
+  if (seconds == null) return '—';
+  const safeSeconds = Math.max(0, seconds);
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
+  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
+  const secs = String(safeSeconds % 60).padStart(2, '0');
+  return `${hours}:${mins}:${secs}`;
+};
+
+const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
+  if (explicitEndValue) {
+    const explicitEnd = new Date(explicitEndValue).getTime();
+    return Number.isNaN(explicitEnd) ? null : explicitEnd;
+  }
+  if (!startValue || !durationMinutes) return null;
+  const startMs = new Date(startValue).getTime();
+  if (Number.isNaN(startMs)) return null;
+  return startMs + durationMinutes * 60 * 1000;
+};
+
+const resolveEndDisplay = (explicitEndValue, computedEndMs) => {
+  if (explicitEndValue) return explicitEndValue;
+  if (computedEndMs) return new Date(computedEndMs);
+  return null;
+};
+
 export default function ChallengeDetailPage() {
   const params = useParams();
   const {
@@ -45,6 +77,8 @@ export default function ChallengeDetailPage() {
     getChallengeParticipants,
     startChallenge,
     assignPeerReviews,
+    updateExpectedReviews,
+    startPeerReview,
   } = useChallenge();
   const challengeId = params?.id;
 
@@ -55,10 +89,14 @@ export default function ChallengeDetailPage() {
   const [assigning, setAssigning] = useState(false);
   const [assigningReviews, setAssigningReviews] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [startingPeerReview, setStartingPeerReview] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
   const [expectedReviews, setExpectedReviews] = useState('');
   const [expectedReviewsError, setExpectedReviewsError] = useState('');
+  const [expectedReviewsSaved, setExpectedReviewsSaved] = useState('');
+  const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
+  const [phaseNow, setPhaseNow] = useState(Date.now());
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -78,6 +116,7 @@ export default function ChallengeDetailPage() {
             ? String(matchesRes.challenge.allowedNumberOfReview)
             : ''
         );
+        setExpectedReviewsSaved('');
       } else {
         setError(
           matchesRes?.error || matchesRes?.message || 'Unable to load matches'
@@ -102,6 +141,13 @@ export default function ChallengeDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhaseNow(Date.now());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleAssign = useCallback(async () => {
     if (!challengeId) return;
@@ -245,6 +291,30 @@ export default function ChallengeDetailPage() {
     assignments,
   ]);
 
+  const handleStartPeerReview = useCallback(async () => {
+    if (!challengeId) return;
+    setStartingPeerReview(true);
+    setError(null);
+    try {
+      const res = await startPeerReview(challengeId);
+      if (res?.success === false) {
+        setError(res?.error || res?.message || 'Unable to start peer review');
+        return;
+      }
+      setPeerReviewMessages([
+        {
+          tone: 'success',
+          text: 'Peer review started successfully.',
+        },
+      ]);
+      await load();
+    } catch (_err) {
+      setError('Unable to start peer review');
+    } finally {
+      setStartingPeerReview(false);
+    }
+  }, [challengeId, load, startPeerReview]);
+
   const hasStudents = studentCount > 0;
   const hasMatches = assignments.some((group) => group.matches?.length);
   const canStartNow = useMemo(() => {
@@ -256,8 +326,127 @@ export default function ChallengeDetailPage() {
     hasStudents &&
     hasMatches &&
     canStartNow;
+  const peerReviewReady = Boolean(challenge?.peerReviewReady);
   const showAssignReviewsButton =
-    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE;
+    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && !peerReviewReady;
+  const showStartPeerReviewButton =
+    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && peerReviewReady;
+
+  const phaseStatus = challenge?.status;
+  const isPhaseOneActive = phaseStatus === ChallengeStatus.STARTED_PHASE_ONE;
+  const isPhaseTwoActive = phaseStatus === ChallengeStatus.STARTED_PHASE_TWO;
+  const isPhaseOneComplete = useMemo(
+    () =>
+      phaseStatus === ChallengeStatus.ENDED_PHASE_ONE ||
+      phaseStatus === ChallengeStatus.STARTED_PHASE_TWO ||
+      phaseStatus === ChallengeStatus.ENDED_PHASE_TWO,
+    [phaseStatus]
+  );
+  const isPhaseTwoComplete = phaseStatus === ChallengeStatus.ENDED_PHASE_TWO;
+
+  const phaseOneStart =
+    challenge?.startPhaseOneDateTime || challenge?.startDatetime;
+  const phaseOneEndMs = getPhaseEndMs(
+    phaseOneStart,
+    challenge?.duration,
+    challenge?.endPhaseOneDateTime
+  );
+  const phaseOneEndDisplay = resolveEndDisplay(
+    challenge?.endPhaseOneDateTime,
+    phaseOneEndMs
+  );
+  const phaseTwoStart = challenge?.startPhaseTwoDateTime;
+  const phaseTwoEndMs = getPhaseEndMs(
+    phaseTwoStart,
+    challenge?.durationPeerReview,
+    challenge?.endPhaseTwoDateTime
+  );
+  const phaseTwoEndDisplay = resolveEndDisplay(
+    challenge?.endPhaseTwoDateTime,
+    phaseTwoEndMs
+  );
+
+  const phaseOneTimeLeft =
+    isPhaseOneActive && phaseOneEndMs
+      ? Math.max(0, Math.floor((phaseOneEndMs - phaseNow) / 1000))
+      : null;
+  const phaseTwoTimeLeft =
+    isPhaseTwoActive && phaseTwoEndMs
+      ? Math.max(0, Math.floor((phaseTwoEndMs - phaseNow) / 1000))
+      : null;
+
+  const phaseOneCardClass = useMemo(() => {
+    if (isPhaseOneActive) {
+      return 'border-emerald-500/40 bg-emerald-500/10 ring-1 ring-emerald-500/30';
+    }
+    if (isPhaseOneComplete) {
+      return 'border-border/60 bg-muted/40';
+    }
+    return 'border-border/60 bg-card';
+  }, [isPhaseOneActive, isPhaseOneComplete]);
+
+  const phaseTwoCardClass = useMemo(() => {
+    if (isPhaseTwoActive) {
+      return 'border-indigo-500/40 bg-indigo-500/10 ring-1 ring-indigo-500/30';
+    }
+    if (isPhaseTwoComplete) {
+      return 'border-border/60 bg-muted/40';
+    }
+    return 'border-border/60 bg-card';
+  }, [isPhaseTwoActive, isPhaseTwoComplete]);
+
+  const showPhaseTwoSubmissionCount = useMemo(
+    () =>
+      phaseStatus === ChallengeStatus.ENDED_PHASE_ONE ||
+      phaseStatus === ChallengeStatus.STARTED_PHASE_TWO ||
+      phaseStatus === ChallengeStatus.ENDED_PHASE_TWO,
+    [phaseStatus]
+  );
+  const expectedReviewsLocked =
+    phaseStatus === ChallengeStatus.STARTED_PHASE_TWO ||
+    phaseStatus === ChallengeStatus.ENDED_PHASE_TWO;
+  const expectedReviewsDirty =
+    String(challenge?.allowedNumberOfReview ?? '') !== expectedReviews;
+
+  const handleSaveExpectedReviews = useCallback(async () => {
+    if (!challengeId || expectedReviewsLocked) return;
+    const parsed = parseExpectedReviews(expectedReviews);
+    if (!parsed) {
+      setExpectedReviewsError(
+        'Enter a whole number greater than or equal to 2.'
+      );
+      setExpectedReviewsSaved('');
+      return;
+    }
+    setExpectedReviewsError('');
+    setExpectedReviewsSaved('');
+    setSavingExpectedReviews(true);
+    setError(null);
+    try {
+      const res = await updateExpectedReviews(challengeId, parsed);
+      if (res?.success === false) {
+        setExpectedReviewsError(
+          res?.error || res?.message || 'Unable to save expected reviews.'
+        );
+        return;
+      }
+      setChallenge((prev) =>
+        prev ? { ...prev, allowedNumberOfReview: parsed } : prev
+      );
+      setExpectedReviews(String(parsed));
+      setExpectedReviewsSaved('Saved.');
+    } catch (_err) {
+      setExpectedReviewsError('Unable to save expected reviews.');
+    } finally {
+      setSavingExpectedReviews(false);
+    }
+  }, [
+    challengeId,
+    expectedReviews,
+    expectedReviewsLocked,
+    parseExpectedReviews,
+    updateExpectedReviews,
+  ]);
 
   const statusBadge = useMemo(() => {
     const tone =
@@ -273,19 +462,40 @@ export default function ChallengeDetailPage() {
 
   const expectedReviewsInput = (
     <div className='space-y-1'>
-      <input
-        type='number'
-        min='2'
-        className='h-9 w-24 rounded-md border border-border/60 bg-background px-2 text-sm font-semibold text-foreground'
-        value={expectedReviews}
-        onChange={(event) => {
-          setExpectedReviews(event.target.value);
-          setExpectedReviewsError('');
-        }}
-      />
+      <div className='flex flex-wrap items-center gap-2'>
+        <input
+          type='number'
+          min='2'
+          disabled={expectedReviewsLocked}
+          className='h-9 w-full max-w-[140px] rounded-md border border-border/60 bg-background px-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:bg-muted/40'
+          value={expectedReviews}
+          onChange={(event) => {
+            setExpectedReviews(event.target.value);
+            setExpectedReviewsError('');
+            setExpectedReviewsSaved('');
+          }}
+        />
+        {!expectedReviewsLocked ? (
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={handleSaveExpectedReviews}
+            disabled={savingExpectedReviews || !expectedReviewsDirty}
+            title='Save expected reviews per submission'
+          >
+            {savingExpectedReviews ? 'Saving...' : 'Save'}
+          </Button>
+        ) : null}
+      </div>
       {expectedReviewsError ? (
         <p className='text-xs font-medium text-destructive'>
           {expectedReviewsError}
+        </p>
+      ) : null}
+      {!expectedReviewsError && expectedReviewsSaved ? (
+        <p className='text-xs font-medium text-emerald-700'>
+          {expectedReviewsSaved}
         </p>
       ) : null}
     </div>
@@ -295,10 +505,6 @@ export default function ChallengeDetailPage() {
     {
       label: 'Start',
       value: formatDateTime(challenge?.startDatetime),
-    },
-    {
-      label: 'Duration',
-      value: challenge?.duration ? `${challenge.duration} min` : '—',
     },
     {
       label: 'Expected reviews / submission',
@@ -311,9 +517,9 @@ export default function ChallengeDetailPage() {
   ];
 
   return (
-    <div className='max-w-6xl mx-auto px-6 py-8 space-y-6'>
+    <div className='max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6'>
       <div className='space-y-3'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div className='space-y-2'>
             <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
               Challenge overview
@@ -325,7 +531,7 @@ export default function ChallengeDetailPage() {
               {statusBadge}
             </div>
           </div>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2 sm:justify-end'>
             <Button variant='outline' asChild>
               <Link href='/challenges' title='Back to challenges list'>
                 Back
@@ -366,13 +572,22 @@ export default function ChallengeDetailPage() {
                 {assigningReviews ? 'Assigning...' : 'Assign'}
               </Button>
             ) : null}
+            {showStartPeerReviewButton ? (
+              <Button
+                onClick={handleStartPeerReview}
+                disabled={startingPeerReview || loading}
+                title='Start the peer review phase'
+              >
+                {startingPeerReview ? 'Starting...' : 'Start Peer Review'}
+              </Button>
+            ) : null}
           </div>
         </div>
-        <dl className='flex flex-wrap items-center gap-2'>
+        <dl className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'>
           {detailItems.map((item) => (
             <div
               key={item.label}
-              className='min-w-[170px] rounded-lg border border-border/60 bg-muted/60 px-3 py-2'
+              className='w-full rounded-lg border border-border/60 bg-muted/60 px-3 py-2 sm:min-w-[170px] sm:w-auto'
             >
               <dt className='text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground'>
                 {item.label}
@@ -385,6 +600,112 @@ export default function ChallengeDetailPage() {
         </dl>
       </div>
 
+      <div className='grid gap-4 lg:grid-cols-2'>
+        <Card className={`border ${phaseOneCardClass}`}>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-lg font-semibold text-foreground'>
+              Phase One
+            </CardTitle>
+            <CardDescription className='text-sm text-muted-foreground'>
+              Coding phase
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='space-y-2 text-sm text-foreground'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>
+                  Start
+                </span>
+                <span>{formatDateTime(phaseOneStart)}</span>
+              </div>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>End</span>
+                <span>{formatDateTime(phaseOneEndDisplay)}</span>
+              </div>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>
+                  Duration
+                </span>
+                <span>
+                  {challenge?.duration ? `${challenge.duration} min` : '—'}
+                </span>
+              </div>
+              {isPhaseOneActive ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-emerald-700'>
+                    Time left
+                  </span>
+                  <span className='font-mono text-emerald-700'>
+                    {formatTimer(phaseOneTimeLeft)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`border ${phaseTwoCardClass}`}>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-lg font-semibold text-foreground'>
+              Phase Two
+            </CardTitle>
+            <CardDescription className='text-sm text-muted-foreground'>
+              Peer review phase
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='space-y-2 text-sm text-foreground'>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>
+                  Start
+                </span>
+                <span>{formatDateTime(phaseTwoStart)}</span>
+              </div>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>End</span>
+                <span>{formatDateTime(phaseTwoEndDisplay)}</span>
+              </div>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <span className='font-semibold text-muted-foreground'>
+                  Duration
+                </span>
+                <span>
+                  {challenge?.durationPeerReview
+                    ? `${challenge.durationPeerReview} min`
+                    : '—'}
+                </span>
+              </div>
+              {showPhaseTwoSubmissionCount ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-muted-foreground'>
+                    Submissions for peer review
+                  </span>
+                  <span>{challenge?.validSubmissionsCount ?? 0}</span>
+                </div>
+              ) : null}
+              {showPhaseTwoSubmissionCount ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-muted-foreground'>
+                    Number of submissions
+                  </span>
+                  <span>{challenge?.totalSubmissionsCount ?? 0}</span>
+                </div>
+              ) : null}
+              {isPhaseTwoActive ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-indigo-700'>
+                    Time left
+                  </span>
+                  <span className='font-mono text-indigo-700'>
+                    {formatTimer(phaseTwoTimeLeft)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {error && (
         <Card className='border border-destructive/30 bg-destructive/5 text-destructive'>
           <CardContent className='py-4'>
@@ -392,6 +713,17 @@ export default function ChallengeDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {showStartPeerReviewButton ? (
+        <Card className='border border-emerald-500/30 bg-emerald-500/10 text-emerald-700'>
+          <CardContent className='py-4'>
+            <p className='text-sm font-medium'>
+              Peer review assignments are ready. You can start the peer review
+              phase when you are ready.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {peerReviewMessages.length > 0 && (
         <div className='space-y-2'>
@@ -461,6 +793,33 @@ export default function ChallengeDetailPage() {
                   </tbody>
                 </table>
               </div>
+              {group.peerReviewAssignments?.length ? (
+                <details className='mt-4 rounded-lg border border-border/60 bg-muted/40 p-3'>
+                  <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                    Peer review assignments
+                  </summary>
+                  <div className='mt-3 space-y-3'>
+                    {group.peerReviewAssignments.map((assignment) => {
+                      const revieweeNames = assignment.reviewees
+                        .map((reviewee) => reviewee.username)
+                        .join(', ');
+                      return (
+                        <div
+                          key={assignment.reviewer.participantId}
+                          className='text-sm'
+                        >
+                          <p className='font-semibold text-foreground'>
+                            {assignment.reviewer.username}
+                          </p>
+                          <p className='text-muted-foreground break-words'>
+                            Reviews: {revieweeNames || '—'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              ) : null}
             </CardContent>
           </Card>
         ))}

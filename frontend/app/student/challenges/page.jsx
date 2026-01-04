@@ -253,6 +253,13 @@ export default function StudentChallengesPage() {
     const isJoining = pendingActions[challenge.id]?.join;
 
     if (!isJoined) {
+      if (startedStatuses.has(challenge.status)) {
+        return (
+          <div className='text-primary font-semibold text-sm'>
+            The challenge is already in progress.
+          </div>
+        );
+      }
       return (
         <Button
           size='lg'
@@ -275,7 +282,7 @@ export default function StudentChallengesPage() {
   if (!isAuthorized || !studentId) return null;
 
   return (
-    <div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
+    <div className='max-w-5xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6'>
       <div className='space-y-2'>
         <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
           Student area

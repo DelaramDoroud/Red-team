@@ -5,6 +5,10 @@ import ChallengeDetailPage from '../app/challenges/[id]/page';
 const mockGetChallengeMatches = vi.fn();
 const mockAssignChallenge = vi.fn();
 const mockGetChallengeParticipants = vi.fn();
+const mockStartChallenge = vi.fn();
+const mockAssignPeerReviews = vi.fn();
+const mockUpdateExpectedReviews = vi.fn();
+const mockStartPeerReview = vi.fn();
 const mockDispatch = vi.fn(() => Promise.resolve());
 
 vi.mock('#js/useChallenge', () => ({
@@ -13,6 +17,10 @@ vi.mock('#js/useChallenge', () => ({
     getChallengeMatches: mockGetChallengeMatches,
     assignChallenge: mockAssignChallenge,
     getChallengeParticipants: mockGetChallengeParticipants,
+    startChallenge: mockStartChallenge,
+    assignPeerReviews: mockAssignPeerReviews,
+    updateExpectedReviews: mockUpdateExpectedReviews,
+    startPeerReview: mockStartPeerReview,
   }),
 }));
 
@@ -49,6 +57,9 @@ describe('ChallengeDetailPage', () => {
         status: 'public',
         startDatetime: new Date(Date.now() - 1000).toISOString(),
         duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
       },
       assignments: [],
     });
@@ -57,6 +68,10 @@ describe('ChallengeDetailPage', () => {
       success: true,
       data: [{ id: 1 }, { id: 2 }],
     });
+    mockStartChallenge.mockResolvedValue({ success: true });
+    mockAssignPeerReviews.mockResolvedValue({ success: true, results: [] });
+    mockUpdateExpectedReviews.mockResolvedValue({ success: true });
+    mockStartPeerReview.mockResolvedValue({ success: true });
   });
 
   it('renders Assign students button and triggers assignment + reload', async () => {
@@ -90,6 +105,9 @@ describe('ChallengeDetailPage', () => {
         status: 'assigned',
         startDatetime: new Date().toISOString(),
         duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
       },
       assignments: [],
     });
@@ -103,5 +121,95 @@ describe('ChallengeDetailPage', () => {
       name: /assign students/i,
     });
     expect(assignButtons.length).toBe(0);
+  });
+
+  it('shows validation error when expected reviews is invalid', async () => {
+    mockGetChallengeMatches.mockResolvedValueOnce({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 1,
+        peerReviewReady: false,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() =>
+      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
+    );
+
+    const assignBtn = screen.getByRole('button', { name: /assign/i });
+    fireEvent.click(assignBtn);
+
+    expect(
+      screen.getByText(/whole number greater than or equal to 2/i)
+    ).toBeInTheDocument();
+    expect(mockAssignPeerReviews).not.toHaveBeenCalled();
+  });
+
+  it('shows Start Peer Review button when assignments are ready', async () => {
+    mockGetChallengeMatches.mockResolvedValueOnce({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: true,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() =>
+      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
+    );
+
+    expect(
+      screen.getByRole('button', { name: /start peer review/i })
+    ).toBeInTheDocument();
+  });
+
+  it('starts peer review when Start Peer Review is clicked', async () => {
+    mockGetChallengeMatches.mockResolvedValueOnce({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: true,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() =>
+      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
+    );
+
+    const startButton = screen.getByRole('button', {
+      name: /start peer review/i,
+    });
+    fireEvent.click(startButton);
+
+    await waitFor(() =>
+      expect(mockStartPeerReview).toHaveBeenCalledWith('123')
+    );
   });
 });

@@ -21,13 +21,10 @@ export default function CppEditor({
   const wrapperClassName = isFullscreen
     ? 'editor-shell editor-shell--expanded'
     : 'editor-shell';
-  const frameStyle = useMemo(
-    () => ({
-      width: isFullscreen ? '50vw' : '100%',
-      height: isFullscreen ? '80vh' : height,
-    }),
-    [height, isFullscreen]
-  );
+  const frameStyle = useMemo(() => {
+    if (!isFullscreen) return { width: '100%', height };
+    return { width: 'min(92vw, 960px)', height: '80vh' };
+  }, [height, isFullscreen]);
 
   const captureRect = () => {
     const frame = frameRef.current;

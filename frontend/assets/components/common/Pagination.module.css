@@ -4,3 +4,10 @@
   justify-content: center;
   margin: 1rem 0;
 }
+
+@media (max-width: 400px) {
+  .pagination {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}

@@ -70,3 +70,25 @@
   flex-direction: column;
   gap: 0.75rem;
 }
+
+@media (max-width: 400px) {
+  .container {
+    gap: 1.75rem;
+  }
+
+  .hero h1 {
+    font-size: 1.75rem;
+  }
+
+  .showcaseRow {
+    align-items: flex-start;
+  }
+
+  .showcaseLabel {
+    min-width: auto;
+  }
+
+  .formCard {
+    padding: 1.1rem 1.2rem;
+  }
+}

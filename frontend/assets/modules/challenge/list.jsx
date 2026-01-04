@@ -18,6 +18,7 @@ export default function ChallengeList() {
     assignChallenge,
     startChallenge,
     assignPeerReviews,
+    startPeerReview,
   } = useChallenge();
 
   const [challenges, setChallenges] = useState([]);
@@ -195,6 +196,11 @@ export default function ChallengeList() {
         const reduced = res.results.find(
           (result) => result.status === 'assigned' && result.teacherMessage
         );
+        const allAssignableAssigned = res.results.every(
+          (result) =>
+            result.status === 'assigned' ||
+            result.status === 'insufficient_valid_submissions'
+        );
         if (assignedCount > 0) {
           setAssignNotice({
             tone: reduced ? 'warning' : 'success',
@@ -202,6 +208,15 @@ export default function ChallengeList() {
               ? 'Peer reviews assigned, but expected reviews per submission were reduced.'
               : 'Peer reviews assigned successfully.',
           });
+          if (allAssignableAssigned) {
+            setChallenges((prev) =>
+              prev.map((challenge) =>
+                challenge.id === challengeId
+                  ? { ...challenge, peerReviewReady: true }
+                  : challenge
+              )
+            );
+          }
         } else if (failed) {
           setAssignNotice({
             tone: 'error',
@@ -218,6 +233,34 @@ export default function ChallengeList() {
       setError('Unable to assign peer reviews');
     } finally {
       setPendingAction(challengeId, 'assignReviews', false);
+    }
+  };
+
+  const handleStartPeerReview = async (challengeId) => {
+    setAssignNotice(null);
+    setPendingAction(challengeId, 'startPeerReview', true);
+    setError(null);
+    try {
+      const res = await startPeerReview(challengeId);
+      if (res?.success === false) {
+        setError(res?.message || 'Unable to start peer review');
+        return;
+      }
+      setAssignNotice({
+        tone: 'success',
+        text: 'Peer review started successfully.',
+      });
+      setChallenges((prev) =>
+        prev.map((challenge) =>
+          challenge.id === challengeId
+            ? { ...challenge, status: ChallengeStatus.STARTED_PHASE_TWO }
+            : challenge
+        )
+      );
+    } catch {
+      setError('Unable to start peer review');
+    } finally {
+      setPendingAction(challengeId, 'startPeerReview', false);
     }
   };
 
@@ -321,6 +364,23 @@ export default function ChallengeList() {
     }
 
     if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE) {
+      if (challenge.peerReviewReady) {
+        return (
+          <Button
+            size='sm'
+            onClick={(event) => {
+              event.preventDefault();
+              handleStartPeerReview(challenge.id);
+            }}
+            disabled={pending[challenge.id]?.startPeerReview}
+            title='Start the peer review phase'
+          >
+            {pending[challenge.id]?.startPeerReview
+              ? 'Starting...'
+              : 'Start Peer Review'}
+          </Button>
+        );
+      }
       return (
         <Button
           size='sm'

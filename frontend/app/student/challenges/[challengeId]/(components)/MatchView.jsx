@@ -216,14 +216,14 @@ export default function MatchView({
   const { problemTitle, problemDescription, publicTests = [] } = matchData;
 
   return (
-    <div className='max-w-7xl h-full my-2 relative'>
+    <div className='max-w-7xl h-full my-2 relative px-3 sm:px-4'>
       {isSubmittingFinal && (
         <div className='absolute inset-0 z-50 flex items-center justify-center bg-black/40'>
           <Spinner label='Submitting your code...' />
         </div>
       )}
 
-      <div className='flex justify-end text-lg font-bold'>
+      <div className='flex justify-center text-base font-bold sm:justify-end sm:text-lg'>
         <Timer
           duration={duration}
           challengeId={challengeId}
@@ -231,8 +231,8 @@ export default function MatchView({
           onFinish={timerFinishHandler}
         />
       </div>
-      <div className='my-2 flex justify-normal gap-x-2 '>
-        <div className='space-y-2 w-1/3'>
+      <div className='my-4 flex flex-col gap-4 lg:flex-row lg:gap-6'>
+        <div className='space-y-2 w-full lg:w-1/3'>
           {/* problem description */}
           <Card>
             <CardHeader>
@@ -314,7 +314,7 @@ export default function MatchView({
           </Card>
         </div>
 
-        <div className='space-y-6 w-2/3'>
+        <div className='space-y-6 w-full lg:w-2/3'>
           {/* editor + controls + result panel */}
           <Card>
             <CardHeader>
@@ -381,7 +381,7 @@ export default function MatchView({
                 </div>
               </div>
 
-              <div className='flex gap-3'>
+              <div className='flex flex-wrap gap-3'>
                 <Button
                   type='button'
                   onClick={onClean}

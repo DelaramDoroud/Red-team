@@ -31,6 +31,8 @@ const mockGetChallengeParticipants = vi.fn(async () => ({
 }));
 
 const mockAssignChallenge = vi.fn();
+const mockAssignPeerReviews = vi.fn();
+const mockStartPeerReview = vi.fn();
 
 // Mock useFetchData to avoid Redux dependency
 vi.mock('#js/useFetchData', () => ({
@@ -47,6 +49,9 @@ vi.mock('#js/useChallenge', () => ({
     getChallenges: mockGetChallenges,
     getChallengeParticipants: mockGetChallengeParticipants,
     assignChallenge: mockAssignChallenge,
+    assignPeerReviews: mockAssignPeerReviews,
+    startPeerReview: mockStartPeerReview,
+    startChallenge: vi.fn(),
   }),
 }));
 
