@@ -970,9 +970,43 @@ router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
         message: 'MatchSetting not found for the given match',
       });
     }
+
+    const matchRows = await Match.findAll({
+      attributes: ['id'],
+      where: { challengeMatchSettingId: challengeMatchSetting.id },
+      raw: true,
+    });
+    const matchIds = matchRows.map((row) => row.id);
+    let validSubmissionsCount = 0;
+    if (matchIds.length > 0) {
+      validSubmissionsCount = await Submission.count({
+        where: {
+          matchId: { [Op.in]: matchIds },
+          isFinal: true,
+          status: {
+            [Op.in]: [
+              SubmissionStatus.IMPROVABLE,
+              SubmissionStatus.PROBABLY_CORRECT,
+            ],
+          },
+        },
+      });
+    }
+
+    const peerReviewBlocked =
+      challenge.status === ChallengeStatus.ENDED_PHASE_ONE &&
+      validSubmissionsCount <= 1;
+    const peerReviewBlockedMessage = peerReviewBlocked
+      ? 'Thanks for your effort. Peer review will not start because there are not enough submissions to review.'
+      : null;
+
     return res.json({
       success: true,
-      data: matchSetting,
+      data: {
+        ...matchSetting.toJSON(),
+        validSubmissionsCount,
+        peerReviewBlockedMessage,
+      },
     });
   } catch (error) {
     handleException(res, error);

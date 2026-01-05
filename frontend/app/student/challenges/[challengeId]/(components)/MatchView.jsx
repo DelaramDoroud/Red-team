@@ -44,6 +44,7 @@ export default function MatchView({
   isRunning,
   isSubmitting,
   isSubmittingActive,
+  peerReviewNotice,
   runResult,
   onRun,
   onSubmit,
@@ -187,6 +188,11 @@ export default function MatchView({
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {peerReviewNotice ? (
+              <p className='text-sm font-medium text-amber-700 mb-4'>
+                {peerReviewNotice}
+              </p>
+            ) : null}
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
             <pre className='bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm'>
               {finalCode || ''}
@@ -208,6 +214,13 @@ export default function MatchView({
                 'Challenge is over. You can no longer submit your solution.'}
             </CardDescription>
           </CardHeader>
+          {peerReviewNotice ? (
+            <CardContent>
+              <p className='text-sm font-medium text-amber-700'>
+                {peerReviewNotice}
+              </p>
+            </CardContent>
+          ) : null}
         </Card>
       </div>
     );

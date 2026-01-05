@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -80,6 +80,7 @@ export default function ChallengeDetailPage() {
     updateExpectedReviews,
     startPeerReview,
   } = useChallenge();
+  const router = useRouter();
   const challengeId = params?.id;
 
   const [challenge, setChallenge] = useState(null);
@@ -97,6 +98,32 @@ export default function ChallengeDetailPage() {
   const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
   const [phaseNow, setPhaseNow] = useState(Date.now());
+
+  const resolveErrorMessage = useCallback((value, fallback) => {
+    if (!value) return fallback;
+    if (typeof value === 'string') return value;
+    if (value?.message) return value.message;
+    return fallback;
+  }, []);
+
+  const isChallengeNotFound = useCallback((value) => {
+    if (!value) return false;
+    const raw = typeof value === 'string' ? value : value?.message;
+    if (!raw) return false;
+    if (/challenge not found/i.test(raw)) return true;
+    const marker = 'Network response was not ok:';
+    if (!raw.includes(marker)) return false;
+    const payload = raw.slice(raw.indexOf(marker) + marker.length).trim();
+    try {
+      const parsed = JSON.parse(payload);
+      const parsedMessage = parsed?.error || parsed?.message;
+      return typeof parsedMessage === 'string'
+        ? /challenge not found/i.test(parsedMessage)
+        : false;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -118,9 +145,15 @@ export default function ChallengeDetailPage() {
         );
         setExpectedReviewsSaved('');
       } else {
-        setError(
-          matchesRes?.error || matchesRes?.message || 'Unable to load matches'
+        const errorMessage = resolveErrorMessage(
+          matchesRes?.error || matchesRes?.message,
+          'Unable to load matches'
         );
+        if (isChallengeNotFound(matchesRes?.error || matchesRes?.message)) {
+          router.replace('/');
+          return;
+        }
+        setError(errorMessage);
         setAssignments([]);
       }
 
@@ -129,14 +162,26 @@ export default function ChallengeDetailPage() {
       } else {
         setStudentCount(0);
       }
-    } catch (_err) {
-      setError('Unable to load matches');
+    } catch (err) {
+      const errorMessage = resolveErrorMessage(err, 'Unable to load matches');
+      if (isChallengeNotFound(err)) {
+        router.replace('/');
+        return;
+      }
+      setError(errorMessage);
       setAssignments([]);
       setStudentCount(0);
     } finally {
       setLoading(false);
     }
-  }, [challengeId, getChallengeMatches, getChallengeParticipants]);
+  }, [
+    challengeId,
+    getChallengeMatches,
+    getChallengeParticipants,
+    isChallengeNotFound,
+    resolveErrorMessage,
+    router,
+  ]);
 
   useEffect(() => {
     load();
@@ -167,7 +212,12 @@ export default function ChallengeDetailPage() {
     try {
       const res = await assignChallenge(challengeId);
       if (res?.success === false) {
-        setError(res?.error || res?.message || 'Unable to assign students');
+        setError(
+          resolveErrorMessage(
+            res?.error || res?.message,
+            'Unable to assign students'
+          )
+        );
       }
       await load();
     } catch (_err) {
@@ -179,6 +229,7 @@ export default function ChallengeDetailPage() {
     assignChallenge,
     challengeId,
     load,
+    resolveErrorMessage,
     studentCount,
     challenge?.startDatetime,
   ]);
@@ -190,7 +241,12 @@ export default function ChallengeDetailPage() {
     try {
       const res = await startChallenge(challengeId);
       if (res?.success === false) {
-        setError(res?.error || res?.message || 'Unable to start challenge');
+        setError(
+          resolveErrorMessage(
+            res?.error || res?.message,
+            'Unable to start challenge'
+          )
+        );
       }
       await load();
     } catch (_err) {
@@ -198,7 +254,7 @@ export default function ChallengeDetailPage() {
     } finally {
       setStarting(false);
     }
-  }, [challengeId, load, startChallenge]);
+  }, [challengeId, load, resolveErrorMessage, startChallenge]);
 
   const parseExpectedReviews = useCallback((value) => {
     const parsed = Number(value);
@@ -224,7 +280,12 @@ export default function ChallengeDetailPage() {
     try {
       const res = await assignPeerReviews(challengeId, parsed);
       if (res?.success === false) {
-        setError(res?.error || res?.message || 'Unable to assign peer reviews');
+        setError(
+          resolveErrorMessage(
+            res?.error || res?.message,
+            'Unable to assign peer reviews'
+          )
+        );
         return;
       }
       if (Array.isArray(res?.results)) {
@@ -289,6 +350,7 @@ export default function ChallengeDetailPage() {
     load,
     parseExpectedReviews,
     assignments,
+    resolveErrorMessage,
   ]);
 
   const handleStartPeerReview = useCallback(async () => {
@@ -298,7 +360,12 @@ export default function ChallengeDetailPage() {
     try {
       const res = await startPeerReview(challengeId);
       if (res?.success === false) {
-        setError(res?.error || res?.message || 'Unable to start peer review');
+        setError(
+          resolveErrorMessage(
+            res?.error || res?.message,
+            'Unable to start peer review'
+          )
+        );
         return;
       }
       setPeerReviewMessages([
@@ -313,7 +380,7 @@ export default function ChallengeDetailPage() {
     } finally {
       setStartingPeerReview(false);
     }
-  }, [challengeId, load, startPeerReview]);
+  }, [challengeId, load, resolveErrorMessage, startPeerReview]);
 
   const hasStudents = studentCount > 0;
   const hasMatches = assignments.some((group) => group.matches?.length);
@@ -467,7 +534,7 @@ export default function ChallengeDetailPage() {
           type='number'
           min='2'
           disabled={expectedReviewsLocked}
-          className='h-9 w-full max-w-[140px] rounded-md border border-border/60 bg-background px-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:bg-muted/40'
+          className='h-9 w-full max-w-35 rounded-md border border-border/60 bg-background px-2 text-sm font-semibold text-foreground disabled:cursor-not-allowed disabled:bg-muted/40'
           value={expectedReviews}
           onChange={(event) => {
             setExpectedReviews(event.target.value);
@@ -587,7 +654,7 @@ export default function ChallengeDetailPage() {
           {detailItems.map((item) => (
             <div
               key={item.label}
-              className='w-full rounded-lg border border-border/60 bg-muted/60 px-3 py-2 sm:min-w-[170px] sm:w-auto'
+              className='w-full rounded-lg border border-border/60 bg-muted/60 px-3 py-2 sm:min-w-42.5 sm:w-auto'
             >
               <dt className='text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground'>
                 {item.label}
@@ -811,7 +878,7 @@ export default function ChallengeDetailPage() {
                           <p className='font-semibold text-foreground'>
                             {assignment.reviewer.username}
                           </p>
-                          <p className='text-muted-foreground break-words'>
+                          <p className='text-muted-foreground wrap-break-word'>
                             Reviews: {revieweeNames || '—'}
                           </p>
                         </div>

@@ -941,6 +941,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       isRunning={isRunning}
       isSubmitting={isSubmitting}
       isSubmittingActive={isSubmittingActive}
+      peerReviewNotice={matchData?.peerReviewBlockedMessage || null}
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
