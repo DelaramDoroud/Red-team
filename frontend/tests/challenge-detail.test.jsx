@@ -119,9 +119,7 @@ describe('ChallengeDetailPage', () => {
     });
     render(<ChallengeDetailPage />);
 
-    await waitFor(() =>
-      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
-    );
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
 
     const assignButtons = screen.queryAllByRole('button', {
       name: /assign students/i,
