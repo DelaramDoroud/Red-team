@@ -157,12 +157,12 @@ test)
     if [[ "$STOP_AFTER" == true ]]; then
       # Non-watch mode for frontend (single run)
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
-        "npm run test:run -- --bail=1"
+        "npm run test:run"
       FRONTEND_TEST_EXIT_CODE=$?
     else
       # Default frontend test script
       "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
-        "npm run test -- --bail=1"
+        "npm run test"
       FRONTEND_TEST_EXIT_CODE=$?
     fi
   fi

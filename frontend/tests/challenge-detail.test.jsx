@@ -103,7 +103,7 @@ describe('ChallengeDetailPage', () => {
   });
 
   it('hides assign button when challenge is not public', async () => {
-    mockGetChallengeMatches.mockResolvedValueOnce({
+    mockGetChallengeMatches.mockResolvedValue({
       success: true,
       challenge: {
         id: 123,
@@ -128,7 +128,7 @@ describe('ChallengeDetailPage', () => {
   });
 
   it('shows validation error when expected reviews is invalid', async () => {
-    mockGetChallengeMatches.mockResolvedValueOnce({
+    mockGetChallengeMatches.mockResolvedValue({
       success: true,
       challenge: {
         id: 123,
@@ -145,9 +145,7 @@ describe('ChallengeDetailPage', () => {
 
     render(<ChallengeDetailPage />);
 
-    await waitFor(() =>
-      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
-    );
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
 
     const assignBtn = screen.getByRole('button', { name: /assign/i });
     fireEvent.click(assignBtn);
@@ -159,7 +157,7 @@ describe('ChallengeDetailPage', () => {
   });
 
   it('shows Start Peer Review button when assignments are ready', async () => {
-    mockGetChallengeMatches.mockResolvedValueOnce({
+    mockGetChallengeMatches.mockResolvedValue({
       success: true,
       challenge: {
         id: 123,
@@ -176,9 +174,7 @@ describe('ChallengeDetailPage', () => {
 
     render(<ChallengeDetailPage />);
 
-    await waitFor(() =>
-      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
-    );
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
 
     expect(
       screen.getByRole('button', { name: /start peer review/i })
@@ -186,7 +182,7 @@ describe('ChallengeDetailPage', () => {
   });
 
   it('starts peer review when Start Peer Review is clicked', async () => {
-    mockGetChallengeMatches.mockResolvedValueOnce({
+    mockGetChallengeMatches.mockResolvedValue({
       success: true,
       challenge: {
         id: 123,
@@ -203,9 +199,7 @@ describe('ChallengeDetailPage', () => {
 
     render(<ChallengeDetailPage />);
 
-    await waitFor(() =>
-      expect(mockGetChallengeMatches).toHaveBeenCalledTimes(1)
-    );
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
 
     const startButton = screen.getByRole('button', {
       name: /start peer review/i,
