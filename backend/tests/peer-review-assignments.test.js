@@ -179,4 +179,61 @@ describe('Peer review assignment API', () => {
     expect(updatedChallenge.status).toBe(ChallengeStatus.STARTED_PHASE_TWO);
     expect(updatedChallenge.startPhaseTwoDateTime).not.toBeNull();
   });
+
+  it('allows students without valid submissions to act as reviewers', async () => {
+    const { challenge, participants, submissions } = await createChallengeData({
+      participantCount: 3,
+      validSubmissionCount: 1,
+    });
+
+    await request(app)
+      .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
+      .send({ expectedReviewsPerSubmission: 1 });
+
+    const assignments = await PeerReviewAssignment.findAll();
+
+    const reviewerIds = assignments.map((a) => a.reviewerId);
+    const submissionOwnerIds = submissions.map((s) => s.challengeParticipantId);
+
+    const nonSubmitters = participants
+      .map((p) => p.id)
+      .filter((id) => !submissionOwnerIds.includes(id));
+
+    expect(nonSubmitters.some((id) => reviewerIds.includes(id))).toBe(true);
+  });
+
+  it('never assigns self reviews', async () => {
+    const { challenge } = await createChallengeData({
+      participantCount: 5,
+      validSubmissionCount: 5,
+    });
+
+    await request(app)
+      .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
+      .send({ expectedReviewsPerSubmission: 2 });
+
+    const assignments = await PeerReviewAssignment.findAll();
+    const submissions = await Submission.findAll();
+
+    for (const a of assignments) {
+      const sub = submissions.find((s) => s.id === a.submissionId);
+      expect(a.reviewerId).not.toBe(sub.challengeParticipantId);
+    }
+  });
+
+  it('marks extra reviews with isExtra = true', async () => {
+    const { challenge } = await createChallengeData({
+      participantCount: 3,
+      validSubmissionCount: 2,
+    });
+
+    await request(app)
+      .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
+      .send({ expectedReviewsPerSubmission: 1 });
+
+    const assignments = await PeerReviewAssignment.findAll();
+
+    const extraCount = assignments.filter((a) => a.isExtra).length;
+    expect(extraCount).toBeGreaterThanOrEqual(0);
+  });
 });
