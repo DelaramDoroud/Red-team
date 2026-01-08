@@ -1,15 +1,10 @@
-'use client';
-
-import APPLink from '#components/common/AppLink';
-import styles from './not-found.module.css';
+import StatusPage from '#components/common/StatusPage';
 
 export default function NotFound() {
   return (
-    <div className={styles.container}>
-      <h1>404 – Page not found</h1>
-      <p>The page you are looking for does not exist in this demo app.</p>
-
-      <APPLink href='/'>Go back to dashboard</APPLink>
-    </div>
+    <StatusPage
+      title='404 – Page not found'
+      description='The page you are looking for does not exist.'
+    />
   );
 }

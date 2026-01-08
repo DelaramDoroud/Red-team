@@ -7,5 +7,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './vitest.setup.js',
+    pool: 'forks',
+    maxThreads: 1,
+    minThreads: 1,
+    isolate: true,
+    sequence: {
+      concurrent: false,
+    },
+    watch: false,
   },
 });

@@ -1,6 +1,9 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/rest';
 
+export const API_REST_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest';
+
 export const NETWORK_RESPONSE_NOT_OK = 'Network response was not ok: ';
 
 export const ChallengeStatus = {
