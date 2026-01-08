@@ -19,6 +19,8 @@ import assignMatches from '#root/services/assign-matches.js';
 import startChallengeService from '#root/services/start-challenge.js';
 import startPeerReviewService from '#root/services/start-peer-review.js';
 import assignPeerReviews from '#root/services/assign-peer-reviews.js';
+import { broadcastEvent } from '#root/services/event-stream.js';
+import { schedulePhaseOneEndForChallenge } from '#root/services/challenge-scheduler.js';
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -27,6 +29,16 @@ const getRequestRole = (req) =>
   req.session?.user?.role || req.user?.role || null;
 const isPrivilegedRole = (role) => role === 'teacher' || role === 'admin';
 const shouldHidePrivate = (req) => !isPrivilegedRole(getRequestRole(req));
+const emitChallengeUpdate = (challenge) => {
+  if (!challenge) return;
+  broadcastEvent({
+    event: 'challenge-updated',
+    data: {
+      challengeId: challenge.id,
+      status: challenge.status,
+    },
+  });
+};
 
 router.get('/challenges', async (req, res) => {
   try {
@@ -143,6 +155,7 @@ router.post('/challenges', async (req, res) => {
         },
       ],
     });
+    emitChallengeUpdate(createdChallenge);
     res.status(201).json({
       success: true,
       challenge: createdChallenge,
@@ -214,6 +227,19 @@ router.post('/challenges/:challengeId/join', async (req, res) => {
       return res.status(409).json({
         success: false,
         error: 'Student already joined this challenge',
+      });
+    }
+
+    if (status === 'ok') {
+      const participantsCount = await ChallengeParticipant.count({
+        where: { challengeId },
+      });
+      broadcastEvent({
+        event: 'challenge-participant-joined',
+        data: {
+          challengeId,
+          count: participantsCount,
+        },
       });
     }
 
@@ -315,6 +341,8 @@ router.post('/challenges/:challengeId/assign', async (req, res) => {
       });
     }
 
+    const updatedChallenge = await Challenge.findByPk(challengeId);
+    emitChallengeUpdate(updatedChallenge);
     return res.json({ success: true, ...result });
   } catch (error) {
     handleException(res, error);
@@ -677,6 +705,119 @@ router.post(
     }
   }
 );
+
+router.get(
+  '/challenges/:challengeId/peer-reviews/for-student',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      const studentId = Number(req.query.studentId);
+      if (!Number.isInteger(challengeId) || challengeId < 1) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Invalid challengeId' });
+      }
+      if (!Number.isInteger(studentId) || studentId < 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid studentId',
+        });
+      }
+
+      const challenge = await Challenge.findByPk(challengeId);
+      if (!challenge) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Challenge not found' });
+      }
+      if (shouldHidePrivate(req) && challenge.status === 'private') {
+        return res.status(403).json({
+          success: false,
+          error: 'Challenge is private',
+        });
+      }
+
+      const participant = await ChallengeParticipant.findOne({
+        where: { challengeId, studentId },
+      });
+      if (!participant) {
+        return res.status(404).json({
+          success: false,
+          error: 'Participant not found for this challenge and student',
+        });
+      }
+
+      const assignments = await PeerReviewAssignment.findAll({
+        where: { reviewerId: participant.id },
+        include: [
+          {
+            model: Submission,
+            as: 'submission',
+            attributes: ['id', 'code', 'matchId', 'challengeParticipantId'],
+            include: [
+              {
+                model: Match,
+                as: 'match',
+                attributes: ['id', 'challengeMatchSettingId'],
+                include: [
+                  {
+                    model: ChallengeMatchSetting,
+                    as: 'challengeMatchSetting',
+                    attributes: ['id'],
+                    where: { challengeId },
+                  },
+                ],
+              },
+              {
+                model: ChallengeParticipant,
+                as: 'challengeParticipant',
+                attributes: ['id'],
+                include: [
+                  {
+                    model: User,
+                    as: 'student',
+                    attributes: ['id', 'username'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const assignmentItems = assignments
+        .filter((assignment) => assignment.submission)
+        .map((assignment) => ({
+          id: assignment.id,
+          submissionId: assignment.submission.id,
+          code: assignment.submission.code,
+          matchId: assignment.submission.matchId,
+          isExtra: assignment.isExtra,
+          author: assignment.submission.challengeParticipant?.student
+            ? {
+                id: assignment.submission.challengeParticipant.student.id,
+                username:
+                  assignment.submission.challengeParticipant.student.username,
+              }
+            : null,
+        }));
+
+      return res.json({
+        success: true,
+        challenge: {
+          id: challenge.id,
+          status: challenge.status,
+          startPhaseTwoDateTime: challenge.startPhaseTwoDateTime,
+          endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
+          durationPeerReview: challenge.durationPeerReview,
+        },
+        assignments: assignmentItems,
+      });
+    } catch (error) {
+      handleException(res, error);
+    }
+  }
+);
 router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);
@@ -740,6 +881,7 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
     }
 
     const { challenge: updatedChallenge } = result;
+    emitChallengeUpdate(updatedChallenge);
 
     return res.json({
       success: true,
@@ -825,6 +967,8 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
     }
 
     const { challenge } = result;
+    await schedulePhaseOneEndForChallenge(challenge);
+    emitChallengeUpdate(challenge);
 
     return res.json({
       success: true,
@@ -892,6 +1036,9 @@ router.get('/challenges/:challengeId/for-student', async (req, res) => {
         startDatetime: challenge.startDatetime,
         duration: challenge.duration,
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
+        startPhaseTwoDateTime: challenge.startPhaseTwoDateTime,
+        endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
+        durationPeerReview: challenge.durationPeerReview,
         title: challenge.title,
       },
     });

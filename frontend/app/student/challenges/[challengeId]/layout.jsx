@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import {
   Card,
   CardHeader,
@@ -10,8 +10,10 @@ import {
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
 
-import { ChallengeStatus } from '#js/constants';
+import { API_REST_BASE, ChallengeStatus } from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
+import { getApiErrorMessage } from '#js/apiError';
+import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { DurationProvider } from './(context)/DurationContext';
 
 // shared layout for both /match and /result
@@ -19,6 +21,9 @@ export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
   const { getChallengeForJoinedStudent } = useChallenge();
+  const router = useRouter();
+  const pathname = usePathname();
+  const redirectOnError = useApiErrorRedirect();
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,10 +50,23 @@ export default function ChallengeLayout({ children }) {
         if (!cancelled) {
           if (res?.success) {
             setchallengeData(res.data);
+            const status = res.data?.status;
+            const isPeerReviewRoute = pathname?.includes('/peer-review');
+            const shouldBeInPeerReview =
+              status === ChallengeStatus.STARTED_PHASE_TWO ||
+              status === ChallengeStatus.ENDED_PHASE_TWO;
+            if (shouldBeInPeerReview && !isPeerReviewRoute) {
+              router.push(`/student/challenges/${challengeId}/peer-review`);
+            } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
+              router.push(`/student/challenges/${challengeId}/match`);
+            }
           } else {
+            if (redirectOnError(res)) return;
             setError({
-              message:
-                res?.error || res?.message || 'Unable to load challenge info.',
+              message: getApiErrorMessage(
+                res,
+                'Unable to load challenge info.'
+              ),
             });
           }
         }
@@ -67,13 +85,48 @@ export default function ChallengeLayout({ children }) {
     }
 
     loadStatus();
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+    const handleUpdate = (event) => {
+      if (!event?.data) {
+        loadStatus();
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data);
+        const payloadId = Number(payload?.challengeId);
+        if (payloadId === Number(challengeId)) {
+          loadStatus();
+        }
+      } catch {
+        loadStatus();
+      }
+    };
+    source.addEventListener('challenge-updated', handleUpdate);
 
     return () => {
       cancelled = true;
+      source.close();
     };
-  }, [challengeId, studentId, getChallengeForJoinedStudent, isAuthorized]);
-  const { status, title, duration, startPhaseOneDateTime, startDatetime } =
-    challengeData || {};
+  }, [
+    challengeId,
+    studentId,
+    getChallengeForJoinedStudent,
+    isAuthorized,
+    pathname,
+    redirectOnError,
+    router,
+  ]);
+  const {
+    status,
+    title,
+    duration,
+    durationPeerReview,
+    startPhaseOneDateTime,
+    startPhaseTwoDateTime,
+    startDatetime,
+  } = challengeData || {};
   const phaseLabel = () => {
     switch (status) {
       case ChallengeStatus.STARTED_PHASE_ONE:
@@ -108,9 +161,12 @@ export default function ChallengeLayout({ children }) {
         <DurationProvider
           value={{
             duration: Number(duration) || 0,
+            durationPeerReview: Number(durationPeerReview) || 0,
             challengeId,
             startPhaseOneDateTime,
+            startPhaseTwoDateTime,
             startDatetime,
+            status,
           }}
         >
           {children}

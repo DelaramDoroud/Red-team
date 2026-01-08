@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ChallengeDetailPage from '../app/challenges/[id]/page';
 
@@ -24,15 +24,17 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+const mockAuthState = {
+  user: { id: 1, role: 'teacher' },
+  isLoggedIn: true,
+  loading: false,
+};
+
 vi.mock('#js/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
   useAppSelector: (selector) =>
     selector({
-      auth: {
-        user: { id: 1, role: 'teacher' },
-        isLoggedIn: true,
-        loading: false,
-      },
+      auth: mockAuthState,
     }),
   useAppStore: () => ({}),
 }));
@@ -41,17 +43,19 @@ vi.mock('#js/store/slices/auth', () => ({
   fetchUserInfo: () => async () => ({}),
 }));
 
+const mockRouter = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+};
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: '123' }),
   usePathname: () => '/challenges/123',
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    prefetch: vi.fn(),
-  }),
+  useRouter: () => mockRouter,
 }));
 
 describe('ChallengeDetailPage', () => {
@@ -80,6 +84,10 @@ describe('ChallengeDetailPage', () => {
     mockAssignPeerReviews.mockResolvedValue({ success: true, results: [] });
     mockUpdateExpectedReviews.mockResolvedValue({ success: true });
     mockStartPeerReview.mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders Assign students button and triggers assignment + reload', async () => {

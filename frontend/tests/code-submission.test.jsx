@@ -30,8 +30,18 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+const mockRouter = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+};
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ challengeId: '123' }),
+  useRouter: () => mockRouter,
 }));
 
 // Mock MatchView to isolate MatchContainer logic
@@ -491,7 +501,7 @@ describe('RT-4 Code Submission', () => {
   });
 
   // RT-4 AC: Automatic submission failure handling
-  it('AC: should show no valid submission message on automatic submission failure', async () => {
+  it('AC: should keep last submission message on automatic submission failure', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: false });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -521,7 +531,7 @@ describe('RT-4 Code Submission', () => {
       await waitFor(() => {
         const message = screen.getByTestId('message');
         expect(message).toHaveTextContent(
-          "match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review"
+          'Your latest code failed. Kept your last submission.'
         );
       });
     });
