@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
@@ -9,15 +9,17 @@ import { given, when, andThen as then } from './bdd';
 
 const mockDispatch = vi.fn(() => Promise.resolve());
 
+const mockAuthState = {
+  user: { id: 1, role: 'student' },
+  isLoggedIn: true,
+  loading: false,
+};
+
 vi.mock('#js/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
   useAppSelector: (selector) =>
     selector({
-      auth: {
-        user: { id: 1, role: 'student' },
-        isLoggedIn: true,
-        loading: false,
-      },
+      auth: mockAuthState,
     }),
   useAppStore: () => ({}),
 }));
@@ -27,15 +29,17 @@ vi.mock('#js/store/slices/auth', () => ({
 }));
 
 const mockPush = vi.fn();
+const mockRouter = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+};
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    prefetch: vi.fn(),
-  }),
+  useRouter: () => mockRouter,
   usePathname: () => '/student/challenges',
 }));
 
@@ -126,6 +130,10 @@ describe('Student joins challenge page – Acceptance criteria', () => {
       success: true,
       data: null,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
   // AC1: The student sees only one challenge when its date and time exactly match(<=) the current  date and time.
   it('Student sees only one challenge when its start time is <= current time', async () => {

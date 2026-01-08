@@ -16,7 +16,7 @@
     "start": "next start",
     "debug": "next dev",
     "build": "next build",
-    "lint": "eslint . --fix",
+    "lint": "eslint . --fix && stylelint '**/*.css' --fix && prettier --write . && markdownlint --fix \"**/*.md\" --ignore node_modules",
     "lint:scss": "stylelint '**/*.scss' --fix",
     "format": "prettier --write .",
     "test": "vitest",

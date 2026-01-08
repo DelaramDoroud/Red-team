@@ -4,99 +4,16 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
-import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
 import logger from '#root/services/logger.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
+import { getSubmissionStatus } from '#root/services/submission-evaluation.js';
+import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
 
 const router = Router();
-
-const submissionStatusRank = {
-  [SubmissionStatus.WRONG]: 0,
-  [SubmissionStatus.IMPROVABLE]: 1,
-  [SubmissionStatus.PROBABLY_CORRECT]: 2,
-};
-
-const didAllTestsPass = (summary, testResults) => {
-  if (summary) {
-    if (summary.allPassed === true) return true;
-    if (Number.isFinite(summary.passed) && Number.isFinite(summary.total)) {
-      return summary.total > 0 && summary.passed === summary.total;
-    }
-  }
-
-  if (Array.isArray(testResults) && testResults.length > 0) {
-    return testResults.every((result) => result.passed === true);
-  }
-
-  return false;
-};
-
-const getSubmissionStatus = (publicResult, privateResult) => {
-  const allPublicPassed = didAllTestsPass(
-    publicResult?.summary,
-    publicResult?.testResults
-  );
-  const allPrivatePassed = didAllTestsPass(
-    privateResult?.summary,
-    privateResult?.testResults
-  );
-
-  if (!allPublicPassed) return SubmissionStatus.WRONG;
-  if (!allPrivatePassed) return SubmissionStatus.IMPROVABLE;
-  return SubmissionStatus.PROBABLY_CORRECT;
-};
-
-const getStatusRank = (status) => submissionStatusRank[status] ?? 0;
-
-const computeFinalSubmissionForMatch = async ({ matchId, transaction }) => {
-  const submissions = await Submission.findAll({
-    where: { matchId },
-    order: [
-      ['createdAt', 'DESC'],
-      ['id', 'DESC'],
-    ],
-    transaction,
-    lock: transaction.LOCK.UPDATE,
-  });
-
-  const latestIntentional = submissions.find(
-    (submission) => !submission.isAutomaticSubmission
-  );
-  const latestAutomatic = submissions.find(
-    (submission) => submission.isAutomaticSubmission
-  );
-
-  let finalSubmission;
-
-  if (!latestIntentional) {
-    finalSubmission = latestAutomatic || null;
-  } else if (!latestAutomatic) {
-    finalSubmission = latestIntentional;
-  } else {
-    const automaticRank = getStatusRank(latestAutomatic.status);
-    const intentionalRank = getStatusRank(latestIntentional.status);
-    finalSubmission =
-      automaticRank > intentionalRank ? latestAutomatic : latestIntentional;
-  }
-
-  await Submission.update(
-    { isFinal: false },
-    { where: { matchId }, transaction }
-  );
-
-  if (finalSubmission) {
-    await Submission.update(
-      { isFinal: true },
-      { where: { id: finalSubmission.id }, transaction }
-    );
-  }
-
-  return finalSubmission;
-};
 
 router.post('/submissions', async (req, res) => {
   let transaction;
@@ -231,16 +148,40 @@ router.post('/submissions', async (req, res) => {
     );
 
     transaction = await sequelize.transaction();
-    const submission = await Submission.create(
-      {
-        matchId,
-        challengeParticipantId: match.challengeParticipantId,
-        code,
-        isAutomaticSubmission,
-        status: submissionStatus,
-      },
-      { transaction }
-    );
+    const submissionFilters = {
+      matchId,
+      isAutomaticSubmission,
+    };
+    const existingSubmission = await Submission.findOne({
+      where: submissionFilters,
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    let submission;
+    if (existingSubmission) {
+      submission = await existingSubmission.update(
+        {
+          code,
+          status: submissionStatus,
+          isAutomaticSubmission,
+          isFinal: false,
+        },
+        { transaction }
+      );
+    } else {
+      submission = await Submission.create(
+        {
+          matchId,
+          challengeParticipantId: match.challengeParticipantId,
+          code,
+          status: submissionStatus,
+          isAutomaticSubmission,
+          isFinal: false,
+        },
+        { transaction }
+      );
+    }
 
     const finalSubmission = await computeFinalSubmissionForMatch({
       matchId,
@@ -251,7 +192,6 @@ router.post('/submissions', async (req, res) => {
 
     logger.info(`Submission ${submission.id} saved for match ${matchId}`);
 
-    // Build response without code field - explicitly exclude it
     const submissionData = submission.get({ plain: true });
     delete submissionData.code;
 
@@ -279,6 +219,62 @@ router.post('/submissions', async (req, res) => {
   } catch (error) {
     if (transaction && !transaction.finished) await transaction.rollback();
     logger.error('Submission error:', error);
+    handleException(res, error);
+  }
+});
+
+router.get('/submissions/last', async (req, res) => {
+  try {
+    const matchId = Number(req.query?.matchId);
+    if (!matchId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Match ID is required' },
+      });
+    }
+
+    let submission = await Submission.findOne({
+      where: { matchId, isFinal: true },
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+
+    if (!submission) {
+      submission = await Submission.findOne({
+        where: { matchId },
+        order: [
+          ['updatedAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      });
+    }
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Submission not found' },
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        submission: {
+          id: submission.id,
+          matchId: submission.matchId,
+          code: submission.code,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+          status: submission.status,
+          isAutomaticSubmission: submission.isAutomaticSubmission,
+          isFinal: submission.isFinal,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Get last submission error:', error);
     handleException(res, error);
   }
 });

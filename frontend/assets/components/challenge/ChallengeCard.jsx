@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { formatDateTime } from '#js/date';
 import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({
@@ -9,6 +10,7 @@ export default function ChallengeCard({
   href,
   onAllowedNumberChange,
   allowedNumberError,
+  extraInfo,
 }) {
   const router = useRouter();
   const {
@@ -20,8 +22,7 @@ export default function ChallengeCard({
     allowedNumberOfReview,
   } = challenge;
 
-  const start = startDatetime ? new Date(startDatetime) : null;
-  const readableDate = start ? start.toLocaleString() : 'TBD';
+  const readableDate = startDatetime ? formatDateTime(startDatetime) : 'TBD';
 
   const handleNavigate = () => {
     if (href) router.push(href);
@@ -98,6 +99,7 @@ export default function ChallengeCard({
           </dd>
         </div>
       </dl>
+      {extraInfo ? <div className={styles.extraInfo}>{extraInfo}</div> : null}
       {actions ? (
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions
         <div className={styles.actions} onClick={(e) => e.stopPropagation()}>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -13,6 +13,9 @@ import {
 } from '#components/common/card';
 import { ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
+import { getApiErrorMessage } from '#js/apiError';
+import useApiErrorRedirect from '#js/useApiErrorRedirect';
+import { formatDateTime } from '#js/date';
 
 const statusTone = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/20',
@@ -36,13 +39,6 @@ const peerReviewTones = {
   error: 'border-destructive/30 bg-destructive/5 text-destructive',
 };
 
-const formatDateTime = (value) => {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
-};
-
 const formatTimer = (seconds) => {
   if (seconds == null) return '—';
   const safeSeconds = Math.max(0, seconds);
@@ -60,13 +56,20 @@ const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
   if (!startValue || !durationMinutes) return null;
   const startMs = new Date(startValue).getTime();
   if (Number.isNaN(startMs)) return null;
-  return startMs + durationMinutes * 60 * 1000;
+  return startMs + durationMinutes * 60 * 1000 + 3000;
 };
 
 const resolveEndDisplay = (explicitEndValue, computedEndMs) => {
   if (explicitEndValue) return explicitEndValue;
   if (computedEndMs) return new Date(computedEndMs);
   return null;
+};
+
+const getBufferedStartMs = (value) => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return timestamp + 3000;
 };
 
 export default function ChallengeDetailPage() {
@@ -80,8 +83,8 @@ export default function ChallengeDetailPage() {
     updateExpectedReviews,
     startPeerReview,
   } = useChallenge();
-  const router = useRouter();
   const challengeId = params?.id;
+  const redirectOnError = useApiErrorRedirect();
 
   const [challenge, setChallenge] = useState(null);
   const [assignments, setAssignments] = useState([]);
@@ -98,32 +101,6 @@ export default function ChallengeDetailPage() {
   const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
   const [phaseNow, setPhaseNow] = useState(Date.now());
-
-  const resolveErrorMessage = useCallback((value, fallback) => {
-    if (!value) return fallback;
-    if (typeof value === 'string') return value;
-    if (value?.message) return value.message;
-    return fallback;
-  }, []);
-
-  const isChallengeNotFound = useCallback((value) => {
-    if (!value) return false;
-    const raw = typeof value === 'string' ? value : value?.message;
-    if (!raw) return false;
-    if (/challenge not found/i.test(raw)) return true;
-    const marker = 'Network response was not ok:';
-    if (!raw.includes(marker)) return false;
-    const payload = raw.slice(raw.indexOf(marker) + marker.length).trim();
-    try {
-      const parsed = JSON.parse(payload);
-      const parsedMessage = parsed?.error || parsed?.message;
-      return typeof parsedMessage === 'string'
-        ? /challenge not found/i.test(parsedMessage)
-        : false;
-    } catch {
-      return false;
-    }
-  }, []);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -145,14 +122,11 @@ export default function ChallengeDetailPage() {
         );
         setExpectedReviewsSaved('');
       } else {
-        const errorMessage = resolveErrorMessage(
-          matchesRes?.error || matchesRes?.message,
+        if (redirectOnError(matchesRes)) return;
+        const errorMessage = getApiErrorMessage(
+          matchesRes,
           'Unable to load matches'
         );
-        if (isChallengeNotFound(matchesRes?.error || matchesRes?.message)) {
-          router.replace('/');
-          return;
-        }
         setError(errorMessage);
         setAssignments([]);
       }
@@ -163,12 +137,7 @@ export default function ChallengeDetailPage() {
         setStudentCount(0);
       }
     } catch (err) {
-      const errorMessage = resolveErrorMessage(err, 'Unable to load matches');
-      if (isChallengeNotFound(err)) {
-        router.replace('/');
-        return;
-      }
-      setError(errorMessage);
+      setError(getApiErrorMessage(err, 'Unable to load matches'));
       setAssignments([]);
       setStudentCount(0);
     } finally {
@@ -178,9 +147,7 @@ export default function ChallengeDetailPage() {
     challengeId,
     getChallengeMatches,
     getChallengeParticipants,
-    isChallengeNotFound,
-    resolveErrorMessage,
-    router,
+    redirectOnError,
   ]);
 
   useEffect(() => {
@@ -188,6 +155,7 @@ export default function ChallengeDetailPage() {
   }, [load]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return undefined;
     const id = setInterval(() => {
       setPhaseNow(Date.now());
     }, 1000);
@@ -196,9 +164,10 @@ export default function ChallengeDetailPage() {
 
   const handleAssign = useCallback(async () => {
     if (!challengeId) return;
-    const now = new Date();
+    const now = Date.now();
     const canStartNow =
-      challenge?.startDatetime && new Date(challenge.startDatetime) <= now;
+      challenge?.startDatetime &&
+      new Date(challenge.startDatetime).getTime() <= now;
     if (!canStartNow) {
       setError('The challenge start time has not been reached yet.');
       return;
@@ -212,12 +181,7 @@ export default function ChallengeDetailPage() {
     try {
       const res = await assignChallenge(challengeId);
       if (res?.success === false) {
-        setError(
-          resolveErrorMessage(
-            res?.error || res?.message,
-            'Unable to assign students'
-          )
-        );
+        setError(getApiErrorMessage(res, 'Unable to assign students'));
       }
       await load();
     } catch (_err) {
@@ -229,7 +193,6 @@ export default function ChallengeDetailPage() {
     assignChallenge,
     challengeId,
     load,
-    resolveErrorMessage,
     studentCount,
     challenge?.startDatetime,
   ]);
@@ -241,12 +204,7 @@ export default function ChallengeDetailPage() {
     try {
       const res = await startChallenge(challengeId);
       if (res?.success === false) {
-        setError(
-          resolveErrorMessage(
-            res?.error || res?.message,
-            'Unable to start challenge'
-          )
-        );
+        setError(getApiErrorMessage(res, 'Unable to start challenge'));
       }
       await load();
     } catch (_err) {
@@ -254,7 +212,7 @@ export default function ChallengeDetailPage() {
     } finally {
       setStarting(false);
     }
-  }, [challengeId, load, resolveErrorMessage, startChallenge]);
+  }, [challengeId, load, startChallenge]);
 
   const parseExpectedReviews = useCallback((value) => {
     const parsed = Number(value);
@@ -280,12 +238,7 @@ export default function ChallengeDetailPage() {
     try {
       const res = await assignPeerReviews(challengeId, parsed);
       if (res?.success === false) {
-        setError(
-          resolveErrorMessage(
-            res?.error || res?.message,
-            'Unable to assign peer reviews'
-          )
-        );
+        setError(getApiErrorMessage(res, 'Unable to assign peer reviews'));
         return;
       }
       if (Array.isArray(res?.results)) {
@@ -350,7 +303,6 @@ export default function ChallengeDetailPage() {
     load,
     parseExpectedReviews,
     assignments,
-    resolveErrorMessage,
   ]);
 
   const handleStartPeerReview = useCallback(async () => {
@@ -360,12 +312,7 @@ export default function ChallengeDetailPage() {
     try {
       const res = await startPeerReview(challengeId);
       if (res?.success === false) {
-        setError(
-          resolveErrorMessage(
-            res?.error || res?.message,
-            'Unable to start peer review'
-          )
-        );
+        setError(getApiErrorMessage(res, 'Unable to start peer review'));
         return;
       }
       setPeerReviewMessages([
@@ -380,14 +327,14 @@ export default function ChallengeDetailPage() {
     } finally {
       setStartingPeerReview(false);
     }
-  }, [challengeId, load, resolveErrorMessage, startPeerReview]);
+  }, [challengeId, load, startPeerReview]);
 
   const hasStudents = studentCount > 0;
   const hasMatches = assignments.some((group) => group.matches?.length);
   const canStartNow = useMemo(() => {
     if (!challenge?.startDatetime) return true;
-    return new Date(challenge.startDatetime) <= new Date();
-  }, [challenge?.startDatetime]);
+    return new Date(challenge.startDatetime).getTime() <= phaseNow;
+  }, [challenge?.startDatetime, phaseNow]);
   const showStartButton =
     challenge?.status === ChallengeStatus.ASSIGNED &&
     hasStudents &&
@@ -398,6 +345,8 @@ export default function ChallengeDetailPage() {
     challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && !peerReviewReady;
   const showStartPeerReviewButton =
     challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && peerReviewReady;
+  const showPeerReviewInProgress =
+    challenge?.status === ChallengeStatus.STARTED_PHASE_TWO;
 
   const phaseStatus = challenge?.status;
   const isPhaseOneActive = phaseStatus === ChallengeStatus.STARTED_PHASE_ONE;
@@ -441,6 +390,20 @@ export default function ChallengeDetailPage() {
     isPhaseTwoActive && phaseTwoEndMs
       ? Math.max(0, Math.floor((phaseTwoEndMs - phaseNow) / 1000))
       : null;
+
+  const phaseOneCountdownSeconds = (() => {
+    if (!isPhaseOneActive) return null;
+    const bufferedStart = getBufferedStartMs(phaseOneStart);
+    if (!bufferedStart) return null;
+    return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
+  })();
+
+  const phaseTwoCountdownSeconds = (() => {
+    if (!isPhaseTwoActive) return null;
+    const bufferedStart = getBufferedStartMs(phaseTwoStart);
+    if (!bufferedStart) return null;
+    return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
+  })();
 
   const phaseOneCardClass = useMemo(() => {
     if (isPhaseOneActive) {
@@ -493,7 +456,7 @@ export default function ChallengeDetailPage() {
       const res = await updateExpectedReviews(challengeId, parsed);
       if (res?.success === false) {
         setExpectedReviewsError(
-          res?.error || res?.message || 'Unable to save expected reviews.'
+          getApiErrorMessage(res, 'Unable to save expected reviews.')
         );
         return;
       }
@@ -648,6 +611,13 @@ export default function ChallengeDetailPage() {
                 {startingPeerReview ? 'Starting...' : 'Start Peer Review'}
               </Button>
             ) : null}
+            {showPeerReviewInProgress ? (
+              <div className='flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700'>
+                <span className='h-2 w-2 rounded-full bg-indigo-500' />
+                Peer review is in progress. Time left:{' '}
+                {formatTimer(phaseTwoTimeLeft)}
+              </div>
+            ) : null}
           </div>
         </div>
         <dl className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'>
@@ -698,13 +668,25 @@ export default function ChallengeDetailPage() {
                 </span>
               </div>
               {isPhaseOneActive ? (
-                <div className='flex flex-wrap items-center justify-between gap-2'>
-                  <span className='font-semibold text-emerald-700'>
-                    Time left
-                  </span>
-                  <span className='font-mono text-emerald-700'>
-                    {formatTimer(phaseOneTimeLeft)}
-                  </span>
+                <div className='space-y-1 mt-3'>
+                  <div className='flex items-center gap-2'>
+                    <span className='h-2 w-2 rounded-full bg-emerald-500' />
+                    <span className='text-sm font-semibold text-emerald-700'>
+                      Challenge in progress
+                    </span>
+                  </div>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span className='text-sm text-muted-foreground'>
+                      {phaseOneCountdownSeconds > 0
+                        ? 'Starting soon'
+                        : 'Ongoing'}
+                    </span>
+                    <span className='font-mono text-emerald-700'>
+                      {phaseOneCountdownSeconds > 0
+                        ? `Starting in ${phaseOneCountdownSeconds}s`
+                        : `Time left ${formatTimer(phaseOneTimeLeft)}`}
+                    </span>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -759,13 +741,25 @@ export default function ChallengeDetailPage() {
                 </div>
               ) : null}
               {isPhaseTwoActive ? (
-                <div className='flex flex-wrap items-center justify-between gap-2'>
-                  <span className='font-semibold text-indigo-700'>
-                    Time left
-                  </span>
-                  <span className='font-mono text-indigo-700'>
-                    {formatTimer(phaseTwoTimeLeft)}
-                  </span>
+                <div className='space-y-1 mt-3'>
+                  <div className='flex items-center gap-2'>
+                    <span className='h-2 w-2 rounded-full bg-indigo-500' />
+                    <span className='text-sm font-semibold text-indigo-700'>
+                      Challenge in progress
+                    </span>
+                  </div>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span className='text-sm text-muted-foreground'>
+                      {phaseTwoCountdownSeconds > 0
+                        ? 'Starting soon'
+                        : 'Ongoing'}
+                    </span>
+                    <span className='font-mono text-indigo-700'>
+                      {phaseTwoCountdownSeconds > 0
+                        ? `Starting in ${phaseTwoCountdownSeconds}s`
+                        : `Time left ${formatTimer(phaseTwoTimeLeft)}`}
+                    </span>
+                  </div>
                 </div>
               ) : null}
             </div>

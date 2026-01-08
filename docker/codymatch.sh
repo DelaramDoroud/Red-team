@@ -24,6 +24,7 @@ error_message () {
           echo -e "${GREEN}build                      ${WHITE}Stop and remove containers & networks + build or rebuild services"
           echo -e "${GREEN}logs                       ${WHITE}View output from containers"
           echo -e "${GREEN}test [test_file] [--stop]     ${WHITE}Run tests in backend service. Optionally specify a test file to run only that file. Use --stop to stop the test DB after tests complete."
+          echo -e "${GREEN}lint                       ${WHITE}Run linting with auto-fix in both backend and frontend"
           echo -e "${GREEN}deploy                     ${WHITE}Deploy services"
           echo -e ""
           echo -e "${GREEN}backend restart            ${WHITE}Restart backend service container"
@@ -183,7 +184,12 @@ test)
   echo "All tests passed."
   exit 0
   ;;
-
+lint)
+  echo "Running backend linting..."
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend npm run lint
+  echo "Running frontend linting..."
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps frontend npm run lint
+  ;;
 backend|frontend)
     case $2 in
       restart)

@@ -9,7 +9,13 @@ if [ -f "backend/package.json" ]; then
   echo "[pre-commit] Backend: lint-staged"
   (
     cd backend
-    npx lint-staged
+    if command -v npx >/dev/null 2>&1; then
+      npx lint-staged
+    else
+      echo "[pre-commit] WARNING: npx not found on host. Skipping lint-staged for backend."
+      echo "[pre-commit] To fix linting automatically, please install Node.js on your host"
+      echo "[pre-commit] or run 'bash docker/codymatch.sh lint' manually."
+    fi
   )
 fi
 
@@ -18,7 +24,11 @@ if [ -f "frontend/package.json" ]; then
   echo "[pre-commit] Frontend: lint-staged"
   (
     cd frontend
-    npx lint-staged
+    if command -v npx >/dev/null 2>&1; then
+      npx lint-staged
+    else
+      echo "[pre-commit] WARNING: npx not found on host. Skipping lint-staged for frontend."
+    fi
   )
 fi
 

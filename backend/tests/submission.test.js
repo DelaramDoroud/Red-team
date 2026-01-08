@@ -229,12 +229,13 @@ describe('Submission API', () => {
       expect(submission.isFinal).toBe(true);
     });
 
-    it('creates a new submission for each intentional submission', async () => {
+    it('updates the existing submission on subsequent submissions', async () => {
       const existing = await Submission.create({
         matchId: match.id,
         challengeParticipantId: participant.id,
         code: 'int main() { return 1; }',
         status: SubmissionStatus.WRONG,
+        isFinal: true,
       });
 
       const res = await request(app).post('/api/rest/submissions').send({
@@ -246,21 +247,15 @@ describe('Submission API', () => {
 
       const submissions = await Submission.findAll({
         where: { matchId: match.id },
-        order: [
-          ['createdAt', 'ASC'],
-          ['id', 'ASC'],
-        ],
       });
 
-      expect(submissions).toHaveLength(2);
+      expect(submissions).toHaveLength(1);
       expect(submissions[0].id).toBe(existing.id);
-      expect(submissions[0].code).toBe('int main() { return 1; }');
-      expect(submissions[0].isFinal).toBe(false);
-      expect(submissions[1].code).toBe('int main() { return 2; }');
-      expect(submissions[1].isFinal).toBe(true);
+      expect(submissions[0].code).toBe('int main() { return 2; }');
+      expect(submissions[0].isFinal).toBe(true);
     });
 
-    it('selects an automatic submission when it is strictly better', async () => {
+    it('overwrites with an automatic submission when submitted later', async () => {
       const publicPassResult = {
         testResults: [{ passed: true }, { passed: true }],
         summary: {
@@ -323,23 +318,21 @@ describe('Submission API', () => {
 
       const submissions = await Submission.findAll({
         where: { matchId: match.id },
-        order: [
-          ['createdAt', 'ASC'],
-          ['id', 'ASC'],
-        ],
       });
 
-      const intentional = submissions.find(
-        (submission) => !submission.isAutomaticSubmission
-      );
-      const automatic = submissions.find(
+      expect(submissions).toHaveLength(2);
+      const automaticSubmission = submissions.find(
         (submission) => submission.isAutomaticSubmission
       );
-
-      expect(intentional.status).toBe(SubmissionStatus.IMPROVABLE);
-      expect(automatic.status).toBe(SubmissionStatus.PROBABLY_CORRECT);
-      expect(automatic.isFinal).toBe(true);
-      expect(intentional.isFinal).toBe(false);
+      const manualSubmission = submissions.find(
+        (submission) => !submission.isAutomaticSubmission
+      );
+      expect(automaticSubmission).toBeDefined();
+      expect(manualSubmission).toBeDefined();
+      expect(automaticSubmission.status).toBe(
+        SubmissionStatus.PROBABLY_CORRECT
+      );
+      expect(automaticSubmission.isFinal).toBe(true);
     });
 
     it('rejects submission when code does not compile', async () => {
