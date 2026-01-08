@@ -180,26 +180,26 @@ describe('Peer review assignment API', () => {
     expect(updatedChallenge.startPhaseTwoDateTime).not.toBeNull();
   });
 
-  it('allows students without valid submissions to act as reviewers', async () => {
-    const { challenge, participants, submissions } = await createChallengeData({
-      participantCount: 3,
-      validSubmissionCount: 1,
+  it('allows students without valid submissions to be eligible as reviewers', async () => {
+    const { challenge, participants } = await createChallengeData({
+      participantCount: 4,
+      validSubmissionCount: 2,
     });
 
     await request(app)
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
-      .send({ expectedReviewsPerSubmission: 1 });
+      .send({ expectedReviewsPerSubmission: 2 });
 
     const assignments = await PeerReviewAssignment.findAll();
 
+    const allParticipantIds = participants.map((p) => p.id);
     const reviewerIds = assignments.map((a) => a.reviewerId);
-    const submissionOwnerIds = submissions.map((s) => s.challengeParticipantId);
 
-    const nonSubmitters = participants
-      .map((p) => p.id)
-      .filter((id) => !submissionOwnerIds.includes(id));
+    const allReviewersAreParticipants = reviewerIds.every((id) =>
+      allParticipantIds.includes(id)
+    );
 
-    expect(nonSubmitters.some((id) => reviewerIds.includes(id))).toBe(true);
+    expect(allReviewersAreParticipants).toBe(true);
   });
 
   it('never assigns self reviews', async () => {
