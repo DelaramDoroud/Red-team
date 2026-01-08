@@ -10,10 +10,12 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
-import { ChallengeStatus } from '#js/constants';
+import { API_REST_BASE, ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
+import { formatDateTime } from '#js/date';
 
+const ALLOWED_ROLES = ['student'];
 const startedStatuses = new Set([
   ChallengeStatus.STARTED_PHASE_ONE,
   ChallengeStatus.ENDED_PHASE_ONE,
@@ -33,7 +35,9 @@ const statusStyles = {
 
 export default function StudentChallengesPage() {
   const router = useRouter();
-  const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
+  const { user, isAuthorized } = useRoleGuard({
+    allowedRoles: ALLOWED_ROLES,
+  });
   const studentId = user?.id;
   const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
     useChallenge();
@@ -80,9 +84,24 @@ export default function StudentChallengesPage() {
     loadChallenges();
     const id = setInterval(() => {
       setNow(new Date());
-      loadChallenges();
-    }, 3000);
+    }, 30000);
     return () => clearInterval(id);
+  }, [loadChallenges, isAuthorized, studentId]);
+
+  useEffect(() => {
+    if (!isAuthorized || !studentId) return undefined;
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+    const handleUpdate = () => {
+      setNow(new Date());
+      loadChallenges();
+    };
+    source.addEventListener('challenge-updated', handleUpdate);
+
+    return () => {
+      source.close();
+    };
   }, [loadChallenges, isAuthorized, studentId]);
 
   const visibleChallenges = useMemo(() => {
@@ -268,7 +287,7 @@ export default function StudentChallengesPage() {
                     Start
                   </dt>
                   <dd className='text-foreground font-medium'>
-                    {new Date(challenge.startDatetime).toLocaleString()}
+                    {formatDateTime(challenge.startDatetime)}
                   </dd>
                 </div>
                 <div className='space-y-1'>

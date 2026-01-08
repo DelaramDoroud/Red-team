@@ -1,6 +1,6 @@
 import StatusPage from '#components/common/StatusPage';
 
-export default function NotFound() {
+export default function NotFoundRoute() {
   return (
     <StatusPage
       title='404 – Page not found'

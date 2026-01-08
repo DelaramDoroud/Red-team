@@ -11,27 +11,35 @@ import '@testing-library/jest-dom/vitest';
 import NewChallengePage from '../app/new-challenge/page';
 import { getMockedStoreWrapper } from './test-redux-provider';
 
-// Helper function to get a future datetime string in the format required by datetime-local input
+// Helper function to get a future datetime string in the UI format (h:mm AM/PM, dd/MM/yyyy)
 const getFutureDateTime = (hoursFromNow = 1) => {
   const date = new Date();
   date.setHours(date.getHours() + hoursFromNow);
   date.setMinutes(0);
   date.setSeconds(0);
   date.setMilliseconds(0);
-  // Format as YYYY-MM-DDTHH:mm for datetime-local input
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
+  const hours24 = date.getHours();
+  const hours12 = hours24 % 12 || 12;
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${hours12}:${minutes} ${ampm}, ${day}/${month}/${year}`;
 };
 
 const mockPush = vi.fn();
+const mockRouter = {
+  push: mockPush,
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+};
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
+  useRouter: () => mockRouter,
   usePathname: () => '/new-challenge',
 }));
 
@@ -51,15 +59,17 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+const mockAuthState = {
+  user: { id: 1, role: 'teacher' },
+  isLoggedIn: true,
+  loading: false,
+};
+
 vi.mock('#js/store/hooks', () => ({
   useAppDispatch: () => vi.fn(),
   useAppSelector: (selector) =>
     selector({
-      auth: {
-        user: { id: 1, role: 'teacher' },
-        isLoggedIn: true,
-        loading: false,
-      },
+      auth: mockAuthState,
     }),
   useAppStore: () => ({}),
 }));

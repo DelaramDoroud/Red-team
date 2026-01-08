@@ -1,22 +1,20 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import useFetchData from '#js/useFetchData';
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest';
+import { API_REST_BASE } from '#js/constants';
 
 export default function useChallenge() {
   const { fetchData, loading } = useFetchData();
 
   const getChallenges = useCallback(async () => {
-    const url = `${API_BASE}/challenges`;
+    const url = `${API_REST_BASE}/challenges`;
     return fetchData(url);
   }, [fetchData]);
 
   const getChallengeMatches = useCallback(
     async (challengeId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/matches`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/matches`;
       return fetchData(url);
     },
     [fetchData]
@@ -24,7 +22,7 @@ export default function useChallenge() {
 
   const getChallengeParticipants = useCallback(
     async (challengeId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/participants`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/participants`;
       return fetchData(url);
     },
     [fetchData]
@@ -32,7 +30,7 @@ export default function useChallenge() {
 
   const joinChallenge = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/join`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/join`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +42,7 @@ export default function useChallenge() {
 
   const createChallenge = useCallback(
     async (payload) => {
-      const url = `${API_BASE}/challenges`;
+      const url = `${API_REST_BASE}/challenges`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,7 +54,7 @@ export default function useChallenge() {
 
   const publishChallenge = useCallback(
     async (id) => {
-      const url = `${API_BASE}/challenges/${id}/publish`;
+      const url = `${API_REST_BASE}/challenges/${id}/publish`;
       return fetchData(url, { method: 'POST' });
     },
     [fetchData]
@@ -65,7 +63,7 @@ export default function useChallenge() {
   const assignChallenge = useCallback(
     async (challengeId, overwrite = false) => {
       const searchParams = overwrite ? '?overwrite=true' : '';
-      const url = `${API_BASE}/challenges/${challengeId}/assign${searchParams}`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/assign${searchParams}`;
       return fetchData(url, { method: 'POST' });
     },
     [fetchData]
@@ -73,14 +71,14 @@ export default function useChallenge() {
 
   const startChallenge = useCallback(
     async (challengeId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/start`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/start`;
       return fetchData(url, { method: 'POST' });
     },
     [fetchData]
   );
   const assignPeerReviews = useCallback(
     async (challengeId, expectedReviewsPerSubmission) => {
-      const url = `${API_BASE}/challenges/${challengeId}/peer-reviews/assign`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/assign`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +89,7 @@ export default function useChallenge() {
   );
   const updateExpectedReviews = useCallback(
     async (challengeId, expectedReviewsPerSubmission) => {
-      const url = `${API_BASE}/challenges/${challengeId}/expected-reviews`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/expected-reviews`;
       return fetchData(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -102,42 +100,49 @@ export default function useChallenge() {
   );
   const startPeerReview = useCallback(
     async (challengeId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/peer-reviews/start`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/start`;
       return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
+  const getStudentPeerReviewAssignments = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/for-student?studentId=${studentId}`;
+      return fetchData(url);
     },
     [fetchData]
   );
   const getChallengeForJoinedStudent = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
       return fetchData(url);
     },
     [fetchData]
   );
   const getStudentAssignedMatchSetting = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/matchSetting?studentId=${studentId}`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/matchSetting?studentId=${studentId}`;
       return fetchData(url);
     },
     [fetchData]
   );
   const getStudentAssignedMatch = useCallback(
     async (challengeId, studentId) => {
-      const url = `${API_BASE}/challenges/${challengeId}/match?studentId=${studentId}`;
+      const url = `${API_REST_BASE}/challenges/${challengeId}/match?studentId=${studentId}`;
       return fetchData(url);
     },
     [fetchData]
   );
   const unpublishChallenge = useCallback(
     async (id) => {
-      const url = `${API_BASE}/challenges/${id}/unpublish`;
+      const url = `${API_REST_BASE}/challenges/${id}/unpublish`;
       return fetchData(url, { method: 'POST' });
     },
     [fetchData]
   );
   const submitSubmission = useCallback(
     async ({ matchId, code, isAutomatic = false, language = 'cpp' }) => {
-      const url = `${API_BASE}/submissions`;
+      const url = `${API_REST_BASE}/submissions`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,10 +157,9 @@ export default function useChallenge() {
     },
     [fetchData]
   );
-
   const getLastSubmission = useCallback(
     async (matchId) => {
-      const url = `${API_BASE}/submissions/last?matchId=${matchId}`;
+      const url = `${API_REST_BASE}/submissions/last?matchId=${matchId}`;
       return fetchData(url);
     },
     [fetchData]
@@ -163,7 +167,7 @@ export default function useChallenge() {
 
   const runCode = useCallback(
     async ({ matchSettingId, code, language }) => {
-      const url = `${API_BASE}/run`;
+      const url = `${API_REST_BASE}/run`;
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,25 +181,50 @@ export default function useChallenge() {
     [fetchData]
   );
 
-  return {
-    loading,
-    getChallenges,
-    getChallengeMatches,
-    getChallengeParticipants,
-    joinChallenge,
-    createChallenge,
-    publishChallenge,
-    assignChallenge,
-    unpublishChallenge,
-    startChallenge,
-    assignPeerReviews,
-    updateExpectedReviews,
-    startPeerReview,
-    getChallengeForJoinedStudent,
-    getStudentAssignedMatchSetting,
-    getStudentAssignedMatch,
-    submitSubmission,
-    getLastSubmission,
-    runCode,
-  };
+  return useMemo(
+    () => ({
+      loading,
+      getChallenges,
+      getChallengeMatches,
+      getChallengeParticipants,
+      joinChallenge,
+      createChallenge,
+      publishChallenge,
+      assignChallenge,
+      unpublishChallenge,
+      startChallenge,
+      assignPeerReviews,
+      updateExpectedReviews,
+      startPeerReview,
+      getStudentPeerReviewAssignments,
+      getChallengeForJoinedStudent,
+      getStudentAssignedMatchSetting,
+      getStudentAssignedMatch,
+      submitSubmission,
+      getLastSubmission,
+      runCode,
+    }),
+    [
+      loading,
+      getChallenges,
+      getChallengeMatches,
+      getChallengeParticipants,
+      joinChallenge,
+      createChallenge,
+      publishChallenge,
+      assignChallenge,
+      unpublishChallenge,
+      startChallenge,
+      assignPeerReviews,
+      updateExpectedReviews,
+      startPeerReview,
+      getStudentPeerReviewAssignments,
+      getChallengeForJoinedStudent,
+      getStudentAssignedMatchSetting,
+      getStudentAssignedMatch,
+      submitSubmission,
+      getLastSubmission,
+      runCode,
+    ]
+  );
 }

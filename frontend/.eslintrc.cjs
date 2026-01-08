@@ -37,7 +37,7 @@ module.exports = {
       },
     },
   },
-  env: { browser: true, node: true },
+  env: { browser: true, node: true, es2021: true },
   overrides: [
     {
       files: ['**/*.jsx', '**/*.js', '**/*.mjs'],

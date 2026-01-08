@@ -6,11 +6,12 @@ import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import {
   clearChallengeDraft,
   migrateChallengeKey,
-  setDraftCode,
   setLastCompiledCode,
   setLastSuccessfulCode,
 } from '#js/store/slices/ui';
-import { NETWORK_RESPONSE_NOT_OK } from '#js/constants';
+import { ChallengeStatus, NETWORK_RESPONSE_NOT_OK } from '#js/constants';
+import { getApiErrorMessage } from '#js/apiError';
+import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import MatchView from './MatchView';
 import { useDuration } from '../(context)/DurationContext';
 
@@ -41,14 +42,17 @@ const STUDENT_MARKERS = [
   '{{STUDENT_CODE}}',
 ];
 
-const MESSAGE_PARTICIPATION = 'Thanks for your participation.';
+const MESSAGE_PARTICIPATION =
+  'Match phase one is over! Thanks for your participation.';
 const MESSAGE_SUBMISSION_SUCCESS = 'Thanks for your submission.';
 const MESSAGE_SUBMISSION_PUBLIC_FAIL =
   'Thanks for your submission. There are problems with your solution, try to improve it.';
 const MESSAGE_SUBMISSION_PRIVATE_FAIL =
   'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
+const MESSAGE_SUBMISSION_REUSED =
+  'Match phase one is over! Your latest submission has been kept.';
 const MESSAGE_NO_VALID_SUBMISSION =
-  "match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review";
+  "Match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review";
 
 const stripMarkers = (code, markers) =>
   markers.reduce((value, marker) => value.split(marker).join(''), code);
@@ -156,6 +160,9 @@ const assembleCode = (imports, fixedPrefix, studentCode, fixedSuffix) => {
   return `${importBlock}${prefix}${student}${suffix}`;
 };
 
+const normalizeCode = (value) =>
+  typeof value === 'string' ? value.trim() : '';
+
 const normalizeSnapshot = (value) => {
   if (!value) return null;
   if (typeof value === 'string') {
@@ -231,6 +238,10 @@ export default function MatchContainer({ challengeId, studentId }) {
       startSignature ? `${challengeId}-${startSignature}` : `${challengeId}`,
     [challengeId, startSignature]
   );
+  const peerReviewPendingMessage =
+    durationContext?.status === ChallengeStatus.ENDED_PHASE_ONE
+      ? 'Wait for your teacher to start the peer review phase.'
+      : null;
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
@@ -238,6 +249,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     getLastSubmission,
     runCode,
   } = useChallenge();
+  const redirectOnError = useApiErrorRedirect();
 
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState(null);
@@ -257,6 +269,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [canSubmit, setCanSubmit] = useState(false);
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
+  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
   const hasLoadedFromStorage = useRef(false);
   const lastSuccessRef = useRef(null);
   const storageKeyBase = useMemo(
@@ -286,9 +299,6 @@ export default function MatchContainer({ challengeId, studentId }) {
       (hasSignatureToken && !savedDraftEntry.signature))
   );
   const activeDraftEntry = shouldIgnoreSavedDraft ? null : savedDraftEntry;
-  const savedDraftImports = activeDraftEntry?.imports || '';
-  const savedDraftStudentCode =
-    activeDraftEntry?.studentCode || activeDraftEntry?.code || '';
   const savedLastCompiledSnapshot = normalizeSnapshot(
     activeDraftEntry?.lastCompiled
   );
@@ -348,13 +358,8 @@ export default function MatchContainer({ challengeId, studentId }) {
     if (!matchData) return;
     if (hasLoadedFromStorage.current) return;
 
-    if (savedDraftImports || savedDraftStudentCode) {
-      setImports(savedDraftImports || defaultImports);
-      setStudentCode(savedDraftStudentCode);
-    } else {
-      setImports(defaultImports);
-      setStudentCode('');
-    }
+    setImports(defaultImports);
+    setStudentCode('');
     setImportsWarning('');
 
     if (savedLastSuccessSnapshot) {
@@ -371,36 +376,10 @@ export default function MatchContainer({ challengeId, studentId }) {
     hasLoadedFromStorage.current = true;
   }, [
     matchData,
-    savedDraftImports,
-    savedDraftStudentCode,
     savedLastSuccessSnapshot,
     defaultImports,
     fixedPrefix,
     fixedSuffix,
-  ]);
-
-  const [isChallengeFinished, setIsChallengeFinished] = useState(false);
-
-  useEffect(() => {
-    if (!matchData) return;
-    if (!studentId) return;
-    dispatch(
-      setDraftCode({
-        userId: studentId,
-        key: storageKeyBase,
-        imports,
-        studentCode,
-        signature: challengeSignature,
-      })
-    );
-  }, [
-    imports,
-    studentCode,
-    matchData,
-    storageKeyBase,
-    studentId,
-    dispatch,
-    challengeSignature,
   ]);
 
   // load StudentAssignedMatchSetting(Match)
@@ -438,9 +417,12 @@ export default function MatchContainer({ challengeId, studentId }) {
 
         if (res?.success === false) {
           if (!cancelled) {
+            if (redirectOnError(res)) return;
             setError({
-              message:
-                res.message || 'Unable to load your match for this challenge.',
+              message: getApiErrorMessage(
+                res,
+                'Unable to load your match for this challenge.'
+              ),
               code: res.code,
             });
           }
@@ -488,6 +470,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     studentId,
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
+    redirectOnError,
   ]);
 
   // handlers: run
@@ -781,27 +764,48 @@ export default function MatchContainer({ challengeId, studentId }) {
         ? `match-${resolvedMatchId}`
         : storageKeyBase;
 
-      const trySubmit = async (payloadCode) =>
-        submitSubmission({
-          matchId: resolvedMatchId,
-          code: payloadCode,
-          isAutomatic: true,
-        });
+      const resolveLastSubmittedCode = async () => {
+        const localCode = lastSuccessRef.current;
+        if (normalizeCode(localCode)) return localCode;
+        try {
+          const lastRes = await getLastSubmission(resolvedMatchId);
+          const lastCode = lastRes?.data?.submission?.code;
+          if (normalizeCode(lastCode)) {
+            lastSuccessRef.current = lastCode;
+            return lastCode;
+          }
+        } catch {
+          return null;
+        }
+        return null;
+      };
+
+      const currentCode = normalizeCode(assembledCode);
+      const lastSubmittedCode = await resolveLastSubmittedCode();
+      const lastSubmittedNormalized = normalizeCode(lastSubmittedCode);
 
       if (!studentCode.trim()) {
-        const fallbackCode = lastSuccessRef.current;
-        if (fallbackCode && fallbackCode.trim()) {
-          const submissionRes = await trySubmit(fallbackCode);
-          setMessage('Used your last valid submission.');
+        if (lastSubmittedNormalized) {
+          setMessage(MESSAGE_SUBMISSION_REUSED);
           setIsChallengeFinished(true);
-          return submissionRes?.success ?? false;
+          return true;
         }
         setMessage(MESSAGE_NO_VALID_SUBMISSION);
         setIsChallengeFinished(true);
         return false;
       }
 
-      let submissionRes = await trySubmit(assembledCode);
+      if (lastSubmittedNormalized && currentCode === lastSubmittedNormalized) {
+        setMessage(MESSAGE_PARTICIPATION);
+        setIsChallengeFinished(true);
+        return true;
+      }
+
+      const submissionRes = await submitSubmission({
+        matchId: resolvedMatchId,
+        code: assembledCode,
+        isAutomatic: true,
+      });
 
       if (submissionRes?.success) {
         setMessage(MESSAGE_PARTICIPATION);
@@ -821,23 +825,15 @@ export default function MatchContainer({ challengeId, studentId }) {
         return true;
       }
 
-      const lastValid = await getLastSubmission(resolvedMatchId);
-      const fallbackCode =
-        lastValid?.data?.submission?.code || lastSuccessRef.current;
-      if (fallbackCode && fallbackCode.trim()) {
-        submissionRes = await trySubmit(fallbackCode);
-        if (submissionRes?.success) {
-          setMessage(
-            'Your latest code failed. Kept your last valid submission.'
-          );
-          setIsChallengeFinished(true);
-          return true;
-        }
+      if (lastSubmittedNormalized) {
+        setMessage('Your latest code failed. Kept your last submission.');
+        setIsChallengeFinished(true);
+        return true;
       }
 
       setMessage(MESSAGE_NO_VALID_SUBMISSION);
       setIsChallengeFinished(true);
-      return submissionRes?.success ?? false;
+      return false;
     } catch (err) {
       setMessage(MESSAGE_PARTICIPATION);
       setIsChallengeFinished(true);
@@ -942,6 +938,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       isSubmitting={isSubmitting}
       isSubmittingActive={isSubmittingActive}
       peerReviewNotice={matchData?.peerReviewBlockedMessage || null}
+      peerReviewPendingMessage={peerReviewPendingMessage}
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}

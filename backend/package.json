@@ -15,6 +15,7 @@
     "migrate-undo": "node migrator.js db:migrate:undo",
     "migrate-undo-all": "node migrator.js db:migrate:undo:all",
     "migration:new": "node scripts/create-migration.js",
+    "lint": "eslint . --fix && prettier --write . && markdownlint --fix \"**/*.md\" --ignore node_modules",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

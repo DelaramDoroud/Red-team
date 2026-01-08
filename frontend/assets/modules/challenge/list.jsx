@@ -2,13 +2,40 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
-import { ChallengeStatus } from '#js/constants';
+import { API_REST_BASE, ChallengeStatus } from '#js/constants';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
 import Timer from '#components/common/Timer';
 import styles from './list.module.css';
+
+const formatTimer = (seconds) => {
+  if (seconds == null) return '—';
+  const safeSeconds = Math.max(0, seconds);
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
+  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
+  const secs = String(safeSeconds % 60).padStart(2, '0');
+  return `${hours}:${mins}:${secs}`;
+};
+
+const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
+  if (explicitEndValue) {
+    const explicitEnd = new Date(explicitEndValue).getTime();
+    return Number.isNaN(explicitEnd) ? null : explicitEnd;
+  }
+  if (!startValue || !durationMinutes) return null;
+  const startMs = new Date(startValue).getTime();
+  if (Number.isNaN(startMs)) return null;
+  return startMs + durationMinutes * 60 * 1000 + 3000;
+};
+
+const getBufferedStartMs = (value) => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return timestamp + 3000;
+};
 
 export default function ChallengeList() {
   const {
@@ -28,6 +55,14 @@ export default function ChallengeList() {
   const [countdowns, setCountdowns] = useState({});
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
+  const [phaseNow, setPhaseNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhaseNow(Date.now());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -54,6 +89,91 @@ export default function ChallengeList() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+
+    const handleChallengeUpdated = (event) => {
+      let payload = null;
+      if (event?.data) {
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          payload = null;
+        }
+      }
+      if (!payload?.challengeId) {
+        load();
+        return;
+      }
+
+      let found = false;
+      setChallenges((prev) => {
+        found = prev.some((challenge) => challenge.id === payload.challengeId);
+        if (!found) return prev;
+        return prev.map((challenge) => {
+          if (challenge.id !== payload.challengeId) return challenge;
+          return {
+            ...challenge,
+            status: payload.status ?? challenge.status,
+          };
+        });
+      });
+
+      if (!found) {
+        load();
+      }
+    };
+
+    const handleParticipantJoined = async (event) => {
+      let payload = null;
+      if (event?.data) {
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          payload = null;
+        }
+      }
+      if (!payload?.challengeId) return;
+
+      if (typeof payload.count === 'number') {
+        setParticipantsMap((prev) => ({
+          ...prev,
+          [payload.challengeId]: payload.count,
+        }));
+        return;
+      }
+
+      try {
+        const res = await getChallengeParticipantsRef.current(
+          payload.challengeId
+        );
+        const count =
+          res?.success && Array.isArray(res.data) ? res.data.length : 0;
+        setParticipantsMap((prev) => ({
+          ...prev,
+          [payload.challengeId]: count,
+        }));
+      } catch {
+        setParticipantsMap((prev) => ({
+          ...prev,
+          [payload.challengeId]: 0,
+        }));
+      }
+    };
+
+    source.addEventListener('challenge-updated', handleChallengeUpdated);
+    source.addEventListener(
+      'challenge-participant-joined',
+      handleParticipantJoined
+    );
+
+    return () => {
+      source.close();
+    };
   }, [load]);
 
   const currentItems = useMemo(() => {
@@ -421,6 +541,79 @@ export default function ChallengeList() {
       <div className={styles.grid}>
         {currentItems.map((challenge) => {
           const studentCount = participantsMap[challenge.id] || 0;
+          const phaseOneStart =
+            challenge.startPhaseOneDateTime || challenge.startDatetime;
+          const phaseOneEndMs = getPhaseEndMs(
+            phaseOneStart,
+            challenge.duration,
+            challenge.endPhaseOneDateTime
+          );
+          const phaseOneTimeLeft =
+            challenge.status === ChallengeStatus.STARTED_PHASE_ONE &&
+            phaseOneEndMs
+              ? Math.max(0, Math.floor((phaseOneEndMs - phaseNow) / 1000))
+              : null;
+          const phaseOneCountdownSeconds = (() => {
+            if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE)
+              return null;
+            const bufferedStart = getBufferedStartMs(phaseOneStart);
+            if (!bufferedStart) return null;
+            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
+          })();
+
+          const phaseTwoStart = challenge.startPhaseTwoDateTime;
+          const phaseTwoEndMs = getPhaseEndMs(
+            phaseTwoStart,
+            challenge.durationPeerReview,
+            challenge.endPhaseTwoDateTime
+          );
+          const phaseTwoTimeLeft =
+            challenge.status === ChallengeStatus.STARTED_PHASE_TWO &&
+            phaseTwoEndMs
+              ? Math.max(0, Math.floor((phaseTwoEndMs - phaseNow) / 1000))
+              : null;
+          const phaseTwoCountdownSeconds = (() => {
+            if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO)
+              return null;
+            const bufferedStart = getBufferedStartMs(phaseTwoStart);
+            if (!bufferedStart) return null;
+            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
+          })();
+
+          const phaseOneActive =
+            challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
+          const phaseTwoActive =
+            challenge.status === ChallengeStatus.STARTED_PHASE_TWO;
+          const extraInfo =
+            phaseOneActive || phaseTwoActive ? (
+              <div className={styles.extraInfo}>
+                {phaseOneActive && (
+                  <div className={styles.extraInfoRow}>
+                    <span className={styles.extraInfoLabel}>
+                      Challenge in progress
+                    </span>
+                    <span>
+                      {phaseOneCountdownSeconds > 0
+                        ? `Starting in ${phaseOneCountdownSeconds}s`
+                        : `Time left ${formatTimer(phaseOneTimeLeft)}`}
+                    </span>
+                  </div>
+                )}
+                {phaseTwoActive && (
+                  <div className={styles.extraInfoRow}>
+                    <span className={styles.extraInfoLabel}>
+                      Challenge in progress
+                    </span>
+                    <span>
+                      {phaseTwoCountdownSeconds > 0
+                        ? `Starting in ${phaseTwoCountdownSeconds}s`
+                        : `Time left ${formatTimer(phaseTwoTimeLeft)}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null;
+
           return (
             <ChallengeCard
               key={challenge.id ?? challenge.title}
@@ -429,6 +622,7 @@ export default function ChallengeList() {
               actions={renderActions(challenge, studentCount)}
               onAllowedNumberChange={handleAllowedNumberChange}
               allowedNumberError={reviewErrors[challenge.id]}
+              extraInfo={extraInfo}
             />
           );
         })}

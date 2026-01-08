@@ -6,6 +6,7 @@ import matchSettingRouter from '#root/routes/rest/match-setting-controller.js';
 import schemaRouter from '#root/routes/rest/schema-controller.js';
 import submissionRouter from '#root/routes/rest/submission-controller.js';
 import runRouter from '#root/routes/rest/run-controller.js';
+import eventsRouter from '#root/routes/rest/events-controller.js';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use(restApiPrefix, matchSettingRouter);
 router.use(restApiPrefix, schemaRouter);
 router.use(restApiPrefix, submissionRouter);
 router.use(restApiPrefix, runRouter);
+router.use(restApiPrefix, eventsRouter);
 
 router.all(/\/api\/(.*)/, (_req, res) => {
   res.status(404);

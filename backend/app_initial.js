@@ -9,6 +9,7 @@ import session from 'express-session';
 import apiRouter from '#root/routes/index.js';
 import errorInit from '#root/services/express-error.js';
 import models from '#root/models/init-models.js';
+import { scheduleActivePhaseOneChallenges } from '#root/services/challenge-scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +44,11 @@ app.use(
 app.use(apiRouter);
 
 await models.init();
+try {
+  await scheduleActivePhaseOneChallenges();
+} catch (error) {
+  console.error('Failed to schedule phase one end timers:', error);
+}
 
 let queueInitialized = false;
 if (process.env.ENABLE_CODE_EXECUTION_QUEUE !== 'false') {

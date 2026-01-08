@@ -45,6 +45,7 @@ export default function MatchView({
   isSubmitting,
   isSubmittingActive,
   peerReviewNotice,
+  peerReviewPendingMessage,
   runResult,
   onRun,
   onSubmit,
@@ -60,6 +61,17 @@ export default function MatchView({
   hasRestorableCode,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
+
+  const getBufferedStart = (value) => {
+    if (!value) return null;
+    const timestamp = new Date(value).getTime();
+    if (Number.isNaN(timestamp)) return null;
+    return timestamp + 3000;
+  };
+  const phaseOneTimerStart = (() => {
+    const base = startPhaseOneDateTime || startDatetime;
+    return getBufferedStart(base);
+  })();
 
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -193,6 +205,11 @@ export default function MatchView({
                 {peerReviewNotice}
               </p>
             ) : null}
+            {peerReviewPendingMessage ? (
+              <p className='text-sm font-medium text-slate-600 mb-4'>
+                {peerReviewPendingMessage}
+              </p>
+            ) : null}
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
             <pre className='bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm'>
               {finalCode || ''}
@@ -221,6 +238,13 @@ export default function MatchView({
               </p>
             </CardContent>
           ) : null}
+          {peerReviewPendingMessage ? (
+            <CardContent>
+              <p className='text-sm font-medium text-slate-600'>
+                {peerReviewPendingMessage}
+              </p>
+            </CardContent>
+          ) : null}
         </Card>
       </div>
     );
@@ -240,7 +264,7 @@ export default function MatchView({
         <Timer
           duration={duration}
           challengeId={challengeId}
-          startTime={startPhaseOneDateTime || startDatetime}
+          startTime={phaseOneTimerStart}
           onFinish={timerFinishHandler}
         />
       </div>
