@@ -10,6 +10,7 @@ import { Button } from '#components/common/Button';
 import AlertDialog from '#components/common/AlertDialog';
 import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
+import { formatDateTime } from '#js/date';
 import styles from './page.module.css';
 
 const parsePositiveInt = (value) => {
@@ -26,10 +27,48 @@ const isValidYearValue = (value) => {
   return /^20\d{2}-/.test(value);
 };
 
+const resolvePickerValue = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return value;
+};
+
+const DATE_TIME_PATTERN =
+  '^\\d{1,2}:\\d{2}\\s*(AM|PM),\\s*\\d{2}/\\d{2}/\\d{4}$';
+
+const isPreferredDateTimeFormat = (value) => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return new RegExp(DATE_TIME_PATTERN, 'i').test(trimmed);
+};
+
 const normalizeDateTimeInput = (value) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   if (!trimmed) return value;
+
+  const timeFirstMatch = trimmed.match(
+    /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])\s*,\s*(\d{1,2})\/(\d{1,2})\/(\d{4,})$/
+  );
+  if (timeFirstMatch) {
+    const [, hourRaw, minuteRaw, meridianRaw, dayRaw, monthRaw, yearRaw] =
+      timeFirstMatch;
+    const year = yearRaw.slice(0, 4);
+    const month = Number.parseInt(monthRaw, 10);
+    const day = Number.parseInt(dayRaw, 10);
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      let hour = hourRaw ? Number.parseInt(hourRaw, 10) : 0;
+      const minute = minuteRaw ? Number.parseInt(minuteRaw, 10) : 0;
+      const meridian = meridianRaw?.toUpperCase();
+      if (meridian === 'PM' && hour < 12) hour += 12;
+      if (meridian === 'AM' && hour === 12) hour = 0;
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+    }
+  }
 
   const slashMatch = trimmed.match(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4,})(?:,\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/
@@ -66,7 +105,72 @@ const normalizeDateTimeInput = (value) => {
   return value;
 };
 
+const resolveDateTimeInputValue = (rawValue) => {
+  const normalized = normalizeDateTimeInput(rawValue);
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return { normalized, inputValue: rawValue };
+  }
+  const inputValue = isPreferredDateTimeFormat(rawValue)
+    ? rawValue
+    : formatDateTime(normalized);
+  return { normalized, inputValue };
+};
+
+const buildMinimumEndDate = (draft) => {
+  const { startDatetime, duration, durationPeerReview } = draft;
+  const durationVal = parsePositiveInt(duration);
+  const durationPeerReviewVal = parsePositiveInt(durationPeerReview);
+  if (
+    !startDatetime ||
+    durationVal === null ||
+    durationPeerReviewVal === null
+  ) {
+    return null;
+  }
+  const start = new Date(startDatetime);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const durationMs = (durationVal || 0) * 60 * 1000;
+  const durationPeerReviewMs = (durationPeerReviewVal || 0) * 60 * 1000;
+  return new Date(start.getTime() + durationMs + durationPeerReviewMs);
+};
+
+const formatDateTimeLocal = (dateValue) => {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+  const day = String(dateValue.getDate()).padStart(2, '0');
+  const hours = String(dateValue.getHours()).padStart(2, '0');
+  const minutes = String(dateValue.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const updateEndDateTime = (draft) => {
+  const minEndDate = buildMinimumEndDate(draft);
+  if (!minEndDate) return null;
+  const normalizedEnd = formatDateTimeLocal(minEndDate);
+  return {
+    endDatetime: normalizedEnd,
+    endDatetimeInput: formatDateTime(normalizedEnd),
+  };
+};
+
+const buildDefaultDateTimes = () => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const endDate = new Date(now.getTime() + 30 * 60 * 1000);
+  const startIso = formatDateTimeLocal(now);
+  const endIso = formatDateTimeLocal(endDate);
+  return {
+    startDatetime: startIso,
+    startDatetimeInput: formatDateTime(startIso),
+    endDatetime: endIso,
+    endDatetimeInput: formatDateTime(endIso),
+  };
+};
+
 export default function NewChallengePage() {
+  const defaultDateTimes = buildDefaultDateTimes();
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
   });
@@ -76,8 +180,10 @@ export default function NewChallengePage() {
   const mountedRef = useRef(false);
   const [challenge, setChallenge] = useState({
     title: '',
-    startDatetime: '',
-    endDatetime: '',
+    startDatetime: defaultDateTimes.startDatetime,
+    endDatetime: defaultDateTimes.endDatetime,
+    startDatetimeInput: defaultDateTimes.startDatetimeInput,
+    endDatetimeInput: defaultDateTimes.endDatetimeInput,
     duration: '30',
     allowedNumberOfReview: '5',
     matchSettingIds: [],
@@ -90,6 +196,8 @@ export default function NewChallengePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [overlapPayload, setOverlapPayload] = useState(null);
+  const startPickerRef = useRef(null);
+  const endPickerRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -108,55 +216,73 @@ export default function NewChallengePage() {
   };
 
   const handleDataField = (event) => {
-    const newChallenge = { ...challenge };
-    let { value } = event.target;
+    const { name, value } = event.target;
+    let nextChallenge = { ...challenge };
 
-    if (
-      event.target.name === 'startDatetime' ||
-      event.target.name === 'endDatetime'
-    ) {
-      value = normalizeDateTimeInput(value);
-    }
-
-    if (
-      event.target.name === 'duration' ||
-      event.target.name === 'durationPeerReview' ||
-      event.target.name === 'allowedNumberOfReview'
-    ) {
-      newChallenge[event.target.name] = value;
+    if (name === 'startDatetime' || name === 'endDatetime') {
+      const { normalized, inputValue } = resolveDateTimeInputValue(value);
+      nextChallenge = {
+        ...nextChallenge,
+        [name]: normalized,
+        [`${name}Input`]: inputValue,
+      };
     } else {
-      newChallenge[event.target.name] = value;
+      nextChallenge = { ...nextChallenge, [name]: value };
     }
+
     if (
-      event.target.name === 'startDatetime' ||
-      event.target.name === 'duration' ||
-      event.target.name === 'durationPeerReview'
+      name === 'startDatetime' ||
+      name === 'duration' ||
+      name === 'durationPeerReview'
     ) {
-      const startVal = newChallenge.startDatetime;
-      const durationVal = parsePositiveInt(newChallenge.duration);
-      const durationPeerReviewVal = parsePositiveInt(
-        newChallenge.durationPeerReview
-      );
-      if (startVal && durationVal !== null && durationPeerReviewVal !== null) {
-        const start = new Date(startVal);
-        if (!Number.isNaN(start.getTime())) {
-          const durationMs = (durationVal || 0) * 60 * 1000;
-          const durationPeerReviewMs = (durationPeerReviewVal || 0) * 60 * 1000;
-          const minEndDate = new Date(
-            start.getTime() + durationMs + durationPeerReviewMs
-          );
-
-          const year = minEndDate.getFullYear();
-          const month = String(minEndDate.getMonth() + 1).padStart(2, '0');
-          const day = String(minEndDate.getDate()).padStart(2, '0');
-          const hours = String(minEndDate.getHours()).padStart(2, '0');
-          const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
-
-          newChallenge.endDatetime = `${year}-${month}-${day}T${hours}:${minutes}`;
-        }
+      const updated = updateEndDateTime(nextChallenge);
+      if (updated) {
+        nextChallenge = { ...nextChallenge, ...updated };
       }
     }
-    setChallenge(newChallenge);
+
+    setChallenge(nextChallenge);
+  };
+
+  const handleDatePickerChange = (name) => (event) => {
+    const { value } = event.target;
+    setChallenge((prev) => {
+      let next = {
+        ...prev,
+        [name]: value,
+        [`${name}Input`]: value ? formatDateTime(value) : '',
+      };
+      if (name === 'startDatetime') {
+        const updated = updateEndDateTime(next);
+        if (updated) {
+          next = { ...next, ...updated };
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleDateBlur = (name) => {
+    setChallenge((prev) => {
+      const rawValue = prev[`${name}Input`] || '';
+      const normalized = normalizeDateTimeInput(rawValue);
+      const parsed = new Date(normalized);
+      if (Number.isNaN(parsed.getTime())) return prev;
+      return {
+        ...prev,
+        [name]: normalized,
+        [`${name}Input`]: formatDateTime(normalized),
+      };
+    });
+  };
+
+  const openPicker = (ref) => {
+    if (ref.current?.showPicker) {
+      ref.current.showPicker();
+    } else {
+      ref.current?.focus();
+      ref.current?.click?.();
+    }
   };
 
   const toISODateTime = (localDateTime) => {
@@ -221,31 +347,6 @@ export default function NewChallengePage() {
     };
   }, [getMatchSettingsReady]);
 
-  const getMinDateTime = () => {
-    const now = new Date();
-    now.setSeconds(0, 0);
-    // Adjust to local time string
-    const offsetMs = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
-  };
-
-  const getMinEndDate = () => {
-    if (!challenge.startDatetime) return getMinDateTime();
-    const start = new Date(challenge.startDatetime);
-    if (Number.isNaN(start.getTime())) return getMinDateTime();
-    const durationMs = (parsePositiveInt(challenge.duration) || 0) * 60 * 1000;
-    const durationPeerReviewMs =
-      (parsePositiveInt(challenge.durationPeerReview) || 0) * 60 * 1000;
-    const minEndDate = new Date(start.getTime() + durationMs);
-    minEndDate.setTime(minEndDate.getTime() + durationPeerReviewMs);
-    const year = minEndDate.getFullYear();
-    const month = String(minEndDate.getMonth() + 1).padStart(2, '0');
-    const day = String(minEndDate.getDate()).padStart(2, '0');
-    const hours = String(minEndDate.getHours()).padStart(2, '0');
-    const minutes = String(minEndDate.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     // console.log("Challenge to save: ", challenge);
@@ -282,6 +383,15 @@ export default function NewChallengePage() {
       !isValidYearValue(challenge.endDatetime)
     ) {
       endInput.setCustomValidity('Invalid date.');
+    }
+    const minEndDate = buildMinimumEndDate(challenge);
+    if (endInput && challenge.endDatetime && minEndDate) {
+      const endDate = new Date(challenge.endDatetime);
+      if (Number.isNaN(endDate.getTime()) || endDate < minEndDate) {
+        endInput.setCustomValidity(
+          'End date/time must cover the coding and peer review durations.'
+        );
+      }
     }
 
     const isValid = form?.checkValidity ? form.checkValidity() : true;
@@ -389,6 +499,18 @@ export default function NewChallengePage() {
     Number.isInteger(durationPeerReviewValue) &&
     durationPeerReviewValue >= 2;
 
+  const getMinDateTimeValue = () => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    return formatDateTimeLocal(now);
+  };
+
+  const getMinEndDateValue = () => {
+    const minEndDate = buildMinimumEndDate(challenge);
+    if (!minEndDate) return getMinDateTimeValue();
+    return formatDateTimeLocal(minEndDate);
+  };
+
   return (
     <main role='main' className={styles.main} aria-labelledby='page-title'>
       <div className={styles.header}>
@@ -418,32 +540,98 @@ export default function NewChallengePage() {
           <div className={styles.field}>
             <label htmlFor='startDatetime'>
               Start Date/Time
-              <input
-                id='startDatetime'
-                type='datetime-local'
-                name='startDatetime'
-                value={challenge.startDatetime}
-                onChange={handleDataField}
-                className={styles.datetime}
-                min={getMinDateTime()}
-                required
-              />
+              <div className={styles.datetimeGroup}>
+                <input
+                  id='startDatetime'
+                  type='text'
+                  name='startDatetime'
+                  value={challenge.startDatetimeInput}
+                  onChange={handleDataField}
+                  onBlur={() => handleDateBlur('startDatetime')}
+                  className={styles.datetime}
+                  placeholder='8:32 PM, 30/12/2026'
+                  pattern={DATE_TIME_PATTERN}
+                  title='Use format: 8:32 PM, 30/12/2026'
+                  required
+                />
+                <button
+                  type='button'
+                  className={styles.datetimeButton}
+                  onClick={() => openPicker(startPickerRef)}
+                  aria-label='Pick start date and time'
+                >
+                  <svg
+                    aria-hidden='true'
+                    viewBox='0 0 24 24'
+                    className={styles.datetimeIcon}
+                  >
+                    <path
+                      fill='currentColor'
+                      d='M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5v13A2.5 2.5 0 0 1 19.5 22h-15A2.5 2.5 0 0 1 2 19.5v-13A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1zm12.5 6H4.5v11.5c0 .3.2.5.5.5h15a.5.5 0 0 0 .5-.5V8zM4.5 6a.5.5 0 0 0-.5.5V7h16v-.5a.5.5 0 0 0-.5-.5H4.5z'
+                    />
+                  </svg>
+                </button>
+                <input
+                  ref={startPickerRef}
+                  type='datetime-local'
+                  className={styles.datetimePicker}
+                  value={resolvePickerValue(challenge.startDatetime)}
+                  onChange={handleDatePickerChange('startDatetime')}
+                  min={getMinDateTimeValue()}
+                  tabIndex={-1}
+                  aria-hidden='true'
+                />
+              </div>
             </label>
           </div>
           <div className={styles.field}>
             <label htmlFor='endDatetime'>
               End Date/Time
-              <input
-                id='endDatetime'
-                type='datetime-local'
-                name='endDatetime'
-                value={challenge.endDatetime}
-                onChange={handleDataField}
-                className={styles.datetime}
-                min={getMinEndDate()}
-                required
-                disabled={!canPickEndDate}
-              />
+              <div className={styles.datetimeGroup}>
+                <input
+                  id='endDatetime'
+                  type='text'
+                  name='endDatetime'
+                  value={challenge.endDatetimeInput}
+                  onChange={handleDataField}
+                  onBlur={() => handleDateBlur('endDatetime')}
+                  className={styles.datetime}
+                  placeholder='8:32 PM, 30/12/2026'
+                  pattern={DATE_TIME_PATTERN}
+                  title='Use format: 8:32 PM, 30/12/2026'
+                  required
+                  disabled={!canPickEndDate}
+                />
+                <button
+                  type='button'
+                  className={styles.datetimeButton}
+                  onClick={() => openPicker(endPickerRef)}
+                  aria-label='Pick end date and time'
+                  disabled={!canPickEndDate}
+                >
+                  <svg
+                    aria-hidden='true'
+                    viewBox='0 0 24 24'
+                    className={styles.datetimeIcon}
+                  >
+                    <path
+                      fill='currentColor'
+                      d='M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5v13A2.5 2.5 0 0 1 19.5 22h-15A2.5 2.5 0 0 1 2 19.5v-13A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1zm12.5 6H4.5v11.5c0 .3.2.5.5.5h15a.5.5 0 0 0 .5-.5V8zM4.5 6a.5.5 0 0 0-.5.5V7h16v-.5a.5.5 0 0 0-.5-.5H4.5z'
+                    />
+                  </svg>
+                </button>
+                <input
+                  ref={endPickerRef}
+                  type='datetime-local'
+                  className={styles.datetimePicker}
+                  value={resolvePickerValue(challenge.endDatetime)}
+                  onChange={handleDatePickerChange('endDatetime')}
+                  min={getMinEndDateValue()}
+                  tabIndex={-1}
+                  aria-hidden='true'
+                  disabled={!canPickEndDate}
+                />
+              </div>
             </label>
           </div>
         </div>

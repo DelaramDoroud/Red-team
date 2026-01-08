@@ -56,9 +56,13 @@ export default async function startChallenge({ challengeId }) {
 
   const startedAt = new Date();
 
+  const endPhaseOneDateTime = new Date(
+    startedAt.getTime() + (challenge.duration || 0) * 60 * 1000 + 3000
+  );
   await challenge.update({
     status: ChallengeStatus.STARTED_PHASE_ONE,
     startPhaseOneDateTime: startedAt,
+    endPhaseOneDateTime,
   });
 
   return {
