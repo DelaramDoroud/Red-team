@@ -18,3 +18,9 @@ export const SubmissionStatus = {
   IMPROVABLE: 'improvable',
   PROBABLY_CORRECT: 'probably_correct',
 };
+
+export const VoteType = {
+  CORRECT: 'correct',
+  INCORRECT: 'incorrect',
+  ABSTAIN: 'abstain',
+};
