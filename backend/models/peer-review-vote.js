@@ -89,7 +89,7 @@ PeerReviewVote.init(
 
     indexes: [
       {
-        unique: true, // Un solo voto per assegnazione!
+        unique: true,
         fields: ['peer_review_assignment_id'],
         name: 'uq_peer_review_vote_assignment',
       },
