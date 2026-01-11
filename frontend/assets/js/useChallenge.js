@@ -112,6 +112,13 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const getPeerReviewSummary = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/summary?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
   const getChallengeForJoinedStudent = useCallback(
     async (challengeId, studentId) => {
       const url = `${API_REST_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
@@ -203,6 +210,7 @@ export default function useChallenge() {
       submitSubmission,
       getLastSubmission,
       runCode,
+      getPeerReviewSummary,
     }),
     [
       loading,
@@ -225,6 +233,7 @@ export default function useChallenge() {
       submitSubmission,
       getLastSubmission,
       runCode,
+      getPeerReviewSummary,
     ]
   );
 }

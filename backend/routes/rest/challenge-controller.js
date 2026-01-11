@@ -22,6 +22,7 @@ import assignPeerReviews from '#root/services/assign-peer-reviews.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import { schedulePhaseOneEndForChallenge } from '#root/services/challenge-scheduler.js';
 import { Op } from 'sequelize';
+import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 
 const router = Router();
 
@@ -818,6 +819,44 @@ router.get(
     }
   }
 );
+router.get(
+  '/challenges/:challengeId/peer-reviews/summary',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      const studentId = Number(req.query.studentId);
+
+      if (!Number.isInteger(challengeId) || challengeId < 1) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Invalid challengeId' });
+      }
+      if (!Number.isInteger(studentId) || studentId < 1) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Invalid studentId' });
+      }
+
+      const result = await getPeerReviewSummary({ challengeId, studentId });
+
+      if (result.status === 'challenge_not_found') {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Challenge not found' });
+      }
+      if (result.status === 'participant_not_found') {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Participant not found' });
+      }
+
+      return res.json({ success: true, summary: result.summary });
+    } catch (error) {
+      handleException(res, error);
+    }
+  }
+);
+
 router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);

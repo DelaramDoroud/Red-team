@@ -34,7 +34,13 @@ export default function RootLayout({ children }) {
           <Header />
           <main className={styles.main}>{children}</main>
           <Footer />
-          <Toaster position='top-right' />
+          <Toaster
+            position='top-center'
+            containerStyle={{
+              top: '40%',
+              transform: 'translateY(-50%)',
+            }}
+          />
         </ReduxProvider>
       </body>
     </html>
