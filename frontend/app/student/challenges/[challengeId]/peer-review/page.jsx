@@ -74,6 +74,7 @@ export default function PeerReviewPage() {
           : [];
         setAssignments(nextAssignments);
         setChallengeInfo(res?.challenge || null);
+
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
         }
@@ -154,6 +155,17 @@ export default function PeerReviewPage() {
     router.push('/student/challenges');
   };
 
+  const handlePrev = () => {
+    setSelectedIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNext = () => {
+    setSelectedIndex((prev) => Math.min(assignments.length - 1, prev + 1));
+  };
+
+  const isFirst = selectedIndex <= 0;
+  const isLast =
+    assignments.length === 0 || selectedIndex >= assignments.length - 1;
   if (!isAuthorized || !studentId) return null;
 
   if (!loading && !isPeerReviewActive) {
@@ -274,7 +286,7 @@ export default function PeerReviewPage() {
           </Card>
 
           <div className='space-y-2'>
-            <Button className='w-full' variant='secondary'>
+            <Button className='w-full' variant='primary'>
               Summary
             </Button>
             <Button className='w-full' variant='outline' onClick={handleExit}>
@@ -344,11 +356,27 @@ export default function PeerReviewPage() {
               </div>
 
               <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                <Button
+                  type='button'
+                  variant='primary'
+                  onClick={handlePrev}
+                  disabled={isFirst}
+                >
+                  Previous
+                </Button>
                 <span>
                   {assignments.length
                     ? `Solution ${selectedIndex + 1} of ${assignments.length}`
                     : 'No solutions assigned'}
                 </span>
+                <Button
+                  type='button'
+                  variant='primary'
+                  onClick={handleNext}
+                  disabled={isLast}
+                >
+                  Next
+                </Button>
               </div>
             </CardContent>
           </Card>
