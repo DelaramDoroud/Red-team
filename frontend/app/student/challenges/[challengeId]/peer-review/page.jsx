@@ -16,6 +16,7 @@ import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
+import { useAppSelector } from '#js/store/hooks';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -127,6 +128,9 @@ export default function PeerReviewPage() {
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
+  const theme = useAppSelector((state) => state.ui.theme);
+  const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -197,6 +201,13 @@ export default function PeerReviewPage() {
     const intervalId = setInterval(tick, 1000);
     return () => clearInterval(intervalId);
   }, [challengeInfo?.startPhaseTwoDateTime, challengeInfo?.durationPeerReview]);
+
+  // Update Monaco editor theme when system theme changes
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(monacoTheme);
+    }
+  }, [monacoTheme]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
@@ -383,28 +394,17 @@ export default function PeerReviewPage() {
                     height='320px'
                     width='100%'
                     language='cpp'
-                    theme='muted-light'
+                    theme={monacoTheme}
                     value={
                       formatCodeWithNewlines(selectedAssignment?.code) ||
                       '// No code available.'
                     }
-                    beforeMount={(monaco) => {
-                      // Define custom theme to match muted background
-                      // HSL(210, 20%, 96%) converts to #F4F5F6
-                      monaco.editor.defineTheme('muted-light', {
-                        base: 'vs',
-                        inherit: true,
-                        rules: [],
-                        colors: {
-                          'editor.background': '#F4F5F6', // matches bg-muted (hsl(210, 20%, 96%))
-                        },
-                      });
-                    }}
                     onMount={(editor, monaco) => {
                       editorRef.current = editor;
+                      monacoRef.current = monaco;
 
-                      // Apply the custom theme
-                      monaco.editor.setTheme('muted-light');
+                      // Apply the theme
+                      monaco.editor.setTheme(monacoTheme);
 
                       // Format the document after a short delay to ensure it's loaded
                       setTimeout(() => {
