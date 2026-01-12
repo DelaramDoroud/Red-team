@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { ChallengeStatus } from '#js/constants';
@@ -149,11 +149,15 @@ describe('Peer Review – Student side acceptance criteria', () => {
 
     render(<PeerReviewPage />);
 
-    const sidebarTitle = await screen.findByText('Solutions to Review');
-    const sidebar = sidebarTitle.closest('div');
+    const buttons = await screen.findAllByRole('button');
 
-    expect(within(sidebar).getByText(/Solution 1/i)).toBeInTheDocument();
-    expect(within(sidebar).getByText(/Solution 2/i)).toBeInTheDocument();
+    const solutionButtons = buttons.filter((btn) =>
+      btn.textContent.match(/Solution \d/i)
+    );
+
+    expect(solutionButtons.length).toBe(2);
+    expect(solutionButtons[0]).toHaveTextContent('Solution 1');
+    expect(solutionButtons[1]).toHaveTextContent('Solution 2');
   });
 
   it('selects the first solution by default', async () => {
