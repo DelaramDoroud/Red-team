@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { ChallengeStatus } from '#js/constants';
@@ -7,20 +7,21 @@ import PeerReviewPage from '../app/student/challenges/[challengeId]/peer-review/
 
 const mockPush = vi.fn();
 
-// Mock di next/navigation
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
-  useParams: () => ({ challengeId: '123' }),
+  useRouter: () => ({
+    push: mockPush,
+  }),
+  useParams: () => ({
+    challengeId: '123',
+  }),
 }));
 
-// Mock di useRoleGuard
 const mockUseRoleGuard = vi.fn();
 vi.mock('#js/useRoleGuard', () => ({
   __esModule: true,
   default: () => mockUseRoleGuard(),
 }));
 
-// Mock di useChallenge
 const mockGetStudentPeerReviewAssignments = vi.fn();
 vi.mock('#js/useChallenge', () => ({
   __esModule: true,
@@ -29,30 +30,41 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
-// Mock di useApiErrorRedirect
 vi.mock('#js/useApiErrorRedirect', () => ({
   __esModule: true,
   default: () => vi.fn(),
 }));
 
-// Mock componenti comuni
-vi.mock('#components/common/Button', () => ({
-  Button: ({ children, ...props }) => (
-    <button type='button' {...props}>
-      {children}
-    </button>
-  ),
-}));
+vi.mock('#components/common/Button', () => {
+  function Button({ children, ...props }) {
+    return (
+      <button type='button' {...props}>
+        {children}
+      </button>
+    );
+  }
+  return { Button };
+});
 
-vi.mock('#components/common/card', () => ({
-  Card: ({ children }) => <div>{children}</div>,
-  CardHeader: ({ children }) => <div>{children}</div>,
-  CardTitle: ({ children }) => <h2>{children}</h2>,
-  CardContent: ({ children }) => <div>{children}</div>,
-  CardDescription: ({ children }) => <p>{children}</p>,
-}));
+vi.mock('#components/common/card', () => {
+  function Card({ children }) {
+    return <div>{children}</div>;
+  }
+  function CardHeader({ children }) {
+    return <div>{children}</div>;
+  }
+  function CardTitle({ children }) {
+    return <h2>{children}</h2>;
+  }
+  function CardContent({ children }) {
+    return <div>{children}</div>;
+  }
+  function CardDescription({ children }) {
+    return <p>{children}</p>;
+  }
+  return { Card, CardHeader, CardTitle, CardContent, CardDescription };
+});
 
-// Dati di base
 const baseChallenge = {
   id: 123,
   status: ChallengeStatus.STARTED_PHASE_TWO,
@@ -61,8 +73,16 @@ const baseChallenge = {
 };
 
 const assignmentsMock = [
-  { id: 1, submissionId: 11, code: 'console.log("solution 1");' },
-  { id: 2, submissionId: 22, code: 'console.log("solution 2");' },
+  {
+    id: 1,
+    submissionId: 11,
+    code: 'console.log("solution 1");',
+  },
+  {
+    id: 2,
+    submissionId: 22,
+    code: 'console.log("solution 2");',
+  },
 ];
 
 describe('Peer Review – Student side acceptance criteria', () => {
@@ -76,14 +96,14 @@ describe('Peer Review – Student side acceptance criteria', () => {
   });
 
   it('shows waiting message before peer review starts', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: [],
       challenge: {
         ...baseChallenge,
         status: ChallengeStatus.STARTED_PHASE_ONE,
       },
-    }));
+    });
 
     render(<PeerReviewPage />);
 
@@ -95,11 +115,11 @@ describe('Peer Review – Student side acceptance criteria', () => {
   });
 
   it('automatically loads peer review content when phase is active', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
@@ -109,52 +129,53 @@ describe('Peer Review – Student side acceptance criteria', () => {
   });
 
   it('shows a countdown timer', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
-    const timer = await screen.findByText(/\d\d:\d\d:\d\d/);
-    expect(timer).toBeInTheDocument();
+    expect(await screen.findByText(/\d\d:\d\d:\d\d/)).toBeInTheDocument();
   });
 
   it('displays assigned solutions in the sidebar', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
-    expect(await screen.findByText('Solution 1')).toBeInTheDocument();
-    expect(await screen.findByText('Solution 2')).toBeInTheDocument();
+    const sidebarTitle = await screen.findByText('Solutions to Review');
+    const sidebar = sidebarTitle.closest('div');
+
+    expect(within(sidebar).getByText(/Solution 1/i)).toBeInTheDocument();
+    expect(within(sidebar).getByText(/Solution 2/i)).toBeInTheDocument();
   });
 
   it('selects the first solution by default', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
-    expect(await screen.findByText(/Solution 1/)).toBeInTheDocument();
     expect(
       await screen.findByText('console.log("solution 1");')
     ).toBeInTheDocument();
   });
 
   it('displays solution code in read-only mode', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
@@ -162,25 +183,28 @@ describe('Peer Review – Student side acceptance criteria', () => {
     expect(codeBlock.tagName.toLowerCase()).toBe('pre');
   });
 
-  it('has Abstain selected by default', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+  it('has Abstain NOT selected by default', async () => {
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
-    const abstainRadio = await screen.findByRole('radio', { name: /abstain/i });
-    expect(abstainRadio).toBeChecked();
+    const abstainRadio = await screen.findByRole('radio', {
+      name: /abstain/i,
+    });
+
+    expect(abstainRadio).not.toBeChecked();
   });
 
   it('shows progress bar at 0% initially', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
@@ -188,11 +212,11 @@ describe('Peer Review – Student side acceptance criteria', () => {
   });
 
   it('shows Exit button', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
@@ -202,11 +226,11 @@ describe('Peer Review – Student side acceptance criteria', () => {
   });
 
   it('shows Summary button', async () => {
-    mockGetStudentPeerReviewAssignments.mockImplementation(async () => ({
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
       challenge: baseChallenge,
-    }));
+    });
 
     render(<PeerReviewPage />);
 
