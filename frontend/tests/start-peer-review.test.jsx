@@ -149,15 +149,15 @@ describe('Peer Review – Student side acceptance criteria', () => {
 
     render(<PeerReviewPage />);
 
-    const buttons = await screen.findAllByRole('button');
+    const solution1 = await screen.findByRole('button', {
+      name: /solution 1/i,
+    });
+    const solution2 = await screen.findByRole('button', {
+      name: /solution 2/i,
+    });
 
-    const solutionButtons = buttons.filter((btn) =>
-      btn.textContent.match(/Solution \d/i)
-    );
-
-    expect(solutionButtons.length).toBe(2);
-    expect(solutionButtons[0]).toHaveTextContent('Solution 1');
-    expect(solutionButtons[1]).toHaveTextContent('Solution 2');
+    expect(solution1).toBeInTheDocument();
+    expect(solution2).toBeInTheDocument();
   });
 
   it('selects the first solution by default', async () => {
