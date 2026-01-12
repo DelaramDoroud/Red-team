@@ -1,67 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+// import { useState } from 'react';
 
 import ChallengeList from '#modules/challenge/list';
-import { Badge } from '#components/common/Badge';
-import { Button } from '#components/common/Button';
-import { Toggle } from '#components/common/Toggle';
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableCaption,
-} from '#components/common/Table';
-import {
-  FieldSet,
-  Field,
-  FieldLabel,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-} from '#components/common/Field';
-import { Input } from '#components/common/Input';
+// import { Badge } from '#components/common/Badge';
+// import { Button } from '#components/common/Button';
+// import { Toggle } from '#components/common/Toggle';
+// import {
+//   Table,
+//   TableHeader,
+//   TableRow,
+//   TableHead,
+//   TableBody,
+//   TableCell,
+//   TableFooter,
+//   TableCaption,
+// } from '#components/common/Table';
+// import {
+//   FieldSet,
+//   Field,
+//   FieldLabel,
+//   FieldContent,
+//   FieldDescription,
+//   FieldError,
+// } from '#components/common/Field';
+// import { Input } from '#components/common/Input';
 import useRoleGuard from '#js/useRoleGuard';
 
 import styles from './page.module.css';
 
 export default function HomePage() {
-  const data = [
-    { id: 1, name: 'Sepideh' },
-    { id: 2, name: 'Delaram' },
-    { id: 3, name: 'Aida' },
-  ];
+  // const data = [
+  //   { id: 1, name: 'Sepideh' },
+  //   { id: 2, name: 'Delaram' },
+  //   { id: 3, name: 'Aida' },
+  // ];
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
   });
-  const [error, setError] = useState(null);
+  // const [error, setError] = useState(null);
 
   if (!isAuthorized) return null;
 
-  const handleBlur = (e) => {
-    if (!e.target.value.trim()) {
-      setError([{ message: 'This field cannot be empty.' }]);
-    } else {
-      setError(null);
-    }
-  };
+  // const handleBlur = (e) => {
+  //   if (!e.target.value.trim()) {
+  //     setError([{ message: 'This field cannot be empty.' }]);
+  //   } else {
+  //     setError(null);
+  //   }
+  // };
 
   return (
     <section className={styles.container}>
-      <header className={styles.hero}>
+      {/* <header className={styles.hero}>
         <h1>CodyMatch demo dashboard</h1>
         <p>
           This page showcases the main UI components wired to the CodyMatch
           design system, including <code>Button</code>, <code>Badge</code>,{' '}
           <code>Toggle</code>, form fields and tables.
         </p>
-      </header>
+      </header> */}
 
-      <div className={styles.showcaseRow}>
+      {/* <div className={styles.showcaseRow}>
         <span className={styles.showcaseLabel}>Buttons</span>
         <div className={styles.showcaseGroup}>
           <Button>Primary</Button>
@@ -72,20 +72,20 @@ export default function HomePage() {
           </Button>
           <Button variant='destructive'>Destructive</Button>
         </div>
-      </div>
+      </div> */}
 
       {/* Badges */}
-      <div className={styles.showcaseRow}>
+      {/* <div className={styles.showcaseRow}>
         <span className={styles.showcaseLabel}>Badges</span>
         <div className={styles.showcaseGroup}>
           <Badge>Primary</Badge>
           <Badge variant='secondary'>Secondary</Badge>
           <Badge variant='outline'>Outline</Badge>
         </div>
-      </div>
+      </div> */}
 
       {/* Toggles */}
-      <div className={styles.showcaseRow}>
+      {/* <div className={styles.showcaseRow}>
         <span className={styles.showcaseLabel}>Toggle</span>
         <div className={styles.showcaseGroup}>
           <Toggle>Default</Toggle>
@@ -127,10 +127,10 @@ export default function HomePage() {
             </FieldContent>
           </Field>
         </FieldSet>
-      </div>
+      </div> */}
 
       {/* Table */}
-      <div className={styles.tableSection}>
+      {/* <div className={styles.tableSection}>
         <span className={styles.showcaseLabel}>Table</span>
         <Table>
           <TableCaption>Table Caption</TableCaption>
@@ -156,7 +156,7 @@ export default function HomePage() {
             </TableRow>
           </TableFooter>
         </Table>
-      </div>
+      </div> */}
 
       <ChallengeList />
     </section>
