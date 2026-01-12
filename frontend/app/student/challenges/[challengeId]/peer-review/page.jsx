@@ -382,9 +382,11 @@ export default function PeerReviewPage() {
             >
               Summary
             </Button>
-            <Button className='w-full' variant='outline' onClick={handleExit}>
-              Exit
-            </Button>
+            {timeLeft > 0 && (
+              <Button className='w-full' variant='outline' onClick={handleExit}>
+                Exit
+              </Button>
+            )}
           </div>
         </aside>
 
