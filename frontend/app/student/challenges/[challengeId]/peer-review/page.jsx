@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import dynamic from 'next/dynamic';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -16,6 +17,11 @@ import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
+import { useAppSelector } from '#js/store/hooks';
+
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
+  ssr: false,
+});
 
 const formatTimer = (seconds) => {
   if (seconds == null) return '--:--:--';
@@ -32,6 +38,78 @@ const buildTimeLeft = (startValue, durationMinutes) => {
   if (Number.isNaN(startMs)) return null;
   const endMs = startMs + durationMinutes * 60 * 1000;
   return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+};
+
+const formatCodeWithNewlines = (code) => {
+  if (!code || typeof code !== 'string') return code;
+
+  // If code already has newlines, return as is
+  if (code.includes('\n')) return code;
+
+  let formatted = code;
+
+  // Add newlines after #include directives
+  formatted = formatted.replace(/(#include\s+<[^>]+>)/g, '$1\n');
+
+  // Add newline after // comments (handle both single-line and end-of-line comments)
+  formatted = formatted.replace(/(\/\/[^\n]*)/g, '$1\n');
+
+  // Add newline after using namespace
+  formatted = formatted.replace(/(using\s+namespace\s+\w+;)/g, '$1\n\n');
+
+  // Add newline after opening braces
+  formatted = formatted.replace(/{/g, '{\n');
+
+  // Add newline after closing braces
+  formatted = formatted.replace(/}/g, '\n}\n');
+
+  // Add newline after semicolons (but not immediately before opening braces)
+  formatted = formatted.replace(/;(?!\s*{)/g, ';\n');
+
+  // Clean up: remove newlines right before opening braces
+  formatted = formatted.replace(/\n\s*{/g, ' {');
+
+  // Clean up multiple consecutive newlines (max 2)
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+  // Split into lines, trim each, and rejoin
+  const lines = formatted.split('\n');
+  formatted = lines
+    .map((line) => {
+      // Preserve indentation structure - basic indentation based on braces
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      return trimmed;
+    })
+    .filter((line) => line.length > 0 || line === '')
+    .join('\n');
+
+  // Basic indentation: add indentation after opening braces
+  const result = [];
+  let indentLevel = 0;
+  const indentSize = 4;
+
+  formatted.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      result.push('');
+      return;
+    }
+
+    // Decrease indent before closing brace
+    if (trimmed.startsWith('}')) {
+      indentLevel = Math.max(0, indentLevel - 1);
+    }
+
+    result.push(' '.repeat(indentLevel * indentSize) + trimmed);
+
+    // Increase indent after opening brace
+    if (trimmed.endsWith('{')) {
+      indentLevel += 1;
+    }
+  });
+
+  return result.join('\n');
 };
 
 export default function PeerReviewPage() {
@@ -51,6 +129,10 @@ export default function PeerReviewPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
+  const editorRef = useRef(null);
+  const monacoRef = useRef(null);
+  const theme = useAppSelector((state) => state.ui.theme);
+  const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -122,6 +204,13 @@ export default function PeerReviewPage() {
     const intervalId = setInterval(tick, 1000);
     return () => clearInterval(intervalId);
   }, [challengeInfo?.startPhaseTwoDateTime, challengeInfo?.durationPeerReview]);
+
+  // Update Monaco editor theme when system theme changes
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(monacoTheme);
+    }
+  }, [monacoTheme]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
@@ -407,9 +496,58 @@ export default function PeerReviewPage() {
                 <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
                   Submitted Code
                 </p>
-                <pre className='mt-2 max-h-[320px] w-full max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border bg-muted p-4 text-sm text-foreground'>
-                  {selectedAssignment?.code || 'No code available.'}
-                </pre>
+                <div className='mt-2 min-h-[320px] w-full max-w-full overflow-hidden rounded-lg border border-border bg-muted'>
+                  <MonacoEditor
+                    height='320px'
+                    width='100%'
+                    language='cpp'
+                    theme={monacoTheme}
+                    value={
+                      formatCodeWithNewlines(selectedAssignment?.code) ||
+                      '// No code available.'
+                    }
+                    onMount={(editor, monaco) => {
+                      editorRef.current = editor;
+                      monacoRef.current = monaco;
+
+                      // Apply the theme
+                      monaco.editor.setTheme(monacoTheme);
+
+                      // Format the document after a short delay to ensure it's loaded
+                      setTimeout(() => {
+                        try {
+                          editor
+                            .getAction('editor.action.formatDocument')
+                            ?.run();
+                        } catch (err) {
+                          // Formatting failed, but code is still displayed
+                          // Silently handle formatting errors
+                        }
+                      }, 100);
+                    }}
+                    loading={
+                      <div className='flex h-full items-center justify-center bg-muted text-muted-foreground'>
+                        Loading editor...
+                      </div>
+                    }
+                    options={{
+                      readOnly: true,
+                      automaticLayout: true,
+                      fontSize: 14,
+                      wordWrap: 'off',
+                      minimap: { enabled: false },
+                      scrollbar: {
+                        alwaysConsumeMouseWheel: false,
+                      },
+                      padding: {
+                        top: 12,
+                        bottom: 12,
+                      },
+                      lineNumbers: 'on',
+                      renderLineHighlight: 'all',
+                    }}
+                  />
+                </div>
               </div>
 
               <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'>
