@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 import { Button } from '#components/common/Button';
 import {
@@ -116,7 +117,8 @@ export default function PeerReviewPage() {
   const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
   const studentId = user?.id;
   const challengeId = params?.challengeId;
-  const { getStudentPeerReviewAssignments } = useChallenge();
+  const { getStudentPeerReviewAssignments, getPeerReviewSummary } =
+    useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
   const [assignments, setAssignments] = useState([]);
@@ -152,6 +154,7 @@ export default function PeerReviewPage() {
           : [];
         setAssignments(nextAssignments);
         setChallengeInfo(res?.challenge || null);
+
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
         }
@@ -230,6 +233,104 @@ export default function PeerReviewPage() {
 
   const handleExit = () => {
     router.push('/student/challenges');
+  };
+
+  const handlePrev = () => {
+    setSelectedIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNext = () => {
+    setSelectedIndex((prev) => Math.min(assignments.length - 1, prev + 1));
+  };
+
+  const isFirst = selectedIndex <= 0;
+  const isLast =
+    assignments.length === 0 || selectedIndex >= assignments.length - 1;
+
+  const showSummaryToast = async () => {
+    if (!challengeId || !studentId) return;
+    toast.dismiss('peer-review-summary-loading');
+    toast.dismiss('peer-review-summary');
+
+    const loadingId = toast.loading('Loading summary...', {
+      id: 'peer-review-summary-loading',
+    });
+
+    try {
+      const res = await getPeerReviewSummary(challengeId, studentId);
+      // console.log(challengeId, studentId);
+
+      if (res?.success === false) {
+        toast.error(getApiErrorMessage(res, 'Unable to load summary'));
+        return;
+      }
+
+      const summary = res?.summary || {
+        total: 0,
+        voted: 0,
+        correct: 0,
+        incorrect: 0,
+        abstain: 0,
+        unvoted: 0,
+      };
+
+      toast.custom(
+        (t) => (
+          <div className='pointer-events-auto w-[360px] max-w-[92vw] rounded-2xl border-2 border-primary/20 bg-background shadow-xl shadow-primary/20 ring-1 ring-offset-2 ring-primary/50 p-1'>
+            <div className='p-4'>
+              <div className='flex items-start justify-between gap-3'>
+                <div className='mb-2 pb-2'>
+                  <p className='text-sm font-semibold text-primary'>Summary</p>
+                  <p className='text-xs text-muted-foreground mt-0.5'>
+                    Overview of your submitted votes
+                  </p>
+                </div>
+                <div className='relative -top-3 -right-3'>
+                  <Button
+                    type='button'
+                    onClick={() => toast.dismiss(t.id)}
+                    variant='destructive'
+                    size='sm'
+                  >
+                    ⤬
+                  </Button>
+                </div>
+              </div>
+
+              <div className='mt-3 rounded-xl border border-secondary bg-muted/40 p-3'>
+                <p className='text-sm font-semibold text-foreground'>
+                  Voted {summary.voted} of {summary.total}
+                </p>
+              </div>
+
+              <div className='mt-3 space-y-2 text-sm'>
+                <div className='flex items-center justify-between rounded-xl border border-border px-3 py-2'>
+                  <span>Correct</span>
+                  <span className='font-semibold'>{summary.correct}</span>
+                </div>
+                <div className='flex items-center justify-between rounded-xl border border-border px-3 py-2'>
+                  <span>Incorrect</span>
+                  <span className='font-semibold'>{summary.incorrect}</span>
+                </div>
+                <div className='flex items-center justify-between rounded-xl border border-border px-3 py-2'>
+                  <span>Abstain</span>
+                  <span className='font-semibold'>{summary.abstain}</span>
+                </div>
+                <div className='flex items-center justify-between rounded-xl border border-border px-3 py-2'>
+                  <span>Unvoted</span>
+                  <span className='font-semibold'>{summary.unvoted}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ),
+        { id: 'peer-review-summary', duration: Infinity }
+      );
+    } catch (e) {
+      toast.error('Unable to load summary');
+    } finally {
+      if (loadingId) toast.dismiss(loadingId);
+    }
   };
 
   if (!isAuthorized || !studentId) return null;
@@ -352,7 +453,11 @@ export default function PeerReviewPage() {
           </Card>
 
           <div className='space-y-2'>
-            <Button className='w-full' variant='secondary'>
+            <Button
+              className='w-full'
+              variant='primary'
+              onClick={showSummaryToast}
+            >
               Summary
             </Button>
             <Button className='w-full' variant='outline' onClick={handleExit}>
@@ -482,11 +587,27 @@ export default function PeerReviewPage() {
               </div>
 
               <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                <Button
+                  type='button'
+                  variant='primary'
+                  onClick={handlePrev}
+                  disabled={isFirst}
+                >
+                  Previous
+                </Button>
                 <span>
                   {assignments.length
                     ? `Solution ${selectedIndex + 1} of ${assignments.length}`
                     : 'No solutions assigned'}
                 </span>
+                <Button
+                  type='button'
+                  variant='primary'
+                  onClick={handleNext}
+                  disabled={isLast}
+                >
+                  Next
+                </Button>
               </div>
             </CardContent>
           </Card>
