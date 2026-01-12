@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { ChallengeStatus } from '#js/constants';
@@ -102,7 +102,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       assignments: [],
       challenge: {
         ...baseChallenge,
-        status: ChallengeStatus.PUBLISHED,
+        status: ChallengeStatus.STARTED_PHASE_ONE, // ⬅️ corretto
       },
     });
 
@@ -111,13 +111,11 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            /Wait for your teacher to start the peer review phase/i
-          )
-        ).toBeInTheDocument();
-      });
+      expect(
+        await screen.findByText(
+          /Wait for your teacher to start the peer review phase/i
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -133,11 +131,9 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Review solutions and submit your assessment/i)
-        ).toBeInTheDocument();
-      });
+      expect(
+        await screen.findByText(/Review solutions and submit your assessment/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -153,9 +149,8 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByText(/\d\d:\d\d:\d\d/)).toBeInTheDocument();
-      });
+      const timer = await screen.findByText(/\d\d:\d\d:\d\d/);
+      expect(timer).toBeInTheDocument();
     });
   });
 
@@ -171,10 +166,8 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByText('Solution 1')).toBeInTheDocument();
-        expect(screen.getByText('Solution 2')).toBeInTheDocument();
-      });
+      expect(await screen.findByText('Solution 1')).toBeInTheDocument();
+      expect(await screen.findByText('Solution 2')).toBeInTheDocument();
     });
   });
 
@@ -190,12 +183,10 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1/)).toBeInTheDocument();
-        expect(
-          screen.getByText('console.log("solution 1");')
-        ).toBeInTheDocument();
-      });
+      expect(await screen.findByText(/Solution 1/)).toBeInTheDocument();
+      expect(
+        await screen.findByText('console.log("solution 1");')
+      ).toBeInTheDocument();
     });
   });
 
@@ -247,9 +238,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
     });
 
     await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByText(/0% completed/i)).toBeInTheDocument();
-      });
+      expect(await screen.findByText(/0% completed/i)).toBeInTheDocument();
     });
   });
 
