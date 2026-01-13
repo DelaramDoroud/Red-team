@@ -35,7 +35,6 @@ export const validateIncorrectInput = (
       return { valid: false, error: 'Input array cannot be empty (e.g. [])' };
     }
 
-    // 5. Check Public Test Cases
     const isPublic = publicTests.some(
       (pt) =>
         JSON.stringify(pt.input) === JSON.stringify(inputJson) ||
