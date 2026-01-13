@@ -3,6 +3,7 @@ import PeerReviewVote from '#root/models/peer-review-vote.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
 
 export const submitVote = async (
@@ -26,7 +27,18 @@ export const submitVote = async (
           {
             model: Match,
             as: 'match',
-            include: [{ model: MatchSetting, as: 'matchSetting' }],
+            include: [
+              {
+                model: ChallengeMatchSetting,
+                as: 'challengeMatchSetting',
+                include: [
+                  {
+                    model: MatchSetting,
+                    as: 'matchSetting',
+                  },
+                ],
+              },
+            ],
           },
         ],
       },
@@ -43,7 +55,7 @@ export const submitVote = async (
     throw error;
   }
 
-  if (assignment.reviewer.studentId !== userId) {
+  if (String(assignment.reviewer.studentId) !== String(userId)) {
     const error = new Error(
       'You are not the assigned reviewer for this solution'
     );
@@ -51,7 +63,6 @@ export const submitVote = async (
     throw error;
   }
 
-  // 4. Validazione Specifica per "Incorrect" (Logica JSON & Public Tests)
   let cleanInput = null;
   let cleanOutput = null;
 
@@ -70,7 +81,7 @@ export const submitVote = async (
       outputJson = JSON.parse(expectedOutput);
     } catch (e) {
       const error = new Error(
-        'Input and output must be valid array values (e.g., [1,2,4], [true,false], ["a","b"]).'
+        'Input and output must be valid array values (e.g., [1,2]).'
       );
       error.code = 'INVALID_INPUT';
       throw error;
@@ -88,7 +99,8 @@ export const submitVote = async (
       throw error;
     }
 
-    const matchSetting = assignment.submission?.match?.matchSetting;
+    const matchSetting =
+      assignment.submission?.match?.challengeMatchSetting?.matchSetting;
     const publicTests = matchSetting?.publicTests || [];
 
     const isPublic = publicTests.some((pt) => {
@@ -115,8 +127,10 @@ export const submitVote = async (
 
   if (existingVote) {
     existingVote.vote = vote;
+
     existingVote.testCaseInput = cleanInput;
     existingVote.expectedOutput = cleanOutput;
+
     await existingVote.save();
   } else {
     await PeerReviewVote.create({

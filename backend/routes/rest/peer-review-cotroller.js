@@ -10,10 +10,12 @@ import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
 
 const router = Router();
 
+// --- GET VOTES ---
 router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
   try {
     const { challengeId } = req.params;
-    const userId = req.user?.id;
+    // Supporto ibrido per Passport (req.user) e Sessione Custom (req.session.user)
+    const userId = req.user?.id || req.session?.user?.id;
 
     if (!challengeId) {
       return res.status(400).json({
@@ -29,7 +31,6 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
       });
     }
 
-    // (User -> ChallengeParticipant)
     const participant = await ChallengeParticipant.findOne({
       where: {
         studentId: userId,
@@ -52,21 +53,17 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
         {
           model: PeerReviewVote,
           as: 'vote',
-          required: true,
+          required: true, // Prende solo quelli che hanno già un voto
         },
       ],
     });
 
     const votes = assignments.map((a) => ({
       submissionId: a.submissionId,
-      vote: a.vote.vote, // Enum: 'correct', 'incorrect', 'abstain'
+      vote: a.vote.vote,
       testCaseInput: a.vote.testCaseInput,
       expectedOutput: a.vote.expectedOutput,
     }));
-
-    logger.info(
-      `Retrieved ${votes.length} peer review votes for user ${userId} in challenge ${challengeId}`
-    );
 
     return res.json({
       success: true,
@@ -78,16 +75,19 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
   }
 });
 
+// --- POST VOTE ---
 router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   try {
     const { assignmentId } = req.params;
     const { vote, testCaseInput, expectedOutput } = req.body;
-    const userId = req.user?.id;
+
+    const userId = req.user?.id || req.session?.user?.id;
 
     if (!userId) {
-      return res
-        .status(401)
-        .json({ success: false, error: { message: 'User not authenticated' } });
+      return res.status(401).json({
+        success: false,
+        error: { message: 'User not authenticated' },
+      });
     }
 
     await submitVoteService.submitVote(userId, assignmentId, {
@@ -97,9 +97,9 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
     });
 
     logger.info(`User ${userId} voted ${vote} on assignment ${assignmentId}`);
+
     return res.json({ success: true });
   } catch (error) {
-    // Mapping degli errori del service agli Status Code HTTP
     if (error.code === 'INVALID_INPUT') {
       return res
         .status(400)

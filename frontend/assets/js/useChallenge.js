@@ -193,7 +193,7 @@ export default function useChallenge() {
       const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/votes`;
       return fetchData(url, { method: 'GET' });
     },
-    [fetchData] // Importante: includilo nelle dipendenze
+    [fetchData]
   );
 
   const submitPeerReviewVote = useCallback(
@@ -203,16 +203,15 @@ export default function useChallenge() {
       testCaseInput = null,
       expectedOutput = null
     ) => {
-      // Nota: peerReviewAssignmentId è l'ID della riga nella tabella assignment, non la submissionId
       const url = `${API_REST_BASE}/peer-reviews/${peerReviewAssignmentId}/vote`;
 
       return fetchData(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vote, // 'correct', 'incorrect', 'abstain'
-          testCaseInput, // Solo se incorrect
-          expectedOutput, // Solo se incorrect
+          vote,
+          testCaseInput,
+          expectedOutput,
         }),
       });
     },

@@ -241,8 +241,17 @@ export default function PeerReviewPage() {
 
   const handleVoteChange = (newVoteType) => {
     if (!selectedAssignment) return;
+
     const { submissionId } = selectedAssignment;
+
     const assignmentId = selectedAssignment.id;
+
+    console.log('🛠 DEBUG VOTO:', {
+      assignmentId,
+      submissionId,
+      newVoteType,
+      selectedAssignment,
+    });
 
     setVoteMap((prev) => ({
       ...prev,
