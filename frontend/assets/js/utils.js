@@ -1,10 +1,3 @@
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-export function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
-
 export const validateIncorrectInput = (
   inputStr,
   outputStr,
@@ -23,7 +16,11 @@ export const validateIncorrectInput = (
     const outputJson = JSON.parse(outputStr);
 
     if (!Array.isArray(inputJson) || !Array.isArray(outputJson)) {
-      throw new Error('Not an array');
+      return {
+        valid: false,
+        error:
+          'Input and output must be valid array values (e.g., [1,2,4], [true,false], ["a","b"]).',
+      };
     }
 
     if (inputJson.length === 0) {
