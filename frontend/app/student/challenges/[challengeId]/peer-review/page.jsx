@@ -18,7 +18,7 @@ import { ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { useAppSelector } from '#js/store/hooks';
-import { validateIncorrectInput } from '#js/utils'; // <--- IMPORTA UTILS
+import { validateIncorrectInput } from '#js/utils';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -93,7 +93,7 @@ export default function PeerReviewPage() {
   const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
   const studentId = user?.id;
   const challengeId = params?.challengeId;
-  // Aggiunto submitPeerReviewVote
+
   const {
     getStudentPeerReviewAssignments,
     getPeerReviewSummary,
@@ -105,9 +105,8 @@ export default function PeerReviewPage() {
   const [challengeInfo, setChallengeInfo] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // voteMap ora conterrà oggetti: { type, input, output }
   const [voteMap, setVoteMap] = useState({});
-  // Stato per errori di validazione (Input Incorrect)
+
   const [validationErrors, setValidationErrors] = useState({});
 
   const [error, setError] = useState(null);
@@ -202,7 +201,6 @@ export default function PeerReviewPage() {
   const selectedAssignment = assignments[selectedIndex] || null;
   const selectedSubmissionId = selectedAssignment?.submissionId;
 
-  // MODIFICA: currentVote ora legge la proprietà .type dell'oggetto
   const currentVoteEntry = selectedSubmissionId
     ? voteMap[selectedSubmissionId]
     : null;
@@ -210,8 +208,8 @@ export default function PeerReviewPage() {
 
   const completedCount = useMemo(
     () =>
-      assignments.filter(
-        (assignment) => Boolean(voteMap[assignment.submissionId]?.type) // check su .type
+      assignments.filter((assignment) =>
+        Boolean(voteMap[assignment.submissionId]?.type)
       ).length,
     [assignments, voteMap]
   );
@@ -220,14 +218,12 @@ export default function PeerReviewPage() {
     ? Math.round((completedCount / assignments.length) * 100)
     : 0;
 
-  // --- LOGICA SALVATAGGIO (RT-159) ---
   const saveVoteToBackend = async (
     assignmentId,
     voteType,
     input = null,
     output = null
   ) => {
-    // Chiamata API
     const res = await submitPeerReviewVote(
       assignmentId,
       voteType,
@@ -248,7 +244,6 @@ export default function PeerReviewPage() {
     const { submissionId } = selectedAssignment;
     const assignmentId = selectedAssignment.id;
 
-    // Aggiorna UI
     setVoteMap((prev) => ({
       ...prev,
       [submissionId]: {
@@ -257,13 +252,10 @@ export default function PeerReviewPage() {
       },
     }));
 
-    // Logica Auto-Save
     if (newVoteType === 'correct' || newVoteType === 'abstain') {
-      // Salva subito
       saveVoteToBackend(assignmentId, newVoteType, null, null);
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
     } else {
-      // Incorrect: Mostra warning, non salvare ancora
       setValidationErrors((prev) => ({
         ...prev,
         [submissionId]: {
@@ -274,13 +266,11 @@ export default function PeerReviewPage() {
     }
   };
 
-  // Gestione Input Test Case (Solo per Incorrect)
   const handleIncorrectDetailsChange = (field, value) => {
     if (!selectedAssignment) return;
     const { submissionId } = selectedAssignment;
     const assignmentId = selectedAssignment.id;
 
-    // 1. Aggiorna lo stato locale
     const currentEntry = voteMap[submissionId] || {};
     const updatedEntry = { ...currentEntry, [field]: value };
 
@@ -289,7 +279,6 @@ export default function PeerReviewPage() {
       [submissionId]: updatedEntry,
     }));
 
-    // 2. Validazione
     const inputStr = field === 'input' ? value : currentEntry.input;
     const outputStr = field === 'output' ? value : currentEntry.output;
     const publicTests = selectedAssignment.matchSetting?.publicTests || [];
@@ -297,11 +286,9 @@ export default function PeerReviewPage() {
     const check = validateIncorrectInput(inputStr, outputStr, publicTests);
 
     if (check.valid) {
-      // SE VALIDO: Salva!
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
       saveVoteToBackend(assignmentId, 'incorrect', inputStr, outputStr);
     } else {
-      // SE INVALIDO: Mostra errore/warning
       setValidationErrors((prev) => ({
         ...prev,
         [submissionId]: check.error
@@ -331,9 +318,7 @@ export default function PeerReviewPage() {
     if (!challengeId || !studentId) return;
     toast.dismiss('peer-review-summary-loading');
     toast.dismiss('peer-review-summary');
-    // ... (rest of summary toast logic remains same)
-    // Ho abbreviato qui per brevità nel copia/incolla,
-    // ma mantieni pure la logica originale del summary
+
     const loadingId = toast.loading('Loading summary...', {
       id: 'peer-review-summary-loading',
     });
@@ -500,7 +485,6 @@ export default function PeerReviewPage() {
               {assignments.map((assignment, index) => {
                 const isSelected = index === selectedIndex;
                 const voteEntry = voteMap[assignment.submissionId];
-                // Check su .type per determinare lo stato
                 const status = voteEntry?.type ? 'Reviewed' : 'Not voted yet';
                 return (
                   <button
@@ -639,10 +623,10 @@ export default function PeerReviewPage() {
                           className='h-4 w-4 accent-primary cursor-pointer'
                         />
                       </label>
-                      {/* AREA INPUT PER INCORRECT */}
+                      {/* */}
                       {option === 'incorrect' && isSelected && (
                         <div className='pl-4 pr-2 py-3 space-y-3 border-l-2 border-primary/20 ml-2 bg-muted/20 rounded-r-lg'>
-                          {/* Messaggi Errori / Warning */}
+                          {/* Warning */}
                           {validationErrors[selectedSubmissionId]?.warning && (
                             <p className='text-xs text-amber-500 font-medium flex gap-2'>
                               ⚠️{' '}
@@ -683,13 +667,13 @@ export default function PeerReviewPage() {
                           </div>
                           <div>
                             <label
-                              htmlFor={`output-${selectedSubmissionId}`} // <--- AGGIUNTO htmlFor
+                              htmlFor={`output-${selectedSubmissionId}`}
                               className='text-xs font-semibold text-muted-foreground'
                             >
                               Expected Output (JSON Array)
                             </label>
                             <input
-                              id={`output-${selectedSubmissionId}`} // <--- AGGIUNTO ID UNIVOCO
+                              id={`output-${selectedSubmissionId}`}
                               type='text'
                               placeholder='e.g. [3] or [true]'
                               className='w-full mt-1 p-2 text-sm border rounded bg-background focus:ring-1 focus:ring-primary'
