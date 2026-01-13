@@ -10,7 +10,6 @@ export const validateIncorrectInput = (
   outputStr,
   publicTests = []
 ) => {
-  // 1. Check stringa vuota
   if (!inputStr?.trim() || !outputStr?.trim()) {
     return {
       valid: false,
@@ -20,16 +19,13 @@ export const validateIncorrectInput = (
   }
 
   try {
-    // 2. Parsing JSON
     const inputJson = JSON.parse(inputStr);
     const outputJson = JSON.parse(outputStr);
 
-    // 3. Deve essere un Array
     if (!Array.isArray(inputJson) || !Array.isArray(outputJson)) {
       throw new Error('Not an array');
     }
 
-    // 4. Check array vuoti
     if (inputJson.length === 0) {
       return { valid: false, error: 'Input array cannot be empty (e.g. [])' };
     }

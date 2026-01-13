@@ -3,7 +3,7 @@ import PeerReviewVote from '#root/models/peer-review-vote.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
-import MatchSetting from '#root/models/match_setting.js';
+import MatchSetting from '#root/models/match-setting.js';
 
 export const submitVote = async (
   userId,
