@@ -9,14 +9,10 @@ import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
 
 const router = Router();
-
-// --- GET VOTES ---
 router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
   try {
     const { challengeId } = req.params;
-    // Supporto ibrido per Passport (req.user) e Sessione Custom (req.session.user)
     const userId = req.user?.id || req.session?.user?.id;
-
     if (!challengeId) {
       return res.status(400).json({
         success: false,
@@ -53,17 +49,19 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
         {
           model: PeerReviewVote,
           as: 'vote',
-          required: true, // Prende solo quelli che hanno già un voto
+          required: true,
         },
       ],
     });
 
-    const votes = assignments.map((a) => ({
-      submissionId: a.submissionId,
-      vote: a.vote.vote,
-      testCaseInput: a.vote.testCaseInput,
-      expectedOutput: a.vote.expectedOutput,
-    }));
+    const votes = assignments.map((a) => {
+      return {
+        submissionId: a.submissionId,
+        vote: a.vote.vote,
+        testCaseInput: a.vote.testCaseInput,
+        expectedOutput: a.vote.expectedOutput,
+      };
+    });
 
     return res.json({
       success: true,
@@ -74,8 +72,6 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
     handleException(res, error);
   }
 });
-
-// --- POST VOTE ---
 router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   try {
     const { assignmentId } = req.params;

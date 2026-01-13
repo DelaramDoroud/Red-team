@@ -98,7 +98,9 @@ export default function PeerReviewPage() {
     getStudentPeerReviewAssignments,
     getPeerReviewSummary,
     submitPeerReviewVote,
+    getStudentVotes,
   } = useChallenge();
+
   const redirectOnError = useApiErrorRedirect();
 
   const [assignments, setAssignments] = useState([]);
@@ -106,12 +108,12 @@ export default function PeerReviewPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const [voteMap, setVoteMap] = useState({});
-
   const [validationErrors, setValidationErrors] = useState({});
 
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
+
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
@@ -121,33 +123,61 @@ export default function PeerReviewPage() {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
     let cancelled = false;
 
-    const loadAssignments = async () => {
+    const loadData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getStudentPeerReviewAssignments(
-          challengeId,
-          studentId
-        );
+        const [assignmentsRes, votesRes] = await Promise.all([
+          getStudentPeerReviewAssignments(challengeId, studentId),
+          getStudentVotes(challengeId),
+        ]);
+
         if (cancelled) return;
-        if (res?.success === false) {
-          if (redirectOnError(res)) return;
-          setError(getApiErrorMessage(res, 'Unable to load peer review.'));
+
+        if (assignmentsRes?.success === false) {
+          if (redirectOnError(assignmentsRes)) return;
+          setError(
+            getApiErrorMessage(assignmentsRes, 'Unable to load peer review.')
+          );
           setAssignments([]);
           return;
         }
-        const nextAssignments = Array.isArray(res?.assignments)
-          ? res.assignments
+
+        const nextAssignments = Array.isArray(assignmentsRes?.assignments)
+          ? assignmentsRes.assignments
           : [];
         setAssignments(nextAssignments);
-        setChallengeInfo(res?.challenge || null);
+        setChallengeInfo(assignmentsRes?.challenge || null);
+
+        const initialVoteMap = {};
+
+        if (votesRes?.success && Array.isArray(votesRes.votes)) {
+          votesRes.votes.forEach((v) => {
+            initialVoteMap[v.submissionId] = {
+              type: v.vote,
+              input: v.testCaseInput || '',
+              output: v.expectedOutput || '',
+            };
+          });
+          console.log(
+            '✅ Votes hydrated from GET /votes endpoint:',
+            initialVoteMap
+          );
+        } else {
+          console.warn(
+            '⚠️ Could not fetch votes independently or no votes found.'
+          );
+        }
+
+        setVoteMap(initialVoteMap);
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
         }
       } catch (_err) {
         if (!cancelled) {
-          setError('Unable to load peer review.');
+          console.error(_err);
+          setError('Unable to load data.');
           setAssignments([]);
         }
       } finally {
@@ -155,7 +185,7 @@ export default function PeerReviewPage() {
       }
     };
 
-    loadAssignments();
+    loadData();
     return () => {
       cancelled = true;
     };
@@ -164,6 +194,7 @@ export default function PeerReviewPage() {
     studentId,
     isAuthorized,
     getStudentPeerReviewAssignments,
+    getStudentVotes,
     redirectOnError,
   ]);
 
@@ -235,7 +266,8 @@ export default function PeerReviewPage() {
       toast.success('Vote saved');
     } else {
       console.error('Save failed', res);
-      toast.error('Failed to save vote');
+      const msg = res?.error?.message || 'Failed to save vote';
+      toast.error(msg);
     }
   };
 
@@ -243,15 +275,7 @@ export default function PeerReviewPage() {
     if (!selectedAssignment) return;
 
     const { submissionId } = selectedAssignment;
-
     const assignmentId = selectedAssignment.id;
-
-    console.log('🛠 DEBUG VOTO:', {
-      assignmentId,
-      submissionId,
-      newVoteType,
-      selectedAssignment,
-    });
 
     setVoteMap((prev) => ({
       ...prev,

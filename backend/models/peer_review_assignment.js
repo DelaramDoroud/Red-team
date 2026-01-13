@@ -66,6 +66,11 @@ PeerReviewAssignment.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+
+  PeerReviewAssignment.hasOne(models.PeerReviewVote, {
+    as: 'vote',
+    foreignKey: 'peerReviewAssignmentId',
+  });
 };
 
 export default PeerReviewAssignment;
