@@ -10,6 +10,7 @@ export default function ExitConfirmationModal({
   onContinue,
   onExit,
 }) {
+  // Calculate summary stats from local voteMap
   const { completedCount, correctCount, incorrectCount, abstainCount } =
     useMemo(() => {
       let completed = 0;
@@ -21,9 +22,13 @@ export default function ExitConfirmationModal({
         const voteType = voteMap[assignment.submissionId]?.type;
         if (voteType) {
           completed += 1;
-          if (voteType === 'correct') correct += 1;
-          else if (voteType === 'incorrect') incorrect += 1;
-          else if (voteType === 'abstain') abstain += 1;
+          if (voteType === 'correct') {
+            correct += 1;
+          } else if (voteType === 'incorrect') {
+            incorrect += 1;
+          } else if (voteType === 'abstain') {
+            abstain += 1;
+          }
         }
       });
 

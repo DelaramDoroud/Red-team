@@ -95,8 +95,12 @@ export default function PeerReviewPage() {
   const studentId = user?.id;
   const challengeId = params?.challengeId;
 
-  const { getStudentPeerReviewAssignments, getPeerReviewSummary } =
-    useChallenge();
+  const {
+    getStudentPeerReviewAssignments,
+    getPeerReviewSummary,
+    submitPeerReviewVote,
+    getStudentVotes,
+  } = useChallenge();
 
   const redirectOnError = useApiErrorRedirect();
 
@@ -125,10 +129,10 @@ export default function PeerReviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const assignmentsRes = await getStudentPeerReviewAssignments(
-          challengeId,
-          studentId
-        );
+        const [assignmentsRes, votesRes] = await Promise.all([
+          getStudentPeerReviewAssignments(challengeId, studentId),
+          getStudentVotes(challengeId),
+        ]);
 
         if (cancelled) return;
 
@@ -147,14 +151,34 @@ export default function PeerReviewPage() {
         setAssignments(nextAssignments);
         setChallengeInfo(assignmentsRes?.challenge || null);
 
-        // No backend vote hydration; keep local state only
-        setVoteMap({});
+        const initialVoteMap = {};
+
+        if (votesRes?.success && Array.isArray(votesRes.votes)) {
+          votesRes.votes.forEach((v) => {
+            initialVoteMap[v.submissionId] = {
+              type: v.vote,
+              input: v.testCaseInput || '',
+              output: v.expectedOutput || '',
+            };
+          });
+          // console.log(
+          //   '✅ Votes hydrated from GET /votes endpoint:',
+          //   initialVoteMap
+          // );
+        } else {
+          // console.warn(
+          //   '⚠️ Could not fetch votes independently or no votes found.'
+          // );
+        }
+
+        setVoteMap(initialVoteMap);
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
         }
       } catch (_err) {
         if (!cancelled) {
+          // console.error(_err);
           setError('Unable to load data.');
           setAssignments([]);
         }
@@ -172,6 +196,7 @@ export default function PeerReviewPage() {
     studentId,
     isAuthorized,
     getStudentPeerReviewAssignments,
+    getStudentVotes,
     redirectOnError,
   ]);
 
@@ -226,10 +251,33 @@ export default function PeerReviewPage() {
     ? Math.round((completedCount / assignments.length) * 100)
     : 0;
 
+  const saveVoteToBackend = async (
+    assignmentId,
+    voteType,
+    input = null,
+    output = null
+  ) => {
+    const res = await submitPeerReviewVote(
+      assignmentId,
+      voteType,
+      input,
+      output
+    );
+
+    if (res?.success) {
+      toast.success('Vote saved');
+    } else {
+      // console.error('Save failed', res);
+      const msg = res?.error?.message || 'Failed to save vote';
+      toast.error(msg);
+    }
+  };
+
   const handleVoteChange = (newVoteType) => {
     if (!selectedAssignment) return;
 
     const { submissionId } = selectedAssignment;
+    const assignmentId = selectedAssignment.id;
 
     setVoteMap((prev) => ({
       ...prev,
@@ -240,6 +288,7 @@ export default function PeerReviewPage() {
     }));
 
     if (newVoteType === 'correct' || newVoteType === 'abstain') {
+      saveVoteToBackend(assignmentId, newVoteType, null, null);
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
     } else {
       setValidationErrors((prev) => ({
@@ -255,6 +304,7 @@ export default function PeerReviewPage() {
   const handleIncorrectDetailsChange = (field, value) => {
     if (!selectedAssignment) return;
     const { submissionId } = selectedAssignment;
+    const assignmentId = selectedAssignment.id;
 
     const currentEntry = voteMap[submissionId] || {};
     const updatedEntry = { ...currentEntry, [field]: value };
@@ -272,6 +322,7 @@ export default function PeerReviewPage() {
 
     if (check.valid) {
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
+      saveVoteToBackend(assignmentId, 'incorrect', inputStr, outputStr);
     } else {
       setValidationErrors((prev) => ({
         ...prev,
