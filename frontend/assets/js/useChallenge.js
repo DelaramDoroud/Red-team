@@ -112,6 +112,13 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const getPeerReviewSummary = useCallback(
+    async (challengeId, studentId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/summary?studentId=${studentId}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
   const getChallengeForJoinedStudent = useCallback(
     async (challengeId, studentId) => {
       const url = `${API_REST_BASE}/challenges/${challengeId}/for-student?studentId=${studentId}`;
@@ -181,6 +188,36 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const getStudentVotes = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/votes`;
+      return fetchData(url, { method: 'GET' });
+    },
+    [fetchData]
+  );
+
+  const submitPeerReviewVote = useCallback(
+    async (
+      peerReviewAssignmentId,
+      vote,
+      testCaseInput = null,
+      expectedOutput = null
+    ) => {
+      const url = `${API_REST_BASE}/peer-reviews/${peerReviewAssignmentId}/vote`;
+
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vote,
+          testCaseInput,
+          expectedOutput,
+        }),
+      });
+    },
+    [fetchData]
+  );
+
   return useMemo(
     () => ({
       loading,
@@ -203,6 +240,9 @@ export default function useChallenge() {
       submitSubmission,
       getLastSubmission,
       runCode,
+      getPeerReviewSummary,
+      getStudentVotes,
+      submitPeerReviewVote,
     }),
     [
       loading,
@@ -225,6 +265,9 @@ export default function useChallenge() {
       submitSubmission,
       getLastSubmission,
       runCode,
+      getPeerReviewSummary,
+      getStudentVotes,
+      submitPeerReviewVote,
     ]
   );
 }
