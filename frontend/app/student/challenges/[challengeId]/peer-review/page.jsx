@@ -19,6 +19,7 @@ import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { useAppSelector } from '#js/store/hooks';
 import { validateIncorrectInput } from '#js/utils';
+import ExitConfirmationModal from './ExitConfirmationModal';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -94,12 +95,8 @@ export default function PeerReviewPage() {
   const studentId = user?.id;
   const challengeId = params?.challengeId;
 
-  const {
-    getStudentPeerReviewAssignments,
-    getPeerReviewSummary,
-    submitPeerReviewVote,
-    getStudentVotes,
-  } = useChallenge();
+  const { getStudentPeerReviewAssignments, getPeerReviewSummary } =
+    useChallenge();
 
   const redirectOnError = useApiErrorRedirect();
 
@@ -113,6 +110,7 @@ export default function PeerReviewPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -127,10 +125,10 @@ export default function PeerReviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const [assignmentsRes, votesRes] = await Promise.all([
-          getStudentPeerReviewAssignments(challengeId, studentId),
-          getStudentVotes(challengeId),
-        ]);
+        const assignmentsRes = await getStudentPeerReviewAssignments(
+          challengeId,
+          studentId
+        );
 
         if (cancelled) return;
 
@@ -149,34 +147,14 @@ export default function PeerReviewPage() {
         setAssignments(nextAssignments);
         setChallengeInfo(assignmentsRes?.challenge || null);
 
-        const initialVoteMap = {};
-
-        if (votesRes?.success && Array.isArray(votesRes.votes)) {
-          votesRes.votes.forEach((v) => {
-            initialVoteMap[v.submissionId] = {
-              type: v.vote,
-              input: v.testCaseInput || '',
-              output: v.expectedOutput || '',
-            };
-          });
-          console.log(
-            '✅ Votes hydrated from GET /votes endpoint:',
-            initialVoteMap
-          );
-        } else {
-          console.warn(
-            '⚠️ Could not fetch votes independently or no votes found.'
-          );
-        }
-
-        setVoteMap(initialVoteMap);
+        // No backend vote hydration; keep local state only
+        setVoteMap({});
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
         }
       } catch (_err) {
         if (!cancelled) {
-          console.error(_err);
           setError('Unable to load data.');
           setAssignments([]);
         }
@@ -194,7 +172,6 @@ export default function PeerReviewPage() {
     studentId,
     isAuthorized,
     getStudentPeerReviewAssignments,
-    getStudentVotes,
     redirectOnError,
   ]);
 
@@ -249,33 +226,10 @@ export default function PeerReviewPage() {
     ? Math.round((completedCount / assignments.length) * 100)
     : 0;
 
-  const saveVoteToBackend = async (
-    assignmentId,
-    voteType,
-    input = null,
-    output = null
-  ) => {
-    const res = await submitPeerReviewVote(
-      assignmentId,
-      voteType,
-      input,
-      output
-    );
-
-    if (res?.success) {
-      toast.success('Vote saved');
-    } else {
-      console.error('Save failed', res);
-      const msg = res?.error?.message || 'Failed to save vote';
-      toast.error(msg);
-    }
-  };
-
   const handleVoteChange = (newVoteType) => {
     if (!selectedAssignment) return;
 
     const { submissionId } = selectedAssignment;
-    const assignmentId = selectedAssignment.id;
 
     setVoteMap((prev) => ({
       ...prev,
@@ -286,7 +240,6 @@ export default function PeerReviewPage() {
     }));
 
     if (newVoteType === 'correct' || newVoteType === 'abstain') {
-      saveVoteToBackend(assignmentId, newVoteType, null, null);
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
     } else {
       setValidationErrors((prev) => ({
@@ -302,7 +255,6 @@ export default function PeerReviewPage() {
   const handleIncorrectDetailsChange = (field, value) => {
     if (!selectedAssignment) return;
     const { submissionId } = selectedAssignment;
-    const assignmentId = selectedAssignment.id;
 
     const currentEntry = voteMap[submissionId] || {};
     const updatedEntry = { ...currentEntry, [field]: value };
@@ -320,7 +272,6 @@ export default function PeerReviewPage() {
 
     if (check.valid) {
       setValidationErrors((prev) => ({ ...prev, [submissionId]: null }));
-      saveVoteToBackend(assignmentId, 'incorrect', inputStr, outputStr);
     } else {
       setValidationErrors((prev) => ({
         ...prev,
@@ -554,7 +505,11 @@ export default function PeerReviewPage() {
               Summary
             </Button>
             {timeLeft > 0 && (
-              <Button className='w-full' variant='outline' onClick={handleExit}>
+              <Button
+                className='w-full'
+                variant='outline'
+                onClick={() => setExitDialogOpen(true)}
+              >
                 Exit
               </Button>
             )}
@@ -755,6 +710,16 @@ export default function PeerReviewPage() {
           </Card>
         </section>
       </div>
+      <ExitConfirmationModal
+        open={exitDialogOpen}
+        assignments={assignments}
+        voteMap={voteMap}
+        onContinue={() => setExitDialogOpen(false)}
+        onExit={() => {
+          setExitDialogOpen(false);
+          handleExit();
+        }}
+      />
     </div>
   );
 }
