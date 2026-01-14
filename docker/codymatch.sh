@@ -186,9 +186,9 @@ test)
   ;;
 lint)
   echo "Running backend linting..."
-  "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend npm run lint
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend npm run lint
   echo "Running frontend linting..."
-  "${DOCKER_COMPOSE[@]}" run --rm --no-deps frontend npm run lint
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend npm run lint
   ;;
 backend|frontend)
     case $2 in
