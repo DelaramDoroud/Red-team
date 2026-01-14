@@ -2,8 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+
 import { ChallengeStatus } from '#js/constants';
 import PeerReviewPage from '../app/student/challenges/[challengeId]/peer-review/page';
+
+vi.mock('next/dynamic', () => ({
+  default: () => {
+    function FakeMonaco({ value }) {
+      return <pre>{value}</pre>;
+    }
+    return FakeMonaco;
+  },
+}));
 
 const mockPush = vi.fn();
 
@@ -23,10 +35,17 @@ vi.mock('#js/useRoleGuard', () => ({
 }));
 
 const mockGetStudentPeerReviewAssignments = vi.fn();
+const mockGetStudentVotes = vi.fn();
+const mockGetPeerReviewSummary = vi.fn();
+const mockSubmitPeerReviewVote = vi.fn();
+
 vi.mock('#js/useChallenge', () => ({
   __esModule: true,
   default: () => ({
     getStudentPeerReviewAssignments: mockGetStudentPeerReviewAssignments,
+    getStudentVotes: mockGetStudentVotes,
+    getPeerReviewSummary: mockGetPeerReviewSummary,
+    submitPeerReviewVote: mockSubmitPeerReviewVote,
   }),
 }));
 
@@ -65,6 +84,13 @@ vi.mock('#components/common/card', () => {
   return { Card, CardHeader, CardTitle, CardContent, CardDescription };
 });
 
+const createTestStore = () =>
+  configureStore({
+    reducer: {
+      ui: (state = { theme: 'light' }) => state,
+    },
+  });
+
 const baseChallenge = {
   id: 123,
   status: ChallengeStatus.STARTED_PHASE_TWO,
@@ -93,7 +119,15 @@ describe('Peer Review – Student side acceptance criteria', () => {
       user: { id: 1, role: 'student' },
       isAuthorized: true,
     });
+
+    mockGetStudentVotes.mockResolvedValue({
+      success: true,
+      votes: [],
+    });
   });
+
+  const renderWithRedux = (component) =>
+    render(<Provider store={createTestStore()}>{component}</Provider>);
 
   it('shows waiting message before peer review starts', async () => {
     mockGetStudentPeerReviewAssignments.mockResolvedValue({
@@ -105,7 +139,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       },
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(
       await screen.findByText(
@@ -121,7 +155,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(
       await screen.findByText(/Review solutions and submit your assessment/i)
@@ -135,7 +169,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(await screen.findByText(/\d\d:\d\d:\d\d/)).toBeInTheDocument();
   });
@@ -147,7 +181,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     const solution1 = await screen.findByRole('button', {
       name: /solution 1/i,
@@ -167,7 +201,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(
       await screen.findByText('console.log("solution 1");')
@@ -181,7 +215,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     const codeBlock = await screen.findByText('console.log("solution 1");');
     expect(codeBlock.tagName.toLowerCase()).toBe('pre');
@@ -194,7 +228,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     const abstainRadio = await screen.findByRole('radio', {
       name: /abstain/i,
@@ -210,7 +244,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(await screen.findByText(/0% completed/i)).toBeInTheDocument();
   });
@@ -222,7 +256,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(
       await screen.findByRole('button', { name: /exit/i })
@@ -236,7 +270,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       challenge: baseChallenge,
     });
 
-    render(<PeerReviewPage />);
+    renderWithRedux(<PeerReviewPage />);
 
     expect(
       await screen.findByRole('button', { name: /summary/i })
