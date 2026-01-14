@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
@@ -36,6 +36,7 @@ const buildTimeLeft = (startValue, durationMinutes) => {
 export default function PeerReviewPage() {
   const params = useParams();
   const router = useRouter();
+  const hasFinalizedRef = useRef(false);
   const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
   const studentId = user?.id;
   const challengeId = params?.challengeId;
@@ -49,6 +50,17 @@ export default function PeerReviewPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
+
+  async function finalizePeerReview(chId, stId) {
+    await fetch('/api/rest/peer-review/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        challengeId: chId,
+        studentId: stId,
+      }),
+    });
+  }
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -119,6 +131,25 @@ export default function PeerReviewPage() {
     const intervalId = setInterval(tick, 1000);
     return () => clearInterval(intervalId);
   }, [challengeInfo?.startPhaseTwoDateTime, challengeInfo?.durationPeerReview]);
+
+  useEffect(() => {
+    if (
+      timeLeft === 0 &&
+      challengeId &&
+      studentId &&
+      !hasFinalizedRef.current
+    ) {
+      hasFinalizedRef.current = true;
+
+      finalizePeerReview(challengeId, studentId)
+        .then(() => {
+          router.push(`/challenge/${challengeId}/scoring`);
+        })
+        .catch(() => {
+          setError('Unable to finalize peer review.');
+        });
+    }
+  }, [timeLeft, challengeId, studentId, router]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
