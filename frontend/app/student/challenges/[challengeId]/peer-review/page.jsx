@@ -100,6 +100,7 @@ export default function PeerReviewPage() {
     getPeerReviewSummary,
     submitPeerReviewVote,
     getStudentVotes,
+    finalizePeerReview,
   } = useChallenge();
 
   const redirectOnError = useApiErrorRedirect();
@@ -119,17 +120,6 @@ export default function PeerReviewPage() {
   const monacoRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
-
-  async function finalizePeerReview(chId, stId) {
-    await fetch('/api/rest/peer-review/finalize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        challengeId: chId,
-        studentId: stId,
-      }),
-    });
-  }
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -238,15 +228,10 @@ export default function PeerReviewPage() {
   }, [monacoTheme]);
 
   useEffect(() => {
-    if (
-      timeLeft === 0 &&
-      challengeId &&
-      studentId &&
-      !hasFinalizedRef.current
-    ) {
+    if (timeLeft === 0 && challengeId && !hasFinalizedRef.current) {
       hasFinalizedRef.current = true;
 
-      finalizePeerReview(challengeId, studentId)
+      finalizePeerReview(challengeId)
         .then(() => {
           toast.success('Peer review finalized.');
         })
@@ -254,7 +239,7 @@ export default function PeerReviewPage() {
           setError('Unable to finalize peer review.');
         });
     }
-  }, [timeLeft, challengeId, studentId, router]);
+  }, [timeLeft, challengeId, finalizePeerReview]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||

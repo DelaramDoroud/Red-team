@@ -76,6 +76,7 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
 });
 router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   try {
+    console.log('Received peer review vote request:', req.params, req.body);
     const { assignmentId } = req.params;
     const { vote, testCaseInput, expectedOutput } = req.body;
 
@@ -118,118 +119,70 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
     handleException(res, error);
   }
 });
-router.post('/peer-review/finalize', async (req, res) => {
+router.post('/peer-review/finalize-challenge', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
 
   try {
-    const { challengeId, studentId } = req.body;
+    const { challengeId } = req.body;
 
-    if (!challengeId || !studentId) {
+    if (!challengeId) {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        error: 'challengeId and studentId are required',
+        error: 'challengeId is required',
       });
     }
 
-    const participant = await ChallengeParticipant.findOne({
-      where: { challengeId, studentId },
+    const participants = await ChallengeParticipant.findAll({
+      where: { challengeId },
       transaction: t,
     });
 
-    if (!participant) {
-      await t.rollback();
-      return res.status(404).json({
-        success: false,
-        error: 'Participant not found',
-      });
-    }
-
-    // const challenge = await Challenge.findByPk(challengeId, { transaction: t });
-
-    // if (!challenge) {
-    //   await t.rollback();
-    //   return res.status(404).json({
-    //     success: false,
-    //     error: 'Challenge not found',
-    //   });
-    // }
-
-    // if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
-    //   await t.rollback();
-    //   return res.status(400).json({
-    //     success: false,
-    //     error: 'Peer review phase is not active',
-    //   });
-    // }
-
-    // challenge.status = ChallengeStatus.ENDED_PHASE_TWO;
-    // await challenge.save({ transaction: t });
-
-    const reviewerId = participant.id;
-
-    const assignments = await PeerReviewAssignment.findAll({
-      where: { reviewerId },
-      transaction: t,
-    });
-
-    const assignmentIds = assignments.map((a) => a.id);
-
-    if (assignmentIds.length === 0) {
+    if (participants.length === 0) {
       await t.commit();
-      return res.json({
-        success: true,
-        data: {
-          finalized: true,
-          voteSummary: { correct: 0, incorrect: 0, abstain: 0 },
-        },
+      return res.json({ success: true });
+    }
+
+    for (const participant of participants) {
+      const reviewerId = participant.id;
+
+      const assignments = await PeerReviewAssignment.findAll({
+        where: { reviewerId },
+        transaction: t,
       });
-    }
 
-    const existingVotes = await PeerReviewVote.findAll({
-      where: {
-        peerReviewAssignmentId: {
-          [Op.in]: assignmentIds,
+      const assignmentIds = assignments.map((a) => a.id);
+      if (assignmentIds.length === 0) continue;
+
+      const existingVotes = await PeerReviewVote.findAll({
+        where: {
+          peerReviewAssignmentId: { [Op.in]: assignmentIds },
         },
-      },
-      transaction: t,
-    });
+        transaction: t,
+      });
 
-    const votedAssignmentIds = new Set(
-      existingVotes.map((v) => v.peerReviewAssignmentId)
-    );
+      const votedAssignmentIds = new Set(
+        existingVotes.map((v) => v.peerReviewAssignmentId)
+      );
 
-    const abstainVotes = assignmentIds
-      .filter((id) => !votedAssignmentIds.has(id))
-      .map((id) => ({
-        peerReviewAssignmentId: id,
-        vote: 'abstain',
-        testCaseInput: null,
-        expectedOutput: null,
-      }));
+      const abstainVotes = assignmentIds
+        .filter((id) => !votedAssignmentIds.has(id))
+        .map((id) => ({
+          peerReviewAssignmentId: id,
+          vote: 'abstain',
+          testCaseInput: null,
+          expectedOutput: null,
+        }));
 
-    if (abstainVotes.length > 0) {
-      await PeerReviewVote.bulkCreate(abstainVotes, { transaction: t });
-    }
-
-    let correct = 0;
-    let incorrect = 0;
-    let abstain = abstainVotes.length;
-
-    for (const v of existingVotes) {
-      if (v.vote === 'correct') correct++;
-      else if (v.vote === 'incorrect') incorrect++;
-      else if (v.vote === 'abstain') abstain++;
+      if (abstainVotes.length > 0) {
+        await PeerReviewVote.bulkCreate(abstainVotes, { transaction: t });
+      }
     }
 
     await t.commit();
-
     return res.json({
       success: true,
-      data: {
-        finalized: true,
-        voteSummary: { correct, incorrect, abstain },
-      },
+      data: { finalized: true },
     });
   } catch (error) {
     await t.rollback();

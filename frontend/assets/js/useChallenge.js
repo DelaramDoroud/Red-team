@@ -218,6 +218,18 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const finalizePeerReview = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/peer-review/finalize-challenge`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId }),
+      });
+    },
+    [fetchData]
+  );
+
   return useMemo(
     () => ({
       loading,
@@ -243,6 +255,7 @@ export default function useChallenge() {
       getPeerReviewSummary,
       getStudentVotes,
       submitPeerReviewVote,
+      finalizePeerReview,
     }),
     [
       loading,
@@ -268,6 +281,7 @@ export default function useChallenge() {
       getPeerReviewSummary,
       getStudentVotes,
       submitPeerReviewVote,
+      finalizePeerReview,
     ]
   );
 }
