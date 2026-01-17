@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
@@ -112,11 +113,10 @@ export default function PeerReviewPage() {
 
   const [voteMap, setVoteMap] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
-
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
-  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [finalSummary, setFinalSummary] = useState(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -249,6 +249,7 @@ export default function PeerReviewPage() {
         });
     }
   }, [timeLeft, challengeId]);
+ 
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
@@ -326,10 +327,21 @@ export default function PeerReviewPage() {
     };
   };
 
-  const handleCloseSummaryDialog = () => {
+  const handleCloseSummaryDialog = useCallback(() => {
     setShowSummaryDialog(false);
     setFinalSummary(null);
-  };
+    router.push(`/student/challenges/${challengeId}/result`);
+  }, [router, challengeId]);
+
+  useEffect(() => {
+    if (!showSummaryDialog) return;
+
+    const t = setTimeout(() => {
+      handleCloseSummaryDialog();
+    }, 10000);
+
+    return () => clearTimeout(t);
+  }, [showSummaryDialog, handleCloseSummaryDialog]);
 
   const handleVoteChange = (newVoteType) => {
     if (!selectedAssignment) return;
@@ -816,7 +828,7 @@ export default function PeerReviewPage() {
         </section>
       </div>
       <PeerReviewSummaryDialog
-        open={true}
+        open={showSummaryDialog}
         summary={finalSummary}
         onClose={handleCloseSummaryDialog}
       />

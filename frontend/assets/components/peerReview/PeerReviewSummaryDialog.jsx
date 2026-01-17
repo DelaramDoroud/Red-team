@@ -1,35 +1,14 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import AlertDialog from '#components/common/AlertDialog';
 import styles from './PeerReviewSummaryDialog.module.css';
 
-export default function PeerReviewSummaryDialog({
-  open,
-  summary,
-  challengeId,
-  onClose,
-}) {
-  const router = useRouter();
-
-  const handleCloseAndRedirect = useCallback(() => {
-    onClose?.();
-    router.push(`/student/challenges/${challengeId}/scoring`);
-  }, [onClose, router, challengeId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(handleCloseAndRedirect, 3000);
-    return () => clearTimeout(t);
-  }, [open, handleCloseAndRedirect]);
-
+export default function PeerReviewSummaryDialog({ open, summary, onClose }) {
   if (!summary) return null;
-
   return (
     <AlertDialog
       open={open}
-      title="Thanks for your participation."
+      title='Thanks for your participation.'
       description={
         <div className={styles.summary}>
           <div className={styles.row}>
@@ -54,8 +33,8 @@ export default function PeerReviewSummaryDialog({
           </div>
         </div>
       }
-      confirmLabel="OK"
-      onConfirm={handleCloseAndRedirect}
+      confirmLabel='OK'
+      onConfirm={onClose}
       onCancel={null}
     />
   );
