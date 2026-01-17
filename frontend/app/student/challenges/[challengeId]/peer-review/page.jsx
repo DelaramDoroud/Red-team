@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
@@ -115,7 +116,8 @@ export default function PeerReviewPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
-
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [finalSummary, setFinalSummary] = useState(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
@@ -232,14 +234,21 @@ export default function PeerReviewPage() {
       hasFinalizedRef.current = true;
 
       finalizePeerReview(challengeId)
-        .then(() => {
-          toast.success('Peer review finalized.');
+        .then(async () => {
+          const result = await fetchPeerReviewSummary();
+
+          if (result.success) {
+            setFinalSummary(result.summary);
+            setShowSummaryDialog(true);
+          } else {
+            toast.error(result.error);
+          }
         })
         .catch(() => {
           setError('Unable to finalize peer review.');
         });
     }
-  }, [timeLeft, challengeId, finalizePeerReview]);
+  }, [timeLeft, challengeId]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
@@ -285,6 +294,41 @@ export default function PeerReviewPage() {
       const msg = res?.error?.message || 'Failed to save vote';
       toast.error(msg);
     }
+  };
+
+  const fetchPeerReviewSummary = async () => {
+    if (!challengeId || !studentId) {
+      return {
+        success: false,
+        error: 'Missing challenge or student',
+      };
+    }
+
+    const res = await getPeerReviewSummary(challengeId, studentId);
+
+    if (res?.success === false) {
+      return {
+        success: false,
+        error: getApiErrorMessage(res, 'Unable to load summary'),
+      };
+    }
+
+    return {
+      success: true,
+      summary: res?.summary || {
+        total: 0,
+        voted: 0,
+        correct: 0,
+        incorrect: 0,
+        abstain: 0,
+        unvoted: 0,
+      },
+    };
+  };
+
+  const handleCloseSummaryDialog = () => {
+    setShowSummaryDialog(false);
+    setFinalSummary(null);
   };
 
   const handleVoteChange = (newVoteType) => {
@@ -771,6 +815,11 @@ export default function PeerReviewPage() {
           </Card>
         </section>
       </div>
+      <PeerReviewSummaryDialog
+        open={true}
+        summary={finalSummary}
+        onClose={handleCloseSummaryDialog}
+      />
     </div>
   );
 }
