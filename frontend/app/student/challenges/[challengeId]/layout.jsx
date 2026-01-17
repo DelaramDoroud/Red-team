@@ -52,9 +52,11 @@ export default function ChallengeLayout({ children }) {
             setchallengeData(res.data);
             const status = res.data?.status;
             const isPeerReviewRoute = pathname?.includes('/peer-review');
+            const isResultRoute = pathname?.includes('/result');
             const shouldBeInPeerReview =
               status === ChallengeStatus.STARTED_PHASE_TWO ||
               status === ChallengeStatus.ENDED_PHASE_TWO;
+            if (isResultRoute) return;
             if (shouldBeInPeerReview && !isPeerReviewRoute) {
               router.push(`/student/challenges/${challengeId}/peer-review`);
             } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
