@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from '#components/common/card';
 import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
-import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
