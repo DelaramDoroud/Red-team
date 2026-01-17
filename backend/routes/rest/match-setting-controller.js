@@ -4,6 +4,11 @@ import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import Challenge from '#root/models/challenge.js';
+import Submission from '#root/models/submission.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import User from '#root/models/user.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
 import { handleException } from '#root/services/error.js';
@@ -29,6 +34,20 @@ const hasValidTestCases = (tests) =>
       Object.prototype.hasOwnProperty.call(testCase, 'input') &&
       Object.prototype.hasOwnProperty.call(testCase, 'output')
   );
+
+const normalizeFeedbackTests = (tests) =>
+  (Array.isArray(tests) ? tests : [])
+    .filter((testCase) => testCase && hasOwn(testCase, 'input'))
+    .map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: hasOwn(testCase, 'expectedOutput')
+        ? testCase.expectedOutput
+        : null,
+      notes:
+        typeof testCase.notes === 'string' && testCase.notes.trim()
+          ? testCase.notes.trim()
+          : null,
+    }));
 
 const buildDuplicateTitle = async (title) => {
   const baseTitle = title || 'Untitled match setting';
@@ -195,6 +214,119 @@ router.get('/matchSettings/:id', async (req, res) => {
     return res.json({
       success: true,
       data: matchSetting,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.get('/matchSettings/:id/peer-review-tests', async (req, res) => {
+  try {
+    const matchSettingId = Number(req.params.id);
+    if (!Number.isInteger(matchSettingId) || matchSettingId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Match setting ID is required' },
+      });
+    }
+
+    const matchSetting = await MatchSetting.findByPk(matchSettingId, {
+      attributes: ['id', 'problemTitle'],
+    });
+    if (!matchSetting) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Match setting not found' },
+      });
+    }
+
+    const assignments = await PeerReviewAssignment.findAll({
+      include: [
+        {
+          model: Submission,
+          as: 'submission',
+          required: true,
+          attributes: ['id', 'matchId'],
+          include: [
+            {
+              model: Match,
+              as: 'match',
+              required: true,
+              include: [
+                {
+                  model: ChallengeMatchSetting,
+                  as: 'challengeMatchSetting',
+                  required: true,
+                  where: { matchSettingId },
+                  include: [
+                    {
+                      model: Challenge,
+                      as: 'challenge',
+                      attributes: ['id', 'title', 'status', 'startDatetime'],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: ChallengeParticipant,
+          as: 'reviewer',
+          attributes: ['id'],
+          include: [
+            { model: User, as: 'student', attributes: ['id', 'username'] },
+          ],
+        },
+      ],
+      order: [['id', 'DESC']],
+    });
+
+    const tests = [];
+    assignments.forEach((assignment) => {
+      const feedback = normalizeFeedbackTests(assignment.feedbackTests);
+      if (!feedback.length) return;
+      const challenge =
+        assignment.submission?.match?.challengeMatchSetting?.challenge;
+      const reviewer = assignment.reviewer?.student;
+      feedback.forEach((testCase) => {
+        tests.push({
+          assignmentId: assignment.id,
+          submissionId: assignment.submissionId,
+          createdAt: assignment.createdAt,
+          challenge: challenge
+            ? {
+                id: challenge.id,
+                title: challenge.title,
+                status: challenge.status,
+                startDatetime: challenge.startDatetime,
+              }
+            : null,
+          reviewer: reviewer
+            ? { id: reviewer.id, username: reviewer.username }
+            : null,
+          input: testCase.input,
+          expectedOutput: testCase.expectedOutput,
+          notes: testCase.notes,
+        });
+      });
+    });
+
+    const assignmentCount = new Set(
+      tests.map((testCase) => testCase.assignmentId)
+    ).size;
+
+    return res.json({
+      success: true,
+      data: {
+        matchSetting: {
+          id: matchSetting.id,
+          problemTitle: matchSetting.problemTitle,
+        },
+        assignmentCount,
+        totalTests: tests.length,
+        tests,
+      },
     });
   } catch (error) {
     handleException(res, error);

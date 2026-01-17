@@ -5,12 +5,24 @@ import useChallenge from '#js/useChallenge';
 import { API_REST_BASE, ChallengeStatus } from '#js/constants';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
-import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
 import Timer from '#components/common/Timer';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setChallengeCountdown } from '#js/store/slices/ui';
 import styles from './list.module.css';
 
-export default function ChallengeList() {
+const COUNTDOWN_DURATION = 5;
+const isPrivateStatus = (status) =>
+  status === ChallengeStatus.PRIVATE || status === 'draft';
+const isActiveStatus = (status) =>
+  status === ChallengeStatus.STARTED_PHASE_ONE ||
+  status === ChallengeStatus.ENDED_PHASE_ONE ||
+  status === ChallengeStatus.STARTED_PHASE_TWO;
+const isUpcomingStatus = (status) =>
+  status === ChallengeStatus.PUBLIC || status === ChallengeStatus.ASSIGNED;
+const isEndedStatus = (status) => status === ChallengeStatus.ENDED_PHASE_TWO;
+
+export default function ChallengeList({ scope = 'main' }) {
   const {
     loading,
     getChallenges,
@@ -25,17 +37,25 @@ export default function ChallengeList() {
   const [participantsMap, setParticipantsMap] = useState({});
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
-  const [countdowns, setCountdowns] = useState({});
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
-  const totalPages = Math.ceil(challenges.length / pageSize);
+  const isPrivateView = scope === 'private';
+  const dispatch = useAppDispatch();
+  const userId = useAppSelector((state) => state.auth?.user?.id);
+  const countdowns = useAppSelector((state) => {
+    if (!userId) return {};
+    return state.ui.challengeCountdowns?.[userId] || {};
+  });
+  const countdownsRef = useRef(countdowns);
 
   const getChallengeParticipantsRef = useRef(getChallengeParticipants);
   useEffect(() => {
     getChallengeParticipantsRef.current = getChallengeParticipants;
   }, [getChallengeParticipants]);
+
+  useEffect(() => {
+    countdownsRef.current = countdowns;
+  }, [countdowns]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -74,22 +94,16 @@ export default function ChallengeList() {
         return;
       }
 
-      let found = false;
-      setChallenges((prev) => {
-        found = prev.some((challenge) => challenge.id === payload.challengeId);
-        if (!found) return prev;
-        return prev.map((challenge) => {
+      setChallenges((prev) =>
+        prev.map((challenge) => {
           if (challenge.id !== payload.challengeId) return challenge;
           return {
             ...challenge,
             status: payload.status ?? challenge.status,
           };
-        });
-      });
-
-      if (!found) {
-        load();
-      }
+        })
+      );
+      load();
     };
 
     const handleParticipantJoined = async (event) => {
@@ -140,18 +154,56 @@ export default function ChallengeList() {
     };
   }, [load]);
 
-  const currentItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return challenges.slice(startIndex, endIndex);
-  }, [challenges, currentPage]);
+  const privateChallenges = useMemo(
+    () =>
+      challenges.filter((challenge) => isPrivateStatus(challenge.status ?? '')),
+    [challenges]
+  );
+  const nonPrivateChallenges = useMemo(
+    () =>
+      challenges.filter(
+        (challenge) => !isPrivateStatus(challenge.status ?? '')
+      ),
+    [challenges]
+  );
+  const activeChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isActiveStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const upcomingChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isUpcomingStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const endedChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isEndedStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const visibleChallenges = useMemo(() => {
+    if (isPrivateView) return privateChallenges;
+    return [...activeChallenges, ...upcomingChallenges, ...endedChallenges];
+  }, [
+    activeChallenges,
+    endedChallenges,
+    isPrivateView,
+    privateChallenges,
+    upcomingChallenges,
+  ]);
 
   useEffect(() => {
-    if (!currentItems.length) return;
+    if (!visibleChallenges.length) return;
     const fetchParticipantsForPage = async () => {
       const newCounts = {};
       await Promise.all(
-        currentItems.map(async (challenge) => {
+        visibleChallenges.map(async (challenge) => {
           try {
             const res = await getChallengeParticipantsRef.current(challenge.id);
             newCounts[challenge.id] =
@@ -164,7 +216,7 @@ export default function ChallengeList() {
       setParticipantsMap((prev) => ({ ...prev, ...newCounts }));
     };
     fetchParticipantsForPage();
-  }, [currentItems]);
+  }, [visibleChallenges]);
 
   const setPendingAction = (id, key, value) => {
     setPending((prev) => ({
@@ -362,7 +414,7 @@ export default function ChallengeList() {
       return (
         <Timer
           duration={challenge.durationPeerReview}
-          challengeId={`${challenge.id}-phase-two`}
+          challengeId={`${challenge.id}-peer-review`}
           startTime={challenge.startPhaseTwoDateTime}
           label='Time left'
         />
@@ -371,38 +423,54 @@ export default function ChallengeList() {
     return null;
   };
 
-  // Countdown with persistence
+  // Countdown with persistence (Redux)
   useEffect(() => {
+    if (!userId) return undefined;
     const timers = {};
-    currentItems.forEach((challenge) => {
+    visibleChallenges.forEach((challenge) => {
       if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-        const storageKey = `challenge-countdown-${challenge.id}`;
-        let countdownValue = parseInt(localStorage.getItem(storageKey), 10);
+        const storedValue = countdownsRef.current?.[challenge.id];
+        const initialValue =
+          typeof storedValue === 'number' ? storedValue : COUNTDOWN_DURATION;
 
-        if (!countdownValue || countdownValue <= 0) countdownValue = 3;
+        if (storedValue == null) {
+          dispatch(
+            setChallengeCountdown({
+              userId,
+              challengeId: challenge.id,
+              value: initialValue,
+            })
+          );
+        }
 
-        if (countdowns[challenge.id] == null)
-          setCountdowns((prev) => ({
-            ...prev,
-            [challenge.id]: countdownValue,
-          }));
+        if (initialValue <= 0) return;
 
         timers[challenge.id] = setInterval(() => {
-          setCountdowns((prev) => {
-            const current = prev[challenge.id];
-            if (current <= 1) {
-              clearInterval(timers[challenge.id]);
-              localStorage.setItem(storageKey, 0);
-              return { ...prev, [challenge.id]: 0 };
-            }
-            localStorage.setItem(storageKey, current - 1);
-            return { ...prev, [challenge.id]: current - 1 };
-          });
+          const currentValue = countdownsRef.current?.[challenge.id];
+          if (typeof currentValue !== 'number') return;
+          if (currentValue <= 1) {
+            clearInterval(timers[challenge.id]);
+            dispatch(
+              setChallengeCountdown({
+                userId,
+                challengeId: challenge.id,
+                value: 0,
+              })
+            );
+            return;
+          }
+          dispatch(
+            setChallengeCountdown({
+              userId,
+              challengeId: challenge.id,
+              value: currentValue - 1,
+            })
+          );
         }, 1000);
       }
     });
     return () => Object.values(timers).forEach(clearInterval);
-  }, [currentItems, countdowns]);
+  }, [dispatch, userId, visibleChallenges]);
 
   const renderActions = (challenge, studentCount) => {
     const hasStudents = studentCount > 0;
@@ -497,6 +565,25 @@ export default function ChallengeList() {
     return styles.noticeError;
   };
 
+  const renderChallengeCards = (items) => (
+    <div className={styles.grid}>
+      {items.map((challenge) => {
+        const studentCount = participantsMap[challenge.id] || 0;
+        return (
+          <ChallengeCard
+            key={challenge.id ?? challenge.title}
+            challenge={{ ...challenge, participants: studentCount }}
+            href={`/challenges/${challenge.id}`}
+            actions={renderActions(challenge, studentCount)}
+            extraInfo={renderTimeLeft(challenge)}
+            onAllowedNumberChange={handleAllowedNumberChange}
+            allowedNumberError={reviewErrors[challenge.id]}
+          />
+        );
+      })}
+    </div>
+  );
+
   if (loading && !challenges.length && !error) {
     return (
       <div className={styles.center}>
@@ -505,13 +592,60 @@ export default function ChallengeList() {
     );
   }
 
+  if (isPrivateView) {
+    return (
+      <section className={styles.section}>
+        <div className={styles.header}>
+          <h2>Private challenges</h2>
+          <div className={styles.headerActions}>
+            <Button variant='outline' onClick={load} title='Refresh challenges'>
+              Refresh
+            </Button>
+          </div>
+        </div>
+        {error && <p className={styles.error}>{error}</p>}
+        {assignNotice && (
+          <p
+            className={`${styles.notice} ${getNoticeClassName(
+              assignNotice.tone
+            )}`}
+          >
+            {assignNotice.text}
+          </p>
+        )}
+        {!error && !loading && !challenges.length && (
+          <p className={styles.empty}>
+            No challenges yet. Try creating one from the backend.
+          </p>
+        )}
+        <div className={styles.group}>
+          <div className={styles.groupHeader}>
+            <h3 className={styles.groupTitle}>Private challenges</h3>
+            <span className={styles.groupHint}>
+              {privateChallenges.length
+                ? 'Not visible to students'
+                : 'None yet'}
+            </span>
+          </div>
+          {privateChallenges.length ? (
+            renderChallengeCards(privateChallenges)
+          ) : (
+            <p className={styles.empty}>No private challenges yet.</p>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={styles.section}>
       <div className={styles.header}>
         <h2>Challenges</h2>
-        <Button variant='outline' onClick={load} title='Refresh challenges'>
-          Refresh
-        </Button>
+        <div className={styles.headerActions}>
+          <Button variant='outline' onClick={load} title='Refresh challenges'>
+            Refresh
+          </Button>
+        </div>
       </div>
       {error && <p className={styles.error}>{error}</p>}
       {assignNotice && (
@@ -521,35 +655,50 @@ export default function ChallengeList() {
           {assignNotice.text}
         </p>
       )}
-      {!error && !challenges.length && !loading && (
+      {!error && !loading && !challenges.length && (
         <p className={styles.empty}>
           No challenges yet. Try creating one from the backend.
         </p>
       )}
-      <div className={styles.grid}>
-        {currentItems.map((challenge) => {
-          const studentCount = participantsMap[challenge.id] || 0;
-
-          return (
-            <ChallengeCard
-              key={challenge.id ?? challenge.title}
-              challenge={{ ...challenge, participants: studentCount }}
-              href={`/challenges/${challenge.id}`}
-              actions={renderActions(challenge, studentCount)}
-              extraInfo={renderTimeLeft(challenge)}
-              onAllowedNumberChange={handleAllowedNumberChange}
-              allowedNumberError={reviewErrors[challenge.id]}
-            />
-          );
-        })}
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Active</h3>
+          <span className={styles.groupHint}>
+            {activeChallenges.length ? 'In progress' : 'None running'}
+          </span>
+        </div>
+        {activeChallenges.length ? (
+          renderChallengeCards(activeChallenges)
+        ) : (
+          <p className={styles.empty}>No active challenges right now.</p>
+        )}
       </div>
-      {challenges.length > pageSize && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Upcoming</h3>
+          <span className={styles.groupHint}>
+            {upcomingChallenges.length ? 'Scheduled' : 'None scheduled'}
+          </span>
+        </div>
+        {upcomingChallenges.length ? (
+          renderChallengeCards(upcomingChallenges)
+        ) : (
+          <p className={styles.empty}>No upcoming challenges.</p>
+        )}
+      </div>
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Ended</h3>
+          <span className={styles.groupHint}>
+            {endedChallenges.length ? 'Completed' : 'No history yet'}
+          </span>
+        </div>
+        {endedChallenges.length ? (
+          renderChallengeCards(endedChallenges)
+        ) : (
+          <p className={styles.empty}>No ended challenges yet.</p>
+        )}
+      </div>
     </section>
   );
 }

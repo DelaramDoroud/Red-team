@@ -513,7 +513,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it('auto-runs and auto-submits when phase one ends and public tests pass', async () => {
+  it('auto-runs and auto-submits when the coding phase ends and public tests pass', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     const { rerenderWithDuration } = renderMatchContainerWithDuration({
@@ -577,7 +577,7 @@ describe('RT-4 Code Submission', () => {
     expect(mockSubmitSubmission).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.getByTestId('message')).toHaveTextContent(
-        'Your latest code failed. Kept your last submission.'
+        'You submitted your code.'
       );
     });
   });
@@ -652,14 +652,14 @@ describe('RT-4 Code Submission', () => {
       expect(mockSubmitSubmission).not.toHaveBeenCalled();
       await waitFor(() => {
         expect(screen.getByTestId('message')).toHaveTextContent(
-          'Your latest code failed. Kept your last submission.'
+          'You submitted your code.'
         );
       });
     });
   });
 
   // RT-4 AC: Automatic submission when timer reaches zero
-  it('AC: should show "Thanks for your participation" message on automatic submission success', async () => {
+  it('AC: should show submission message on automatic submission success', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
     mockGetStudentAssignedMatch.mockResolvedValue({
       success: true,
@@ -688,7 +688,7 @@ describe('RT-4 Code Submission', () => {
       });
       await waitFor(() => {
         const message = screen.getByTestId('message');
-        expect(message).toHaveTextContent('Thanks for your participation');
+        expect(message).toHaveTextContent('You submitted your code.');
       });
     });
   });
@@ -723,9 +723,7 @@ describe('RT-4 Code Submission', () => {
       });
       await waitFor(() => {
         const message = screen.getByTestId('message');
-        expect(message).toHaveTextContent(
-          'Your latest code failed. Kept your last submission.'
-        );
+        expect(message).toHaveTextContent('You submitted your code.');
       });
     });
   });

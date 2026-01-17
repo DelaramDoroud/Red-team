@@ -20,9 +20,9 @@ export default function Timer({
   onFinish,
   label = 'Timer:',
 }) {
-  const COUNTDOWN_DURATION = 3;
+  const COUNTDOWN_DURATION = 5;
   const dispatch = useAppDispatch();
-  const userId = useAppSelector((state) => state.auth.user?.id);
+  const userId = useAppSelector((state) => state.auth?.user?.id);
 
   const storedStartTime = useAppSelector((state) => {
     if (!userId) return null;
@@ -34,6 +34,7 @@ export default function Timer({
   const countdownIntervalRef = useRef(null);
   const mainIntervalRef = useRef(null);
   const countdownRemainingRef = useRef(null);
+  const fallbackStartTimeRef = useRef(null);
 
   const [countdownRemaining, setCountdownRemaining] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
@@ -44,16 +45,20 @@ export default function Timer({
   }, [countdownRemaining]);
 
   useEffect(() => {
-    if (!userId) return undefined;
-
     const explicitStartTime = resolveTimestamp(startTime);
     let baseStartTime = explicitStartTime ?? storedStartTime;
+
+    if (!userId) {
+      baseStartTime = explicitStartTime ?? fallbackStartTimeRef.current;
+    }
 
     if (!baseStartTime) {
       baseStartTime = Date.now();
     }
 
-    if (
+    if (!userId) {
+      fallbackStartTimeRef.current = baseStartTime;
+    } else if (
       !storedStartTime ||
       (explicitStartTime && storedStartTime !== explicitStartTime)
     ) {
@@ -124,7 +129,7 @@ export default function Timer({
     mainIntervalRef.current = setInterval(tick, 1000);
 
     return () => clearInterval(mainIntervalRef.current);
-  }, [onFinish]);
+  }, [challengeId, duration, onFinish, startTime, storedStartTime, userId]);
 
   const formatTime = (seconds) => {
     if (seconds === null) return '--:--:--';
@@ -137,7 +142,7 @@ export default function Timer({
   return (
     <>
       {showCountdown && countdownRemaining > 0 && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md'>
           <div className='bg-card rounded-2xl px-10 py-8 text-center shadow-xl border border-border'>
             <p className='text-sm text-muted-foreground mb-2'>Get ready…</p>
             <p className='text-6xl font-bold mb-4'>{countdownRemaining}</p>

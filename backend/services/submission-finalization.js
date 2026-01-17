@@ -48,14 +48,8 @@ export const computeFinalSubmissionForMatch = async ({
     const autoRank = getStatusRank(automatic.status);
     if (autoRank > manualRank) {
       winner = automatic;
-    } else if (autoRank < manualRank) {
-      winner = manual;
     } else {
-      winner =
-        new Date(automatic.updatedAt).getTime() >
-        new Date(manual.updatedAt).getTime()
-          ? automatic
-          : manual;
+      winner = manual;
     }
   } else if (manual) {
     winner = manual;

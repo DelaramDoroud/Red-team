@@ -138,11 +138,16 @@ describe('Create Challenge Page', () => {
       target: { value: endDateTime },
     });
 
-    await user.clear(screen.getByLabelText('Duration (min)'));
-    await user.type(screen.getByLabelText('Duration (min)'), '60');
+    await user.clear(screen.getByLabelText('Coding Phase Duration (min)'));
+    await user.type(screen.getByLabelText('Coding Phase Duration (min)'), '60');
 
-    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
-    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
+    await user.clear(
+      screen.getByLabelText('Duration Peer Review Duration (min)')
+    );
+    await user.type(
+      screen.getByLabelText('Duration Peer Review Duration (min)'),
+      '60'
+    );
 
     fireEvent.submit(screen.getByTestId('challenge-form'));
 
@@ -175,11 +180,16 @@ describe('Create Challenge Page', () => {
       target: { value: endDateTime },
     });
 
-    await user.clear(screen.getByLabelText('Duration (min)'));
-    await user.type(screen.getByLabelText('Duration (min)'), '60');
+    await user.clear(screen.getByLabelText('Coding Phase Duration (min)'));
+    await user.type(screen.getByLabelText('Coding Phase Duration (min)'), '60');
 
-    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
-    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
+    await user.clear(
+      screen.getByLabelText('Duration Peer Review Duration (min)')
+    );
+    await user.type(
+      screen.getByLabelText('Duration Peer Review Duration (min)'),
+      '60'
+    );
 
     const checkbox = await screen.findAllByLabelText('select setting');
     await user.click(checkbox[0]);
@@ -224,11 +234,16 @@ describe('Create Challenge Page', () => {
       target: { value: startDateTime },
     });
 
-    await user.clear(screen.getByLabelText('Duration (min)'));
-    await user.type(screen.getByLabelText('Duration (min)'), '60');
+    await user.clear(screen.getByLabelText('Coding Phase Duration (min)'));
+    await user.type(screen.getByLabelText('Coding Phase Duration (min)'), '60');
 
-    await user.clear(screen.getByLabelText('Duration Peer Review (min)'));
-    await user.type(screen.getByLabelText('Duration Peer Review (min)'), '60');
+    await user.clear(
+      screen.getByLabelText('Duration Peer Review Duration (min)')
+    );
+    await user.type(
+      screen.getByLabelText('Duration Peer Review Duration (min)'),
+      '60'
+    );
 
     // Set endDatetime LAST, after all other fields, so it doesn't get auto-updated
     // End time is only 1 hour after start, but we need 2 hours (60min challenge + 60min review)

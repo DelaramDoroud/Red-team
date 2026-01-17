@@ -122,4 +122,90 @@ describe('ChallengeResultPage', () => {
       ).toBeInTheDocument();
     });
   });
+
+  it('hides peer review tests and other submissions until the challenge ends', async () => {
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        challenge: {
+          id: 42,
+          title: 'Sorting Challenge',
+          status: 'ended_phase_one',
+        },
+        matchSetting: { id: 5, problemTitle: 'Sort an array' },
+        studentSubmission: {
+          id: 99,
+          code: 'int main() { return 0; }',
+          createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
+          privateSummary: { total: 1, passed: 1, failed: 0 },
+          privateTestResults: [
+            {
+              testIndex: 0,
+              passed: true,
+              expectedOutput: '1 2',
+              actualOutput: '1 2',
+            },
+          ],
+        },
+        otherSubmissions: [
+          {
+            id: 101,
+            code: 'int main() { return 1; }',
+            createdAt: new Date('2025-12-01T10:05:00Z').toISOString(),
+            student: { id: 2, username: 'peer' },
+          },
+        ],
+        peerReviewTests: [
+          {
+            id: 201,
+            reviewer: { id: 2, username: 'peer' },
+            tests: [
+              {
+                input: '2 1',
+                expectedOutput: '1 2',
+                notes: 'Check ordering',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    render(<ChallengeResultPage />);
+
+    expect(await screen.findByText('Sorting Challenge')).toBeInTheDocument();
+    expect(screen.getByText(/Your submission/i)).toBeInTheDocument();
+    expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Peer review tests/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Other participant solutions/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a processing screen when results are not ready', async () => {
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        challenge: {
+          id: 42,
+          title: 'Sorting Challenge',
+          status: 'ended_phase_one',
+        },
+        finalization: {
+          totalMatches: 4,
+          finalSubmissionCount: 2,
+          pendingFinalCount: 2,
+          resultsReady: false,
+        },
+      },
+    });
+
+    render(<ChallengeResultPage />);
+
+    expect(
+      await screen.findByText(/Preparing your results/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Snake break/i)).toBeInTheDocument();
+    expect(screen.getByText(/Finalized submissions/i)).toBeInTheDocument();
+  });
 });

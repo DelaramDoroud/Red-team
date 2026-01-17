@@ -4,9 +4,9 @@ import ChallengeList from '#modules/challenge/list';
 import useRoleGuard from '#js/useRoleGuard';
 import { Button } from '#components/common/Button';
 import Link from 'next/link';
-import styles from './page.module.css';
+import styles from '../page.module.css';
 
-export default function ChallengesPage() {
+export default function PrivateChallengesPage() {
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
   });
@@ -18,25 +18,21 @@ export default function ChallengesPage() {
       <header className={styles.header}>
         <div className={styles.headerRow}>
           <div className={styles.headerText}>
-            <h1>Challenges</h1>
-            <p>
-              This page lists all challenges coming from the backend. It uses{' '}
-              <code>useChallenge</code> and <code>useFetchData</code> to keep
-              the data logic separated from the UI.
-            </p>
+            <h1>Private challenges</h1>
+            <p>Only teachers and admins can see these challenges.</p>
           </div>
           <div className={styles.headerActions}>
             <Button variant='outline' asChild>
               <Link href='/match-settings'>Match Settings</Link>
             </Button>
             <Button variant='secondary' asChild>
-              <Link href='/challenges/private'>Private challenges</Link>
+              <Link href='/challenges'>All challenges</Link>
             </Button>
           </div>
         </div>
       </header>
 
-      <ChallengeList />
+      <ChallengeList scope='private' />
     </section>
   );
 }

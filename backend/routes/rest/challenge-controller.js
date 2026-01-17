@@ -21,6 +21,8 @@ import startPeerReviewService from '#root/services/start-peer-review.js';
 import assignPeerReviews from '#root/services/assign-peer-reviews.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import { schedulePhaseOneEndForChallenge } from '#root/services/challenge-scheduler.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { validateImportsBlock } from '#root/services/import-validation.js';
 import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 
@@ -30,6 +32,9 @@ const getRequestRole = (req) =>
   req.session?.user?.role || req.user?.role || null;
 const isPrivilegedRole = (role) => role === 'teacher' || role === 'admin';
 const shouldHidePrivate = (req) => !isPrivilegedRole(getRequestRole(req));
+const isEndedStatus = (status) =>
+  status === ChallengeStatus.ENDED_PHASE_ONE ||
+  status === ChallengeStatus.ENDED_PHASE_TWO;
 const emitChallengeUpdate = (challenge) => {
   if (!challenge) return;
   broadcastEvent({
@@ -40,6 +45,30 @@ const emitChallengeUpdate = (challenge) => {
     },
   });
 };
+
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+const normalizeCustomTests = (tests) =>
+  (Array.isArray(tests) ? tests : [])
+    .filter((testCase) => testCase && hasOwn(testCase, 'input'))
+    .map((testCase) => ({
+      input: testCase.input,
+      output: hasOwn(testCase, 'output') ? testCase.output : null,
+    }));
+
+const normalizeFeedbackTests = (tests) =>
+  (Array.isArray(tests) ? tests : [])
+    .filter((testCase) => testCase && hasOwn(testCase, 'input'))
+    .map((testCase) => ({
+      input: testCase.input,
+      expectedOutput: hasOwn(testCase, 'expectedOutput')
+        ? testCase.expectedOutput
+        : null,
+      notes:
+        typeof testCase.notes === 'string' && testCase.notes.trim()
+          ? testCase.notes.trim()
+          : null,
+    }));
 
 router.get('/challenges', async (req, res) => {
   try {
@@ -58,6 +87,52 @@ router.get('/challenges', async (req, res) => {
       order: Challenge.getDefaultOrder(),
     });
     res.json({ success: true, data: challenges });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.get('/challenges/for-student', async (req, res) => {
+  try {
+    const studentId = Number(req.query.studentId);
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid studentId',
+      });
+    }
+
+    const where = shouldHidePrivate(req)
+      ? { status: { [Op.ne]: 'private' } }
+      : undefined;
+
+    const challenges = await Challenge.findAll({
+      where,
+      order: Challenge.getDefaultOrder(),
+    });
+
+    const participations = await ChallengeParticipant.findAll({
+      where: { studentId },
+      attributes: ['challengeId'],
+      raw: true,
+    });
+    const joinedSet = new Set(participations.map((row) => row.challengeId));
+
+    const data = challenges.map((challenge) => ({
+      id: challenge.id,
+      title: challenge.title,
+      status: challenge.status,
+      startDatetime: challenge.startDatetime,
+      startPhaseOneDateTime: challenge.startPhaseOneDateTime,
+      endPhaseOneDateTime: challenge.endPhaseOneDateTime,
+      startPhaseTwoDateTime: challenge.startPhaseTwoDateTime,
+      endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
+      duration: challenge.duration,
+      durationPeerReview: challenge.durationPeerReview,
+      joined: joinedSet.has(challenge.id),
+    }));
+
+    return res.json({ success: true, data });
   } catch (error) {
     handleException(res, error);
   }
@@ -121,26 +196,28 @@ router.post('/challenges', async (req, res) => {
       });
     }
 
-    // Check for overlapping challenges
-    const overlappingChallenge = await Challenge.findOne({
-      where: {
-        startDatetime: { [Op.lt]: payload.endDatetime },
-        endDatetime: { [Op.gt]: payload.startDatetime },
-      },
-    });
-
-    const allowOverlap = Boolean(req.body.allowOverlap);
-    if (overlappingChallenge && !allowOverlap) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: 'Challenge time overlaps with an existing challenge.',
-          code: 'challenge_overlap',
+    if (payload.status === ChallengeStatus.PUBLIC) {
+      // Check for overlapping challenges only when publishing
+      const overlappingChallenge = await Challenge.findOne({
+        where: {
+          startDatetime: { [Op.lt]: payload.endDatetime },
+          endDatetime: { [Op.gt]: payload.startDatetime },
         },
       });
-    }
-    if (overlappingChallenge && allowOverlap) {
-      payload.status = 'private';
+
+      const allowOverlap = Boolean(req.body.allowOverlap);
+      if (overlappingChallenge && !allowOverlap) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Challenge time overlaps with an existing challenge.',
+            code: 'challenge_overlap',
+          },
+        });
+      }
+      if (overlappingChallenge && allowOverlap) {
+        payload.status = ChallengeStatus.PRIVATE;
+      }
     }
 
     transaction = await sequelize.transaction();
@@ -857,6 +934,112 @@ router.get(
   }
 );
 
+router.post(
+  '/challenges/:challengeId/peer-reviews/:assignmentId/tests',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      const assignmentId = Number(req.params.assignmentId);
+      if (!Number.isInteger(challengeId) || challengeId < 1) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Invalid challengeId' });
+      }
+      if (!Number.isInteger(assignmentId) || assignmentId < 1) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Invalid assignmentId' });
+      }
+
+      const studentId = Number(req.body?.studentId);
+      if (!Number.isInteger(studentId) || studentId < 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid studentId',
+        });
+      }
+
+      const challenge = await Challenge.findByPk(challengeId);
+      if (!challenge) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Challenge not found' });
+      }
+      if (
+        challenge.status !== ChallengeStatus.STARTED_PHASE_TWO &&
+        challenge.status !== ChallengeStatus.ENDED_PHASE_TWO
+      ) {
+        return res.status(409).json({
+          success: false,
+          error: 'Peer review tests can only be saved during peer review.',
+        });
+      }
+
+      const participant = await ChallengeParticipant.findOne({
+        where: { challengeId, studentId },
+      });
+      if (!participant) {
+        return res.status(404).json({
+          success: false,
+          error: 'Participant not found for this challenge and student',
+        });
+      }
+
+      const assignment = await PeerReviewAssignment.findOne({
+        where: { id: assignmentId },
+        include: [
+          {
+            model: Submission,
+            as: 'submission',
+            include: [
+              {
+                model: Match,
+                as: 'match',
+                include: [
+                  {
+                    model: ChallengeMatchSetting,
+                    as: 'challengeMatchSetting',
+                    where: { challengeId },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      if (!assignment || !assignment.submission) {
+        return res.status(404).json({
+          success: false,
+          error: 'Peer review assignment not found',
+        });
+      }
+
+      if (assignment.reviewerId !== participant.id) {
+        return res.status(403).json({
+          success: false,
+          error: 'Not authorized to update this assignment',
+        });
+      }
+
+      const normalizedTests = normalizeFeedbackTests(req.body?.tests);
+
+      const updated = await assignment.update({
+        feedbackTests: normalizedTests,
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          id: updated.id,
+          feedbackTests: updated.feedbackTests || [],
+        },
+      });
+    } catch (error) {
+      handleException(res, error);
+    }
+  }
+);
 router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
   try {
     const challengeId = Number(req.params.challengeId);
@@ -877,7 +1060,7 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
     if (result.status === 'invalid_status') {
       return res.status(409).json({
         success: false,
-        error: 'Peer review can only start after phase one ends.',
+        error: 'Peer review can only start after the coding phase ends.',
         currentStatus: result.challengeStatus,
       });
     }
@@ -1085,6 +1268,118 @@ router.get('/challenges/:challengeId/for-student', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.post('/challenges/:challengeId/custom-tests/run', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
+
+    const {
+      studentId: rawStudentId,
+      code,
+      language = 'cpp',
+      tests,
+      input,
+      expectedOutput,
+    } = req.body;
+    const studentId = Number(rawStudentId);
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid studentId',
+      });
+    }
+    if (typeof code !== 'string' || code.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Code is required',
+      });
+    }
+
+    const importValidationError = validateImportsBlock(code, language);
+    if (importValidationError) {
+      return res.status(400).json({
+        success: false,
+        error: importValidationError,
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Custom tests are only available during the coding phase.',
+      });
+    }
+
+    const participant = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+    if (!participant) {
+      return res.status(403).json({
+        success: false,
+        error: 'Student has not joined this challenge',
+      });
+    }
+
+    let rawTests = Array.isArray(tests) ? tests : [];
+    if (rawTests.length === 0 && hasOwn(req.body, 'input')) {
+      rawTests = [
+        {
+          input,
+          output: hasOwn(req.body, 'expectedOutput') ? expectedOutput : null,
+        },
+      ];
+    }
+
+    const normalizedTests = normalizeCustomTests(rawTests);
+    if (normalizedTests.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one custom test case is required.',
+      });
+    }
+
+    const executionResult = await executeCodeTests({
+      code,
+      language,
+      testCases: normalizedTests,
+      userId: req.user?.id,
+    });
+
+    if (!executionResult.isCompiled) {
+      const errorMessage =
+        executionResult.errors?.[0]?.error || 'Compilation failed.';
+      return res.status(400).json({
+        success: false,
+        error: errorMessage,
+        results: executionResult.testResults,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        isCompiled: executionResult.isCompiled,
+        isPassed: executionResult.isPassed,
+        results: executionResult.testResults,
+        summary: executionResult.summary,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
 //read Match(assigned matchsettng for joind student)
 router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
   try {
@@ -1109,6 +1404,19 @@ router.get('/challenges/:challengeId/matchSetting', async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Challenge is private',
+      });
+    }
+    const canAccessMatchData = [
+      ChallengeStatus.STARTED_PHASE_ONE,
+      ChallengeStatus.ENDED_PHASE_ONE,
+      ChallengeStatus.STARTED_PHASE_TWO,
+      ChallengeStatus.ENDED_PHASE_TWO,
+    ].includes(challenge.status);
+    if (!canAccessMatchData) {
+      return res.status(409).json({
+        success: false,
+        message: 'Challenge has not started yet.',
+        status: challenge.status,
       });
     }
 
@@ -1224,6 +1532,19 @@ router.get('/challenges/:challengeId/match', async (req, res) => {
         message: 'Challenge is private',
       });
     }
+    const canAccessMatchData = [
+      ChallengeStatus.STARTED_PHASE_ONE,
+      ChallengeStatus.ENDED_PHASE_ONE,
+      ChallengeStatus.STARTED_PHASE_TWO,
+      ChallengeStatus.ENDED_PHASE_TWO,
+    ].includes(challenge.status);
+    if (!canAccessMatchData) {
+      return res.status(409).json({
+        success: false,
+        message: 'Challenge has not started yet.',
+        status: challenge.status,
+      });
+    }
 
     const participant = await ChallengeParticipant.findOne({
       where: { challengeId, studentId },
@@ -1249,6 +1570,479 @@ router.get('/challenges/:challengeId/match', async (req, res) => {
     return res.json({
       success: true,
       data: match,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.get('/challenges/:challengeId/results', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    const studentId = Number(req.query.studentId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid studentId',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+    if (!isEndedStatus(challenge.status)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge has not ended yet.',
+      });
+    }
+
+    const participant = await ChallengeParticipant.findOne({
+      where: { challengeId, studentId },
+    });
+    if (!participant) {
+      return res.status(403).json({
+        success: false,
+        error: 'Student has not joined this challenge',
+      });
+    }
+
+    const match = await Match.findOne({
+      where: { challengeParticipantId: participant.id },
+      include: [
+        {
+          model: ChallengeMatchSetting,
+          as: 'challengeMatchSetting',
+          include: [{ model: MatchSetting, as: 'matchSetting' }],
+        },
+      ],
+    });
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        error: 'Match not found for this student',
+      });
+    }
+
+    const totalMatches = await Match.count({
+      include: [
+        {
+          model: ChallengeMatchSetting,
+          as: 'challengeMatchSetting',
+          required: true,
+          where: { challengeId },
+        },
+      ],
+    });
+
+    const finalSubmissionCount = await Submission.count({
+      distinct: true,
+      col: 'match_id',
+      where: { isFinal: true },
+      include: [
+        {
+          model: Match,
+          as: 'match',
+          required: true,
+          attributes: [],
+          include: [
+            {
+              model: ChallengeMatchSetting,
+              as: 'challengeMatchSetting',
+              required: true,
+              attributes: [],
+              where: { challengeId },
+            },
+          ],
+        },
+      ],
+    });
+
+    const pendingFinalCount = Math.max(0, totalMatches - finalSubmissionCount);
+    const resultsReady = pendingFinalCount === 0;
+
+    let studentSubmission = await Submission.findOne({
+      where: { matchId: match.id, isFinal: true },
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+
+    if (!studentSubmission) {
+      studentSubmission = await Submission.findOne({
+        where: { matchId: match.id },
+        order: [
+          ['updatedAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      });
+    }
+
+    const isFullyEnded = challenge.status === ChallengeStatus.ENDED_PHASE_TWO;
+    let otherSubmissions = [];
+    if (isFullyEnded) {
+      const submissions = await Submission.findAll({
+        where: { isFinal: true },
+        include: [
+          {
+            model: Match,
+            as: 'match',
+            where: { challengeMatchSettingId: match.challengeMatchSettingId },
+            attributes: ['id', 'challengeMatchSettingId'],
+          },
+          {
+            model: ChallengeParticipant,
+            as: 'challengeParticipant',
+            attributes: ['id'],
+            include: [
+              { model: User, as: 'student', attributes: ['id', 'username'] },
+            ],
+          },
+        ],
+        order: [
+          ['updatedAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      });
+
+      otherSubmissions = submissions
+        .filter(
+          (submission) => submission.challengeParticipantId !== participant.id
+        )
+        .map((submission) => ({
+          id: submission.id,
+          code: submission.code,
+          createdAt: submission.createdAt,
+          matchId: submission.matchId,
+          student: submission.challengeParticipant?.student
+            ? {
+                id: submission.challengeParticipant.student.id,
+                username: submission.challengeParticipant.student.username,
+              }
+            : null,
+        }));
+    }
+
+    let peerReviewTests = [];
+    if (isFullyEnded && studentSubmission) {
+      const assignments = await PeerReviewAssignment.findAll({
+        where: { submissionId: studentSubmission.id },
+        include: [
+          {
+            model: ChallengeParticipant,
+            as: 'reviewer',
+            attributes: ['id'],
+            include: [
+              { model: User, as: 'student', attributes: ['id', 'username'] },
+            ],
+          },
+        ],
+      });
+      peerReviewTests = assignments.map((assignment) => ({
+        id: assignment.id,
+        reviewer: assignment.reviewer?.student
+          ? {
+              id: assignment.reviewer.student.id,
+              username: assignment.reviewer.student.username,
+            }
+          : null,
+        tests: assignment.feedbackTests || [],
+      }));
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        challenge: {
+          id: challenge.id,
+          title: challenge.title,
+          status: challenge.status,
+        },
+        matchSetting: match.challengeMatchSetting?.matchSetting
+          ? {
+              id: match.challengeMatchSetting.matchSetting.id,
+              problemTitle:
+                match.challengeMatchSetting.matchSetting.problemTitle,
+            }
+          : null,
+        studentSubmission: studentSubmission
+          ? {
+              id: studentSubmission.id,
+              code: studentSubmission.code,
+              status: studentSubmission.status,
+              privateSummary: studentSubmission.privateSummary,
+              privateTestResults: studentSubmission.privateTestResults || [],
+              createdAt: studentSubmission.createdAt,
+            }
+          : null,
+        finalization: {
+          totalMatches,
+          finalSubmissionCount,
+          pendingFinalCount,
+          resultsReady,
+        },
+        otherSubmissions,
+        peerReviewTests,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/unpublish', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      await transaction.rollback();
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId, { transaction });
+    if (!challenge) {
+      await transaction.rollback();
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status === ChallengeStatus.PRIVATE) {
+      await transaction.commit();
+      return res.json({ success: true, challenge });
+    }
+
+    if (challenge.status !== ChallengeStatus.PUBLIC) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge can only be unpublished before it starts.',
+      });
+    }
+
+    await ChallengeParticipant.destroy({
+      where: { challengeId: challenge.id },
+      transaction,
+    });
+    await challenge.update(
+      { status: ChallengeStatus.PRIVATE },
+      { transaction }
+    );
+    await transaction.commit();
+    emitChallengeUpdate(challenge);
+
+    return res.json({ success: true, challenge });
+  } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error('Failed to rollback challenge unpublish transaction', {
+          rollbackError,
+        });
+      }
+    }
+    handleException(res, error);
+  }
+});
+
+router.patch('/challenges/:challengeId', async (req, res) => {
+  const trimmedTitle =
+    typeof req.body.title === 'string' ? req.body.title.trim() : req.body.title;
+  const payload = {
+    title: trimmedTitle,
+    duration: req.body.duration,
+    startDatetime: req.body.startDatetime,
+    endDatetime: req.body.endDatetime,
+    durationPeerReview: req.body.durationPeerReview,
+    allowedNumberOfReview: req.body.allowedNumberOfReview,
+    status: req.body.status,
+    matchSettingIds: req.body.matchSettingIds,
+  };
+  const matchSettingIds = Array.isArray(req.body.matchSettingIds)
+    ? req.body.matchSettingIds
+    : [];
+  let transaction;
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.PRIVATE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Unpublish this challenge before editing.',
+      });
+    }
+
+    payload.status = req.body.status || challenge.status;
+    payload.allowedNumberOfReview =
+      req.body.allowedNumberOfReview ?? challenge.allowedNumberOfReview ?? 5;
+    payload.matchSettingIds = matchSettingIds;
+
+    if (matchSettingIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'At least one match setting is required.' },
+      });
+    }
+
+    await validateChallengeData(payload, { validatorKey: 'challenge' });
+
+    const start = new Date(payload.startDatetime);
+    const end = new Date(payload.endDatetime);
+    const durationInMs = payload.duration * 60 * 1000;
+    const windowInMs = end.getTime() - start.getTime();
+
+    if (windowInMs < durationInMs) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            'The time window (endDatetime - startDatetime) must be greater than or equal to the duration.',
+        },
+      });
+    }
+
+    const settings = await MatchSetting.findAll({
+      where: { id: matchSettingIds },
+    });
+    if (settings.length !== matchSettingIds.length) {
+      const foundIds = settings.map((setting) => setting.id);
+      const missingIds = matchSettingIds.filter((id) => !foundIds.includes(id));
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'One or more match settings not found.',
+          missingIds,
+        },
+      });
+    }
+
+    if (payload.status === ChallengeStatus.PUBLIC) {
+      const overlappingChallenge = await Challenge.findOne({
+        where: {
+          id: { [Op.ne]: challengeId },
+          startDatetime: { [Op.lt]: payload.endDatetime },
+          endDatetime: { [Op.gt]: payload.startDatetime },
+        },
+      });
+
+      const allowOverlap = Boolean(req.body.allowOverlap);
+      if (overlappingChallenge && !allowOverlap) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Challenge time overlaps with an existing challenge.',
+            code: 'challenge_overlap',
+          },
+        });
+      }
+      if (overlappingChallenge && allowOverlap) {
+        payload.status = ChallengeStatus.PRIVATE;
+      }
+    }
+
+    transaction = await sequelize.transaction();
+    await challenge.update(
+      {
+        title: payload.title,
+        duration: payload.duration,
+        startDatetime: payload.startDatetime,
+        endDatetime: payload.endDatetime,
+        durationPeerReview: payload.durationPeerReview,
+        allowedNumberOfReview: payload.allowedNumberOfReview,
+        status: payload.status || challenge.status,
+      },
+      { transaction }
+    );
+    await challenge.setMatchSettings(settings, { transaction });
+    await transaction.commit();
+
+    const updatedChallenge = await Challenge.findByPk(challengeId, {
+      include: [
+        {
+          model: MatchSetting,
+          as: 'matchSettings',
+          through: { attributes: [] },
+        },
+      ],
+    });
+    emitChallengeUpdate(updatedChallenge);
+    return res.json({ success: true, challenge: updatedChallenge });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    handleException(res, error);
+  }
+});
+
+router.get('/challenges/:challengeId', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId, {
+      include: [
+        {
+          model: MatchSetting,
+          as: 'matchSettings',
+          through: { attributes: [] },
+        },
+      ],
+    });
+
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+    if (
+      shouldHidePrivate(req) &&
+      challenge.status === ChallengeStatus.PRIVATE
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: 'Challenge is private',
+      });
+    }
+
+    const challengeData = challenge.toJSON();
+    const matchSettingIds = Array.isArray(challengeData.matchSettings)
+      ? challengeData.matchSettings.map((matchSetting) => matchSetting.id)
+      : [];
+
+    return res.json({
+      success: true,
+      challenge: {
+        ...challengeData,
+        matchSettingIds,
+      },
     });
   } catch (error) {
     handleException(res, error);

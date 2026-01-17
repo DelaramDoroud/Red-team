@@ -20,14 +20,16 @@ export const ChallengeStatusLabels = {
   [ChallengeStatus.PUBLIC]: 'Public',
   [ChallengeStatus.PRIVATE]: 'Private',
   [ChallengeStatus.ASSIGNED]: 'Assigned',
-  [ChallengeStatus.STARTED_PHASE_ONE]: 'Phase 1 in progress',
-  [ChallengeStatus.ENDED_PHASE_ONE]: 'Phase 1 complete',
+  [ChallengeStatus.STARTED_PHASE_ONE]: 'Coding phase in progress',
+  [ChallengeStatus.ENDED_PHASE_ONE]: 'Coding phase complete',
   [ChallengeStatus.STARTED_PHASE_TWO]: 'Peer review in progress',
   [ChallengeStatus.ENDED_PHASE_TWO]: 'Completed',
 };
 
-export const getChallengeStatusLabel = (status) =>
-  ChallengeStatusLabels[status] || status || 'Unknown';
+export const getChallengeStatusLabel = (status) => {
+  if (status === 'draft') return 'Private';
+  return ChallengeStatusLabels[status] || status || 'Unknown';
+};
 
 export const MatchSettingStatus = {
   DRAFT: 'draft',

@@ -47,7 +47,7 @@ await models.init();
 try {
   await scheduleActivePhaseOneChallenges();
 } catch (error) {
-  console.error('Failed to schedule phase one end timers:', error);
+  console.error('Failed to schedule coding phase end timers:', error);
 }
 
 let queueInitialized = false;

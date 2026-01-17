@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import useMatchSettings from '#js/useMatchSetting';
 import useChallenge from '#js/useChallenge';
 import ToggleSwitch from '#components/common/ToggleSwitch';
 import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
 import AlertDialog from '#components/common/AlertDialog';
+import Spinner from '#components/common/Spinner';
 import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import { formatDateTime } from '#js/date';
@@ -23,19 +24,41 @@ import {
   updateEndDateTime,
   buildDefaultDateTimes,
 } from '#js/challenge-form-utils';
-import styles from './page.module.css';
+import styles from '../../../new-challenge/page.module.css';
 
-export default function NewChallengePage() {
+const buildLocalDateTime = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatDateTimeLocal(parsed);
+};
+
+const mergeMatchSettings = (readySettings, selectedSettings) => {
+  const merged = Array.isArray(readySettings) ? [...readySettings] : [];
+  const seenIds = new Set(merged.map((setting) => setting.id));
+  (Array.isArray(selectedSettings) ? selectedSettings : []).forEach(
+    (setting) => {
+      if (!setting?.id || seenIds.has(setting.id)) return;
+      merged.push(setting);
+      seenIds.add(setting.id);
+    }
+  );
+  return merged;
+};
+
+export default function EditChallengePage() {
+  const params = useParams();
+  const router = useRouter();
+  const { isAuthorized } = useRoleGuard({
+    allowedRoles: ['teacher', 'admin'],
+  });
+  const { getMatchSettings } = useMatchSettings();
+  const { getChallengeById, updateChallenge } = useChallenge();
+  const challengeId = params?.id;
   const defaultDateTimes = buildDefaultDateTimes({
     durationMinutes: 30,
     peerReviewMinutes: 30,
   });
-  const { isAuthorized } = useRoleGuard({
-    allowedRoles: ['teacher', 'admin'],
-  });
-  const router = useRouter();
-  const { getMatchSettingsReady } = useMatchSettings();
-  const { createChallenge } = useChallenge();
   const mountedRef = useRef(false);
   const [challenge, setChallenge] = useState({
     title: '',
@@ -46,12 +69,13 @@ export default function NewChallengePage() {
     duration: '30',
     allowedNumberOfReview: '5',
     matchSettingIds: [],
-    status: Constants.ChallengeStatus.PUBLIC,
+    status: Constants.ChallengeStatus.PRIVATE,
     durationPeerReview: '30',
   });
   const [matchSettings, setMatchSettings] = useState([]);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [loadingChallenge, setLoadingChallenge] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [overlapPayload, setOverlapPayload] = useState(null);
@@ -69,7 +93,7 @@ export default function NewChallengePage() {
     setChallenge((prev) => ({
       ...prev,
       matchSettingIds: prev.matchSettingIds.includes(id)
-        ? prev.matchSettingIds.filter((s) => s !== id)
+        ? prev.matchSettingIds.filter((settingId) => settingId !== id)
         : [...prev.matchSettingIds, id],
     }));
   };
@@ -182,7 +206,7 @@ export default function NewChallengePage() {
     return { message: null, code: errorCode };
   };
 
-  const parseCreateError = (result) => {
+  const parseUpdateError = (result) => {
     const fallback = { message: 'An unknown error occurred', code: null };
     if (!result) return fallback;
 
@@ -223,39 +247,109 @@ export default function NewChallengePage() {
   };
 
   useEffect(() => {
+    if (!isAuthorized) return undefined;
+    if (!challengeId) return undefined;
     mountedRef.current = true;
+
     const loadData = async () => {
+      setLoadingChallenge(true);
+      setError(null);
       try {
-        const result = await getMatchSettingsReady();
+        const [challengeResult, matchSettingsResult] = await Promise.all([
+          getChallengeById(challengeId),
+          getMatchSettings(),
+        ]);
         if (!mountedRef.current) return;
 
-        if (result?.success === false) {
-          setMatchSettings([]);
-        } else if (Array.isArray(result)) {
-          setMatchSettings(result);
-        } else if (Array.isArray(result?.data)) {
-          setMatchSettings(result.data);
-        } else {
-          setMatchSettings([]);
+        if (challengeResult?.success === false) {
+          setError(
+            challengeResult.message || 'Unable to load challenge details.'
+          );
+          setLoadingChallenge(false);
+          return;
+        }
+
+        const challengeData =
+          challengeResult?.challenge ||
+          challengeResult?.data ||
+          challengeResult;
+        if (!challengeData) {
+          setError('Unable to load challenge details.');
+          setLoadingChallenge(false);
+          return;
+        }
+
+        const localStart = buildLocalDateTime(challengeData.startDatetime);
+        const localEnd = buildLocalDateTime(challengeData.endDatetime);
+        let matchSettingIds = [];
+        if (Array.isArray(challengeData.matchSettingIds)) {
+          matchSettingIds = challengeData.matchSettingIds;
+        } else if (Array.isArray(challengeData.matchSettings)) {
+          matchSettingIds = challengeData.matchSettings.map(
+            (setting) => setting.id
+          );
+        }
+
+        setChallenge({
+          title: challengeData.title || '',
+          startDatetime: localStart,
+          endDatetime: localEnd,
+          startDatetimeInput: localStart ? formatDateTime(localStart) : '',
+          endDatetimeInput: localEnd ? formatDateTime(localEnd) : '',
+          duration: String(challengeData.duration ?? ''),
+          allowedNumberOfReview: String(
+            challengeData.allowedNumberOfReview ?? ''
+          ),
+          matchSettingIds,
+          status: challengeData.status || Constants.ChallengeStatus.PRIVATE,
+          durationPeerReview: String(challengeData.durationPeerReview ?? ''),
+        });
+
+        let readySettings = [];
+        if (Array.isArray(matchSettingsResult)) {
+          readySettings = matchSettingsResult;
+        } else if (Array.isArray(matchSettingsResult?.data)) {
+          readySettings = matchSettingsResult.data;
+        }
+        const mergedSettings = mergeMatchSettings(
+          readySettings,
+          challengeData.matchSettings
+        );
+        setMatchSettings(mergedSettings);
+
+        if (
+          challengeData.status &&
+          challengeData.status !== Constants.ChallengeStatus.PRIVATE
+        ) {
+          setError(
+            'This challenge must be private to edit. Unpublish it first.'
+          );
         }
       } catch (err) {
-        if (mountedRef.current) setError('Error loading match settings');
+        if (mountedRef.current) {
+          setError('Error loading challenge details.');
+        }
+      } finally {
+        if (mountedRef.current) {
+          setLoadingChallenge(false);
+        }
       }
     };
+
     loadData();
     return () => {
       mountedRef.current = false;
     };
-  }, [getMatchSettingsReady]);
+  }, [challengeId, getChallengeById, getMatchSettings, isAuthorized]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // console.log("Challenge to save: ", challenge);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     if (!isAuthorized) return;
+    if (challenge.status !== Constants.ChallengeStatus.PRIVATE) return;
     setSuccessMessage(null);
     setError(null);
 
-    const form = e.currentTarget;
+    const form = event.currentTarget;
     const titleInput = form?.querySelector?.('#title');
     const trimmedTitle = challenge.title.trim();
     if (titleInput && titleInput.value !== trimmedTitle) {
@@ -319,18 +413,17 @@ export default function NewChallengePage() {
       startDatetime: toISODateTime(challenge.startDatetime),
       endDatetime: toISODateTime(challenge.endDatetime),
     };
+
     try {
-      const result = await createChallenge(payload);
-      // console.log("Result: ", result)
+      const result = await updateChallenge(challengeId, payload);
       if (result?.success) {
-        setSuccessMessage('Challenge created successfully! Redirecting...');
-        // console.log("Challenge:", result);
+        setSuccessMessage('Challenge updated successfully! Redirecting...');
         setTimeout(() => {
-          router.push('/challenges');
-        }, 3000);
+          router.push(`/challenges/${challengeId}`);
+        }, 2000);
         return;
       }
-      const { message, code } = parseCreateError(result);
+      const { message, code } = parseUpdateError(result);
       if (code === 'challenge_overlap') {
         setOverlapPayload(payload);
         setOverlapDialogOpen(true);
@@ -340,13 +433,10 @@ export default function NewChallengePage() {
       setError(message);
       setIsSubmitting(false);
     } catch (err) {
-      // console.error(err);
       setError(`Error: ${err.message}`);
       setIsSubmitting(false);
     }
   };
-
-  if (!isAuthorized) return null;
 
   const handleOverlapConfirm = async () => {
     if (!overlapPayload) return;
@@ -359,21 +449,24 @@ export default function NewChallengePage() {
         status: Constants.ChallengeStatus.PRIVATE,
         allowOverlap: true,
       };
-      const overrideResult = await createChallenge(overridePayload);
+      const overrideResult = await updateChallenge(
+        challengeId,
+        overridePayload
+      );
       if (overrideResult?.success) {
         setChallenge((prev) => ({
           ...prev,
           status: Constants.ChallengeStatus.PRIVATE,
         }));
         setSuccessMessage(
-          'Challenge created as private because it overlaps another challenge. Redirecting...'
+          'Challenge saved as private because it overlaps another challenge. Redirecting...'
         );
         setTimeout(() => {
-          router.push('/challenges');
-        }, 3000);
+          router.push(`/challenges/${challengeId}`);
+        }, 2000);
         return;
       }
-      const overrideError = parseCreateError(overrideResult);
+      const overrideError = parseUpdateError(overrideResult);
       setError(overrideError.message);
     } catch (err) {
       setError(`Error: ${err.message}`);
@@ -386,7 +479,7 @@ export default function NewChallengePage() {
   const handleOverlapCancel = () => {
     setOverlapDialogOpen(false);
     setOverlapPayload(null);
-    setError('Challenge creation cancelled.');
+    setError('Challenge update cancelled.');
   };
 
   const durationValue = parsePositiveInt(challenge.duration);
@@ -412,11 +505,26 @@ export default function NewChallengePage() {
     return formatDateTimeLocal(minEndDate);
   };
 
+  const formDisabled =
+    challenge.status !== Constants.ChallengeStatus.PRIVATE || loadingChallenge;
+
+  if (!isAuthorized) return null;
+
+  if (loadingChallenge) {
+    return (
+      <div className={styles.main}>
+        <div className={styles.card}>
+          <Spinner label='Loading challenge details...' />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main role='main' className={styles.main} aria-labelledby='page-title'>
       <div className={styles.header}>
-        <h1 id='page-title'>Create New Challenge</h1>
-        <p>Fill out the form below to create a new challenge.</p>
+        <h1 id='page-title'>Edit Challenge</h1>
+        <p>Update the challenge details below.</p>
       </div>
       <form
         data-testid='challenge-form'
@@ -434,6 +542,7 @@ export default function NewChallengePage() {
               name='title'
               className={styles.input}
               required
+              disabled={formDisabled}
             />
           </label>
         </div>
@@ -454,12 +563,14 @@ export default function NewChallengePage() {
                   pattern={DATE_TIME_PATTERN}
                   title='Use format: 8:32 PM, 30/12/2026'
                   required
+                  disabled={formDisabled}
                 />
                 <button
                   type='button'
                   className={styles.datetimeButton}
                   onClick={() => openPicker(startPickerRef)}
                   aria-label='Pick start date and time'
+                  disabled={formDisabled}
                 >
                   <svg
                     aria-hidden='true'
@@ -481,6 +592,7 @@ export default function NewChallengePage() {
                   min={getMinDateTimeValue()}
                   tabIndex={-1}
                   aria-hidden='true'
+                  disabled={formDisabled}
                 />
               </div>
             </label>
@@ -501,14 +613,14 @@ export default function NewChallengePage() {
                   pattern={DATE_TIME_PATTERN}
                   title='Use format: 8:32 PM, 30/12/2026'
                   required
-                  disabled={!canPickEndDate}
+                  disabled={formDisabled || !canPickEndDate}
                 />
                 <button
                   type='button'
                   className={styles.datetimeButton}
                   onClick={() => openPicker(endPickerRef)}
                   aria-label='Pick end date and time'
-                  disabled={!canPickEndDate}
+                  disabled={formDisabled || !canPickEndDate}
                 >
                   <svg
                     aria-hidden='true'
@@ -530,7 +642,7 @@ export default function NewChallengePage() {
                   min={getMinEndDateValue()}
                   tabIndex={-1}
                   aria-hidden='true'
-                  disabled={!canPickEndDate}
+                  disabled={formDisabled || !canPickEndDate}
                 />
               </div>
             </label>
@@ -550,6 +662,7 @@ export default function NewChallengePage() {
                   className={styles.number}
                   min={2}
                   required
+                  disabled={formDisabled}
                 />
               </label>
             </div>
@@ -565,6 +678,7 @@ export default function NewChallengePage() {
                   className={styles.number}
                   min={2}
                   required
+                  disabled={formDisabled}
                 />
               </label>
             </div>
@@ -584,6 +698,7 @@ export default function NewChallengePage() {
                   className={`${styles.number} ${styles.expectedReviewInput}`}
                   min={2}
                   required
+                  disabled={formDisabled}
                 />
               </label>
             </div>
@@ -607,6 +722,7 @@ export default function NewChallengePage() {
                     : Constants.ChallengeStatus.PUBLIC,
               }))
             }
+            disabled={formDisabled}
           />
         </div>
         <div className={styles.field}>
@@ -648,6 +764,7 @@ export default function NewChallengePage() {
                       checked={isSelected}
                       onChange={handleRowToggle}
                       onClick={(event) => event.stopPropagation()}
+                      disabled={formDisabled}
                     />
                   </td>
                   <td style={{ textAlign: 'center' }}>{match.problemTitle}</td>
@@ -676,23 +793,23 @@ export default function NewChallengePage() {
             )}
           </div>
           <Button
-            data-testid='create-challenge-button'
+            data-testid='update-challenge-button'
             type='submit'
-            disabled={isSubmitting}
+            disabled={isSubmitting || formDisabled}
             aria-busy={isSubmitting}
             name='submit'
-            title='Create this challenge'
+            title='Update this challenge'
           >
             {isSubmitting && <span className={styles.spinner} aria-hidden />}
-            {isSubmitting ? 'Creating…' : 'Create'}
+            {isSubmitting ? 'Saving...' : 'Save changes'}
           </Button>
         </div>
       </form>
       <AlertDialog
         open={overlapDialogOpen}
         title='Overlap detected'
-        description='This challenge overlaps with an existing one. Create it anyway? It will be saved as private.'
-        confirmLabel='Create as private'
+        description='This challenge overlaps with an existing one. Save it anyway? It will remain private.'
+        confirmLabel='Save as private'
         cancelLabel='Cancel'
         confirmVariant='primary'
         cancelVariant='outline'

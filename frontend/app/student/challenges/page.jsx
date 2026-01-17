@@ -10,13 +10,17 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
-import { API_REST_BASE, ChallengeStatus } from '#js/constants';
+import {
+  API_REST_BASE,
+  ChallengeStatus,
+  getChallengeStatusLabel,
+} from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
 import { formatDateTime } from '#js/date';
 
 const ALLOWED_ROLES = ['student'];
-const startedStatuses = new Set([
+const unjoinableStatuses = new Set([
   ChallengeStatus.STARTED_PHASE_ONE,
   ChallengeStatus.ENDED_PHASE_ONE,
   ChallengeStatus.STARTED_PHASE_TWO,
@@ -29,8 +33,54 @@ const statusStyles = {
     'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
   [ChallengeStatus.STARTED_PHASE_ONE]:
     'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-200',
+  [ChallengeStatus.STARTED_PHASE_TWO]:
+    'bg-indigo-500/10 text-indigo-700 ring-1 ring-indigo-500/25 dark:text-indigo-200',
+  [ChallengeStatus.ENDED_PHASE_ONE]:
+    'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
+  [ChallengeStatus.ENDED_PHASE_TWO]:
+    'bg-slate-500/10 text-slate-700 ring-1 ring-slate-500/25 dark:text-slate-200',
   [ChallengeStatus.PRIVATE]:
     'bg-muted text-muted-foreground ring-1 ring-border',
+};
+
+const activeStatuses = new Set([
+  ChallengeStatus.ASSIGNED,
+  ChallengeStatus.STARTED_PHASE_ONE,
+  ChallengeStatus.ENDED_PHASE_ONE,
+  ChallengeStatus.STARTED_PHASE_TWO,
+]);
+
+const getStartTimestamp = (value) => {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return timestamp;
+};
+
+const sortByStartAsc = (a, b) => {
+  const aStart = getStartTimestamp(a.startDatetime);
+  const bStart = getStartTimestamp(b.startDatetime);
+  if (aStart == null && bStart == null) return 0;
+  if (aStart == null) return 1;
+  if (bStart == null) return -1;
+  return aStart - bStart;
+};
+
+const sortByStartDesc = (a, b) => {
+  const aStart = getStartTimestamp(a.startDatetime);
+  const bStart = getStartTimestamp(b.startDatetime);
+  if (aStart == null && bStart == null) return 0;
+  if (aStart == null) return 1;
+  if (bStart == null) return -1;
+  return bStart - aStart;
+};
+
+const getActivePriority = (status) => {
+  if (status === ChallengeStatus.STARTED_PHASE_TWO) return 0;
+  if (status === ChallengeStatus.STARTED_PHASE_ONE) return 1;
+  if (status === ChallengeStatus.ENDED_PHASE_ONE) return 2;
+  if (status === ChallengeStatus.ASSIGNED) return 3;
+  return 4;
 };
 
 export default function StudentChallengesPage() {
@@ -39,28 +89,23 @@ export default function StudentChallengesPage() {
     allowedRoles: ALLOWED_ROLES,
   });
   const studentId = user?.id;
-  const { getChallenges, joinChallenge, getChallengeForJoinedStudent } =
-    useChallenge();
+  const { getChallengesForStudent, joinChallenge } = useChallenge();
 
   const [challenges, setChallenges] = useState([]);
-  const [joined, setJoined] = useState({});
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
   const [pendingActions, setPendingActions] = useState({});
-  const redirectingRef = useRef(false);
-
-  const filterChallenges = useCallback(
-    (items, current) =>
-      (items || []).filter((challenge) => {
-        if (!challenge?.startDatetime) return false;
-        return new Date(challenge.startDatetime) <= current;
-      }),
-    []
-  );
+  const lastRedirectKeyRef = useRef(null);
+  const activeRedirectStatuses = useRef([
+    ChallengeStatus.ASSIGNED,
+    ChallengeStatus.STARTED_PHASE_TWO,
+    ChallengeStatus.STARTED_PHASE_ONE,
+  ]);
 
   const loadChallenges = useCallback(async () => {
     try {
-      const res = await getChallenges();
+      if (!studentId) return undefined;
+      const res = await getChallengesForStudent(studentId);
       if (!res || res.success === false) {
         setError(res?.message || 'Unable to load challenges');
         setChallenges([]);
@@ -76,7 +121,7 @@ export default function StudentChallengesPage() {
       setChallenges([]);
       return undefined;
     }
-  }, [getChallenges]);
+  }, [getChallengesForStudent, studentId]);
 
   useEffect(() => {
     if (!isAuthorized || !studentId) return undefined;
@@ -104,40 +149,26 @@ export default function StudentChallengesPage() {
     };
   }, [loadChallenges, isAuthorized, studentId]);
 
-  const visibleChallenges = useMemo(() => {
-    const available = filterChallenges(challenges, now);
-    return available.length > 0 ? [available[0]] : [];
-  }, [challenges, filterChallenges, now]);
-
   useEffect(() => {
-    if (!visibleChallenges.length || !studentId || !isAuthorized)
-      return undefined;
-
-    const challenge = visibleChallenges[0];
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await getChallengeForJoinedStudent(challenge.id, studentId);
-        if (!cancelled && res?.success && res.data) {
-          setJoined((prev) => ({ ...prev, [challenge.id]: true }));
-        }
-        return undefined;
-      } catch {
-        if (!cancelled) setError('Unable to verify challenge status');
-        return undefined;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    visibleChallenges,
-    getChallengeForJoinedStudent,
-    studentId,
-    isAuthorized,
-  ]);
+    if (!isAuthorized || !studentId) return;
+    const activeChallenge = challenges.find(
+      (challenge) =>
+        challenge.joined &&
+        activeRedirectStatuses.current.includes(challenge.status)
+    );
+    if (!activeChallenge) {
+      lastRedirectKeyRef.current = null;
+      return;
+    }
+    const redirectRoute =
+      activeChallenge.status === ChallengeStatus.STARTED_PHASE_TWO
+        ? 'peer-review'
+        : 'match';
+    const nextKey = `${activeChallenge.id}-${activeChallenge.status}`;
+    if (lastRedirectKeyRef.current === nextKey) return;
+    lastRedirectKeyRef.current = nextKey;
+    router.push(`/student/challenges/${activeChallenge.id}/${redirectRoute}`);
+  }, [challenges, isAuthorized, router, studentId]);
 
   const handleJoin = async (challengeId) => {
     setError(null);
@@ -153,8 +184,16 @@ export default function StudentChallengesPage() {
     }
     try {
       const res = await joinChallenge(challengeId, studentId);
-      if (res?.success) setJoined((prev) => ({ ...prev, [challengeId]: true }));
-      else setError(res?.message || 'Unable to join challenge');
+      if (res?.success) {
+        setChallenges((prev) =>
+          prev.map((challenge) => {
+            if (challenge.id !== challengeId) return challenge;
+            return { ...challenge, joined: true };
+          })
+        );
+      } else {
+        setError(res?.message || 'Unable to join challenge');
+      }
       return undefined;
     } catch {
       setError('Unable to join challenge');
@@ -168,19 +207,6 @@ export default function StudentChallengesPage() {
     }
   };
 
-  useEffect(() => {
-    if (!visibleChallenges.length) return undefined;
-    const challenge = visibleChallenges[0];
-    const isJoined = joined[challenge.id];
-    const isStarted = startedStatuses.has(challenge.status);
-
-    if (isJoined && isStarted && !redirectingRef.current) {
-      redirectingRef.current = true;
-      router.push(`/student/challenges/${challenge.id}/match`);
-    }
-    return undefined;
-  }, [visibleChallenges, joined, router]);
-
   const renderStatusBadge = (status) => {
     const styles =
       statusStyles[status] || statusStyles[ChallengeStatus.PRIVATE];
@@ -188,17 +214,68 @@ export default function StudentChallengesPage() {
       <span
         className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ring-1 ${styles}`}
       >
-        {status}
+        {getChallengeStatusLabel(status)}
       </span>
     );
   };
 
+  const nowMs = now.getTime();
+
+  const getStudentStatusLabel = (challenge) => {
+    const startTime = challenge.startDatetime
+      ? new Date(challenge.startDatetime)
+      : null;
+    const isUpcoming = startTime ? startTime > now : false;
+    if (isUpcoming) return 'Upcoming';
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) return 'Coding';
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE)
+      return 'Awaiting peer review';
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO)
+      return 'Peer review';
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO)
+      return 'Completed';
+    if (challenge.status === ChallengeStatus.PUBLIC)
+      return challenge.joined ? 'Joined' : 'Joinable';
+    if (challenge.status === ChallengeStatus.ASSIGNED)
+      return challenge.joined ? 'Assigned' : 'Joinable';
+    return challenge.status || 'Unknown';
+  };
+
+  const getChallengeRoute = (challenge) => {
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO)
+      return `/student/challenges/${challenge.id}/peer-review`;
+    if (
+      challenge.status === ChallengeStatus.ENDED_PHASE_TWO ||
+      challenge.status === ChallengeStatus.ENDED_PHASE_ONE
+    ) {
+      return `/student/challenges/${challenge.id}/result`;
+    }
+    return `/student/challenges/${challenge.id}/match`;
+  };
+
   const renderAction = (challenge) => {
-    const isJoined = joined[challenge.id];
-    const isStarted = startedStatuses.has(challenge.status);
+    const isJoined = Boolean(challenge.joined);
+    const { status } = challenge;
+    const isUnjoinable = unjoinableStatuses.has(status);
+    const isPhaseOneActive = status === ChallengeStatus.STARTED_PHASE_ONE;
+    const isPhaseTwoActive = status === ChallengeStatus.STARTED_PHASE_TWO;
+    const isPhaseOneComplete = status === ChallengeStatus.ENDED_PHASE_ONE;
+    const isPhaseTwoComplete = status === ChallengeStatus.ENDED_PHASE_TWO;
+    const startTime = challenge.startDatetime
+      ? new Date(challenge.startDatetime)
+      : null;
+    const isUpcoming = startTime ? startTime > now : false;
     const isJoining = pendingActions[challenge.id]?.join;
 
-    if (!isJoined && isStarted) {
+    if (isUpcoming) {
+      return (
+        <div className='text-muted-foreground font-semibold text-sm'>
+          Starts soon
+        </div>
+      );
+    }
+
+    if (!isJoined && isUnjoinable) {
       return (
         <div className='text-destructive font-semibold text-sm'>
           the challenge is already in progress.
@@ -218,12 +295,181 @@ export default function StudentChallengesPage() {
       );
     }
 
+    if (isJoined && isPhaseOneActive) {
+      return (
+        <div className='text-primary font-semibold text-sm'>
+          Challenge started. Redirecting...
+        </div>
+      );
+    }
+
+    if (isJoined && status === ChallengeStatus.ASSIGNED) {
+      return (
+        <div className='text-primary font-semibold text-sm'>
+          Challenge assigned. Redirecting...
+        </div>
+      );
+    }
+
+    if (isJoined && isPhaseTwoActive) {
+      return (
+        <div className='text-primary font-semibold text-sm'>
+          Peer review started. Redirecting...
+        </div>
+      );
+    }
+
+    if (isJoined && isPhaseOneComplete) {
+      return (
+        <Button
+          size='lg'
+          variant='secondary'
+          onClick={() => router.push(getChallengeRoute(challenge))}
+        >
+          Open
+        </Button>
+      );
+    }
+
+    if (isJoined && isPhaseTwoComplete) {
+      return (
+        <Button
+          size='lg'
+          variant='secondary'
+          onClick={() => router.push(getChallengeRoute(challenge))}
+        >
+          View results
+        </Button>
+      );
+    }
+
     return (
       <div className='text-primary font-semibold text-sm'>
         Wait for the teacher to start the challenge.
       </div>
     );
   };
+
+  const activeChallenge = useMemo(() => {
+    const joinedCandidates = challenges.filter(
+      (challenge) => challenge.joined && activeStatuses.has(challenge.status)
+    );
+    if (joinedCandidates.length > 0) {
+      const sorted = [...joinedCandidates].sort((a, b) => {
+        const priorityDiff =
+          getActivePriority(a.status) - getActivePriority(b.status);
+        if (priorityDiff !== 0) return priorityDiff;
+        return sortByStartAsc(a, b);
+      });
+      return sorted[0];
+    }
+
+    const joinableCurrent = challenges.filter((challenge) => {
+      if (challenge.status !== ChallengeStatus.PUBLIC) return false;
+      const startTimestamp = getStartTimestamp(challenge.startDatetime);
+      if (startTimestamp == null) return false;
+      return startTimestamp <= nowMs;
+    });
+
+    if (joinableCurrent.length > 0) {
+      const sorted = [...joinableCurrent].sort(sortByStartAsc);
+      return sorted[0];
+    }
+
+    const nonJoinedActive = challenges.filter(
+      (challenge) =>
+        !challenge.joined &&
+        activeStatuses.has(challenge.status) &&
+        challenge.status !== ChallengeStatus.ASSIGNED
+    );
+    if (nonJoinedActive.length > 0) {
+      const sorted = [...nonJoinedActive].sort((a, b) => {
+        const priorityDiff =
+          getActivePriority(a.status) - getActivePriority(b.status);
+        if (priorityDiff !== 0) return priorityDiff;
+        return sortByStartAsc(a, b);
+      });
+      return sorted[0];
+    }
+
+    return null;
+  }, [challenges, nowMs]);
+
+  const upcomingChallenge = useMemo(() => {
+    const candidates = challenges.filter((challenge) => {
+      const startTimestamp = getStartTimestamp(challenge.startDatetime);
+      if (startTimestamp == null) return false;
+      if (startTimestamp <= nowMs) return false;
+      if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) return false;
+      if (activeChallenge && challenge.id === activeChallenge.id) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) return null;
+    const sorted = [...candidates].sort(sortByStartAsc);
+    return sorted[0];
+  }, [activeChallenge, challenges, nowMs]);
+
+  const endedChallenges = useMemo(() => {
+    const ended = challenges.filter(
+      (challenge) =>
+        challenge.joined && challenge.status === ChallengeStatus.ENDED_PHASE_TWO
+    );
+    return [...ended].sort(sortByStartDesc);
+  }, [challenges]);
+
+  const renderEmptyCard = (message) => (
+    <Card className='border border-dashed border-border bg-card'>
+      <CardContent className='py-6'>
+        <p className='text-muted-foreground text-sm'>{message}</p>
+      </CardContent>
+    </Card>
+  );
+
+  const renderChallengeCard = (challenge) => (
+    <Card key={challenge.id} className='border border-border bg-card shadow-sm'>
+      <CardHeader className='pb-4'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='space-y-1.5'>
+            <CardTitle className='text-xl font-semibold'>
+              {challenge.title}
+            </CardTitle>
+            <CardDescription className='text-muted-foreground'>
+              {getStudentStatusLabel(challenge)}
+            </CardDescription>
+          </div>
+          {renderStatusBadge(challenge.status)}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <dl className='flex flex-wrap gap-6 text-sm text-muted-foreground'>
+            <div className='space-y-1'>
+              <dt className='text-xs font-semibold uppercase tracking-wide'>
+                Start
+              </dt>
+              <dd className='text-foreground font-medium'>
+                {formatDateTime(challenge.startDatetime)}
+              </dd>
+            </div>
+            <div className='space-y-1'>
+              <dt className='text-xs font-semibold uppercase tracking-wide'>
+                Duration
+              </dt>
+              <dd className='text-foreground font-medium'>
+                {challenge.duration} min
+              </dd>
+            </div>
+          </dl>
+
+          <div className='flex flex-wrap gap-3 justify-end'>
+            {renderAction(challenge)}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   if (!isAuthorized || !studentId) return null;
 
@@ -237,7 +483,7 @@ export default function StudentChallengesPage() {
           Available Challenges
         </h1>
         <p className='text-muted-foreground text-sm'>
-          Challenges become visible once their start time arrives.
+          Track future, active, and completed challenges in one place.
         </p>
       </div>
 
@@ -249,64 +495,41 @@ export default function StudentChallengesPage() {
         </Card>
       )}
 
-      {visibleChallenges.length === 0 && (
-        <Card className='border border-dashed border-border bg-card'>
-          <CardContent className='py-6'>
-            <p className='text-muted-foreground text-sm'>
-              There is no available challenge at the moment. Please wait for
-              your teacher to schedule one.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <section className='space-y-3'>
+        <div className='space-y-1'>
+          <h2 className='text-lg font-semibold text-foreground'>Active</h2>
+          <p className='text-sm text-muted-foreground'>
+            Your current challenge, if one is active.
+          </p>
+        </div>
+        {activeChallenge
+          ? renderChallengeCard(activeChallenge)
+          : renderEmptyCard('No active challenges right now.')}
+      </section>
 
-      {visibleChallenges.map((challenge) => (
-        <Card
-          key={challenge.id}
-          className='border border-border bg-card shadow-sm'
-        >
-          <CardHeader className='pb-4'>
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-              <div className='space-y-1.5'>
-                <CardTitle className='text-xl font-semibold'>
-                  {challenge.title}
-                </CardTitle>
-                <CardDescription className='text-muted-foreground'>
-                  Join and wait for your teacher to start the challenge.
-                </CardDescription>
-              </div>
-              {renderStatusBadge(challenge.status)}
-            </div>
-          </CardHeader>
+      <section className='space-y-3'>
+        <div className='space-y-1'>
+          <h2 className='text-lg font-semibold text-foreground'>Upcoming</h2>
+          <p className='text-sm text-muted-foreground'>
+            The nearest upcoming challenge in your schedule.
+          </p>
+        </div>
+        {upcomingChallenge
+          ? renderChallengeCard(upcomingChallenge)
+          : renderEmptyCard('No upcoming challenges available.')}
+      </section>
 
-          <CardContent>
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-              <dl className='flex flex-wrap gap-6 text-sm text-muted-foreground'>
-                <div className='space-y-1'>
-                  <dt className='text-xs font-semibold uppercase tracking-wide'>
-                    Start
-                  </dt>
-                  <dd className='text-foreground font-medium'>
-                    {formatDateTime(challenge.startDatetime)}
-                  </dd>
-                </div>
-                <div className='space-y-1'>
-                  <dt className='text-xs font-semibold uppercase tracking-wide'>
-                    Duration
-                  </dt>
-                  <dd className='text-foreground font-medium'>
-                    {challenge.duration} min
-                  </dd>
-                </div>
-              </dl>
-
-              <div className='flex flex-wrap gap-3 justify-end'>
-                {renderAction(challenge)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      <section className='space-y-3'>
+        <div className='space-y-1'>
+          <h2 className='text-lg font-semibold text-foreground'>Ended</h2>
+          <p className='text-sm text-muted-foreground'>
+            Completed challenges you participated in.
+          </p>
+        </div>
+        {endedChallenges.length === 0
+          ? renderEmptyCard('No completed challenges yet.')
+          : endedChallenges.map((challenge) => renderChallengeCard(challenge))}
+      </section>
     </div>
   );
 }

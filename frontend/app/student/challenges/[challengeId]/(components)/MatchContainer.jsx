@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import {
   clearChallengeDraft,
   migrateChallengeKey,
+  setDraftCode,
   setLastCompiledCode,
   setLastSuccessfulCode,
 } from '#js/store/slices/ui';
@@ -42,17 +43,28 @@ const STUDENT_MARKERS = [
   '{{STUDENT_CODE}}',
 ];
 
-const MESSAGE_PARTICIPATION =
-  'Match phase one is over! Thanks for your participation.';
+const MESSAGE_PHASE1_NO_SUBMISSION_INVALID =
+  'You did not submit any code. We checked your draft, but it did not pass the public tests, so your submission is not valid.';
+const MESSAGE_PHASE1_NO_SUBMISSION_VALID =
+  'You did not submit any code. Your draft passed the public tests, so your submission is valid.';
+const MESSAGE_PHASE1_SUBMITTED = 'You submitted your code.';
+const MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER =
+  'You submitted your code. However, your latest version is better, so we kept this latest version automatically.';
 const MESSAGE_SUBMISSION_SUCCESS = 'Thanks for your submission.';
 const MESSAGE_SUBMISSION_PUBLIC_FAIL =
   'Thanks for your submission. There are problems with your solution, try to improve it.';
 const MESSAGE_SUBMISSION_PRIVATE_FAIL =
   'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
-const MESSAGE_SUBMISSION_REUSED =
-  'Match phase one is over! Your latest submission has been kept.';
-const MESSAGE_NO_VALID_SUBMISSION =
-  "Match phase one is over! Sadly you don't have any valid submitted code. Wait for the start of the peer review";
+const MESSAGE_PEER_REVIEW_PENDING =
+  "Wait for the peer review phase to start so you can review your classmates' code.";
+const DRAFT_SAVE_DELAY_MS = 600;
+
+const createCustomTestId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 const stripMarkers = (code, markers) =>
   markers.reduce((value, marker) => value.split(marker).join(''), code);
@@ -231,6 +243,15 @@ const getUserFacingErrorMessage = (result, fallback) => {
 export default function MatchContainer({ challengeId, studentId }) {
   const dispatch = useAppDispatch();
   const durationContext = useDuration();
+  const challengeStatus = durationContext?.status;
+  const hasDurationContext = durationContext !== null;
+  const isStatusKnown =
+    hasDurationContext &&
+    challengeStatus !== null &&
+    challengeStatus !== undefined;
+  const isPhaseOneActive =
+    challengeStatus === ChallengeStatus.STARTED_PHASE_ONE;
+  const isWaitingForStart = challengeStatus === ChallengeStatus.ASSIGNED;
   const startSignature =
     durationContext?.startPhaseOneDateTime || durationContext?.startDatetime;
   const challengeSignature = useMemo(
@@ -239,15 +260,20 @@ export default function MatchContainer({ challengeId, studentId }) {
     [challengeId, startSignature]
   );
   const peerReviewPendingMessage =
-    durationContext?.status === ChallengeStatus.ENDED_PHASE_ONE
-      ? 'Wait for your teacher to start the peer review phase.'
+    challengeStatus === ChallengeStatus.ENDED_PHASE_ONE
+      ? MESSAGE_PEER_REVIEW_PENDING
       : null;
+  const isPhaseOneOver =
+    challengeStatus === ChallengeStatus.ENDED_PHASE_ONE ||
+    challengeStatus === ChallengeStatus.STARTED_PHASE_TWO ||
+    challengeStatus === ChallengeStatus.ENDED_PHASE_TWO;
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
     submitSubmission,
     getLastSubmission,
     runCode,
+    runCustomTests,
   } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
@@ -262,6 +288,11 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [importsWarning, setImportsWarning] = useState('');
   const [runResult, setRunResult] = useState(null);
   const [testResults, setTestResults] = useState([]);
+  const [customTests, setCustomTests] = useState([]);
+  const [customRunResult, setCustomRunResult] = useState(null);
+  const [customTestResults, setCustomTestResults] = useState([]);
+  const [customRunOrder, setCustomRunOrder] = useState([]);
+  const [isCustomRunning, setIsCustomRunning] = useState(false);
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -270,8 +301,12 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
   const [isChallengeFinished, setIsChallengeFinished] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState('saved');
   const hasLoadedFromStorage = useRef(false);
   const lastSuccessRef = useRef(null);
+  const autoSubmitTriggeredRef = useRef(false);
+  const draftSaveTimerRef = useRef(null);
+  const lastSavedSnapshotRef = useRef({ imports: '', studentCode: '' });
   const storageKeyBase = useMemo(
     () => (matchId ? `match-${matchId}` : `challenge-${challengeId}`),
     [matchId, challengeId]
@@ -305,6 +340,44 @@ export default function MatchContainer({ challengeId, studentId }) {
   const savedLastSuccessSnapshot = normalizeSnapshot(
     activeDraftEntry?.lastSuccessful
   );
+
+  useEffect(
+    () => () => {
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+    },
+    []
+  );
+
+  const resetMatchStateForWaiting = useCallback(() => {
+    setMessage(null);
+    setError(null);
+    setRunResult(null);
+    setIsRunning(false);
+    setIsSubmitting(false);
+    setIsSubmittingActive(false);
+    setTestResults([]);
+    setCustomTests([]);
+    setCustomRunResult(null);
+    setCustomTestResults([]);
+    setCustomRunOrder([]);
+    setIsCustomRunning(false);
+    setCanSubmit(false);
+    setIsCompiled(null);
+    setIsTimeUp(false);
+    setMatchData(null);
+    setMatchId(null);
+    lastSuccessRef.current = null;
+    autoSubmitTriggeredRef.current = false;
+    hasLoadedFromStorage.current = false;
+    setImports(DEFAULT_IMPORTS);
+    setStudentCode('');
+    setImportsWarning('');
+    setDraftSaveState('saved');
+    lastSavedSnapshotRef.current = { imports: '', studentCode: '' };
+  }, []);
 
   useEffect(() => {
     if (!studentId || !shouldIgnoreSavedDraft) return;
@@ -358,8 +431,21 @@ export default function MatchContainer({ challengeId, studentId }) {
     if (!matchData) return;
     if (hasLoadedFromStorage.current) return;
 
-    setImports(defaultImports);
-    setStudentCode('');
+    let nextImports = defaultImports;
+    let nextStudentCode = '';
+    if (activeDraftEntry) {
+      nextImports =
+        typeof activeDraftEntry.imports === 'string'
+          ? activeDraftEntry.imports
+          : defaultImports;
+      nextStudentCode =
+        typeof activeDraftEntry.studentCode === 'string'
+          ? activeDraftEntry.studentCode
+          : '';
+    }
+
+    setImports(nextImports);
+    setStudentCode(nextStudentCode);
     setImportsWarning('');
 
     if (savedLastSuccessSnapshot) {
@@ -373,18 +459,77 @@ export default function MatchContainer({ challengeId, studentId }) {
       lastSuccessRef.current = null;
     }
 
+    lastSavedSnapshotRef.current = {
+      imports: nextImports,
+      studentCode: nextStudentCode,
+    };
+    setDraftSaveState('saved');
     hasLoadedFromStorage.current = true;
   }, [
     matchData,
+    activeDraftEntry,
     savedLastSuccessSnapshot,
     defaultImports,
     fixedPrefix,
     fixedSuffix,
   ]);
 
+  useEffect(() => {
+    if (!studentId || !matchData) return;
+    if (!hasLoadedFromStorage.current) return;
+    const nextSnapshot = {
+      imports,
+      studentCode,
+    };
+    const previousSnapshot = lastSavedSnapshotRef.current;
+    const hasChanges =
+      nextSnapshot.imports !== previousSnapshot.imports ||
+      nextSnapshot.studentCode !== previousSnapshot.studentCode;
+    if (!hasChanges) return;
+
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+    }
+    setDraftSaveState('saving');
+    draftSaveTimerRef.current = setTimeout(() => {
+      dispatch(
+        setDraftCode({
+          userId: studentId,
+          key: storageKeyBase,
+          imports: nextSnapshot.imports,
+          studentCode: nextSnapshot.studentCode,
+          signature: challengeSignature,
+        })
+      );
+      lastSavedSnapshotRef.current = nextSnapshot;
+      setDraftSaveState('saved');
+    }, DRAFT_SAVE_DELAY_MS);
+  }, [
+    challengeSignature,
+    dispatch,
+    imports,
+    matchData,
+    studentCode,
+    storageKeyBase,
+    studentId,
+  ]);
+
   // load StudentAssignedMatchSetting(Match)
   useEffect(() => {
     if (!challengeId || !studentId) return () => {};
+    if (hasDurationContext && !isPhaseOneActive) {
+      if (!isStatusKnown) {
+        setLoading(true);
+        return () => {};
+      }
+      if (isWaitingForStart) {
+        setLoading(false);
+        resetMatchStateForWaiting();
+        return () => {};
+      }
+      setLoading(false);
+      return () => {};
+    }
 
     let cancelled = false;
 
@@ -397,12 +542,18 @@ export default function MatchContainer({ challengeId, studentId }) {
       setIsSubmitting(false);
       setIsSubmittingActive(false);
       setTestResults([]);
+      setCustomTests([]);
+      setCustomRunResult(null);
+      setCustomTestResults([]);
+      setCustomRunOrder([]);
+      setIsCustomRunning(false);
       setCanSubmit(false);
       setIsCompiled(null);
       setIsTimeUp(false);
       setMatchData(null);
       setMatchId(null);
       lastSuccessRef.current = null;
+      autoSubmitTriggeredRef.current = false;
       hasLoadedFromStorage.current = false;
       setImports(DEFAULT_IMPORTS);
       setStudentCode('');
@@ -471,6 +622,11 @@ export default function MatchContainer({ challengeId, studentId }) {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
     redirectOnError,
+    hasDurationContext,
+    isPhaseOneActive,
+    isStatusKnown,
+    isWaitingForStart,
+    resetMatchStateForWaiting,
   ]);
 
   // handlers: run
@@ -577,6 +733,120 @@ export default function MatchContainer({ challengeId, studentId }) {
     matchData,
     runCode,
     storeLastCompiled,
+  ]);
+
+  const addCustomTest = useCallback(() => {
+    setCustomTests((prev) => [
+      ...prev,
+      { id: createCustomTestId(), input: '', expectedOutput: '' },
+    ]);
+  }, []);
+
+  const updateCustomTest = useCallback((id, field, value) => {
+    setCustomTests((prev) =>
+      prev.map((testCase) => {
+        if (testCase.id !== id) return testCase;
+        return { ...testCase, [field]: value };
+      })
+    );
+  }, []);
+
+  const removeCustomTest = useCallback((id) => {
+    setCustomTests((prev) => prev.filter((testCase) => testCase.id !== id));
+  }, []);
+
+  const buildCustomTestsPayload = useCallback(() => {
+    const payload = [];
+    const order = [];
+
+    customTests.forEach((testCase) => {
+      const inputValue =
+        typeof testCase.input === 'string' ? testCase.input.trim() : '';
+      const expectedValue =
+        typeof testCase.expectedOutput === 'string'
+          ? testCase.expectedOutput.trim()
+          : '';
+      if (!inputValue) return;
+      const entry = { input: inputValue };
+      if (expectedValue) entry.output = expectedValue;
+      payload.push(entry);
+      order.push(testCase.id);
+    });
+
+    return { payload, order };
+  }, [customTests]);
+
+  const handleRunCustomTests = useCallback(async () => {
+    if (isTimeUp) {
+      setCustomRunResult({
+        type: 'error',
+        message: 'Time is up. You can no longer run custom tests.',
+      });
+      return;
+    }
+    if (!runCustomTests || !studentId || !challengeId) {
+      setCustomRunResult({
+        type: 'error',
+        message: 'Custom tests are not available right now.',
+      });
+      return;
+    }
+
+    const { payload, order } = buildCustomTestsPayload();
+    if (payload.length === 0) {
+      setCustomRunResult({
+        type: 'error',
+        message: 'Add at least one custom test input to run.',
+      });
+      return;
+    }
+
+    setCustomRunResult({ type: 'info', message: 'Running custom tests...' });
+    setIsCustomRunning(true);
+    setCustomTestResults([]);
+    setCustomRunOrder(order);
+
+    try {
+      const res = await runCustomTests({
+        challengeId,
+        studentId,
+        code: assembledCode,
+        tests: payload,
+      });
+
+      if (!res?.success) {
+        setCustomRunResult({
+          type: 'error',
+          message: getUserFacingErrorMessage(
+            res,
+            'Unable to run custom tests.'
+          ),
+        });
+        setIsCustomRunning(false);
+        return;
+      }
+
+      const results = res?.data?.results || res?.results || [];
+      setCustomTestResults(results);
+      setCustomRunResult({
+        type: 'success',
+        message: 'Custom tests executed.',
+      });
+    } catch (_err) {
+      setCustomRunResult({
+        type: 'error',
+        message: 'Network error while running custom tests.',
+      });
+    } finally {
+      setIsCustomRunning(false);
+    }
+  }, [
+    assembledCode,
+    buildCustomTestsPayload,
+    challengeId,
+    isTimeUp,
+    runCustomTests,
+    studentId,
   ]);
 
   // Manual submit handler
@@ -749,12 +1019,16 @@ export default function MatchContainer({ challengeId, studentId }) {
       message: 'Time is up. You can no longer run or submit code.',
     });
 
+    const finishWithMessage = (nextMessage) => {
+      setMessage(nextMessage);
+      setIsChallengeFinished(true);
+    };
+
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        setMessage(MESSAGE_PARTICIPATION);
-        setIsChallengeFinished(true);
+        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
         return false;
       }
 
@@ -763,6 +1037,11 @@ export default function MatchContainer({ challengeId, studentId }) {
       const persistKey = resolvedMatchId
         ? `match-${resolvedMatchId}`
         : storageKeyBase;
+      const matchSettingId =
+        matchData?.id ||
+        matchData?.matchSettingId ||
+        matchData?.challengeMatchSettingId ||
+        challengeId;
 
       const resolveLastSubmittedCode = async () => {
         const localCode = lastSuccessRef.current;
@@ -780,25 +1059,51 @@ export default function MatchContainer({ challengeId, studentId }) {
         return null;
       };
 
-      const currentCode = normalizeCode(assembledCode);
       const lastSubmittedCode = await resolveLastSubmittedCode();
       const lastSubmittedNormalized = normalizeCode(lastSubmittedCode);
+      const hasManualSubmission = Boolean(lastSubmittedNormalized);
 
       if (!studentCode.trim()) {
-        if (lastSubmittedNormalized) {
-          setMessage(MESSAGE_SUBMISSION_REUSED);
-          setIsChallengeFinished(true);
+        if (hasManualSubmission) {
+          finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
           return true;
         }
-        setMessage(MESSAGE_NO_VALID_SUBMISSION);
-        setIsChallengeFinished(true);
+        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
         return false;
       }
 
-      if (lastSubmittedNormalized && currentCode === lastSubmittedNormalized) {
-        setMessage(MESSAGE_PARTICIPATION);
-        setIsChallengeFinished(true);
-        return true;
+      let runOutcome;
+      if (!runCode || !matchSettingId) {
+        runOutcome = { success: false };
+      } else {
+        try {
+          runOutcome = await runCode({
+            matchSettingId,
+            code: assembledCode,
+            language: 'cpp',
+          });
+        } catch {
+          runOutcome = { success: false };
+        }
+      }
+
+      const runSuccess = runOutcome?.success === true;
+      const runCompiled =
+        runOutcome?.data?.isCompiled !== undefined
+          ? runOutcome.data.isCompiled
+          : runOutcome?.isCompiled;
+      const runPassed =
+        runOutcome?.data?.isPassed !== undefined
+          ? runOutcome.data.isPassed
+          : runOutcome?.isPassed;
+
+      if (!runSuccess || runCompiled === false || !runPassed) {
+        if (hasManualSubmission) {
+          finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
+          return true;
+        }
+        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+        return false;
       }
 
       const submissionRes = await submitSubmission({
@@ -808,7 +1113,17 @@ export default function MatchContainer({ challengeId, studentId }) {
       });
 
       if (submissionRes?.success) {
-        setMessage(MESSAGE_PARTICIPATION);
+        const isFinalSubmission =
+          submissionRes?.data?.submission?.isFinal === true;
+        if (hasManualSubmission) {
+          finishWithMessage(
+            isFinalSubmission
+              ? MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER
+              : MESSAGE_PHASE1_SUBMITTED
+          );
+        } else {
+          finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_VALID);
+        }
         lastSuccessRef.current = assembledCode;
         if (studentId) {
           dispatch(
@@ -821,22 +1136,18 @@ export default function MatchContainer({ challengeId, studentId }) {
             })
           );
         }
-        setIsChallengeFinished(true);
         return true;
       }
 
-      if (lastSubmittedNormalized) {
-        setMessage('Your latest code failed. Kept your last submission.');
-        setIsChallengeFinished(true);
+      if (hasManualSubmission) {
+        finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
         return true;
       }
 
-      setMessage(MESSAGE_NO_VALID_SUBMISSION);
-      setIsChallengeFinished(true);
+      finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
       return false;
     } catch (err) {
-      setMessage(MESSAGE_PARTICIPATION);
-      setIsChallengeFinished(true);
+      finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
       return false;
     } finally {
       setIsSubmitting(false);
@@ -849,10 +1160,27 @@ export default function MatchContainer({ challengeId, studentId }) {
     studentCode,
     assembledCode,
     getLastSubmission,
+    matchData,
+    runCode,
     submitSubmission,
     dispatch,
     imports,
     challengeSignature,
+  ]);
+
+  useEffect(() => {
+    if (!isPhaseOneOver) return;
+    if (autoSubmitTriggeredRef.current) return;
+    if (isTimeUp || isChallengeFinished || isSubmitting) return;
+    autoSubmitTriggeredRef.current = true;
+    handleTimerFinish();
+  }, [
+    autoSubmitTriggeredRef,
+    handleTimerFinish,
+    isChallengeFinished,
+    isPhaseOneOver,
+    isSubmitting,
+    isTimeUp,
   ]);
 
   const handleTryAgain = useCallback(() => {
@@ -917,6 +1245,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     savedLastCompiledSnapshot?.imports?.trim() ||
     savedLastCompiledSnapshot?.studentCode?.trim()
   );
+  const showDraftSaveState = matchData ? draftSaveState : null;
 
   return (
     <MatchView
@@ -924,6 +1253,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       error={error}
       message={message}
       challengeId={challengeId}
+      isWaitingForStart={isWaitingForStart}
       matchData={matchData}
       imports={imports}
       onImportsChange={handleImportsChange}
@@ -942,12 +1272,22 @@ export default function MatchContainer({ challengeId, studentId }) {
       runResult={runResult}
       onRun={handleRun}
       onSubmit={handleSubmit}
+      customTests={customTests}
+      customTestResults={customTestResults}
+      customRunResult={customRunResult}
+      isCustomRunning={isCustomRunning}
+      customRunOrder={customRunOrder}
+      onCustomTestAdd={addCustomTest}
+      onCustomTestChange={updateCustomTest}
+      onCustomTestRemove={removeCustomTest}
+      onRunCustomTests={handleRunCustomTests}
       isTimeUp={isTimeUp}
       onTimerFinish={handleTimerFinish}
       testResults={testResults}
       canSubmit={canSubmit}
       isCompiled={isCompiled}
       isChallengeFinished={isChallengeFinished}
+      draftSaveState={showDraftSaveState}
       onTryAgain={handleTryAgain}
       onClean={handleClean}
       onRestore={handleRestore}

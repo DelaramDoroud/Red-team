@@ -10,7 +10,11 @@ import {
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
 
-import { API_REST_BASE, ChallengeStatus } from '#js/constants';
+import {
+  API_REST_BASE,
+  ChallengeStatus,
+  getChallengeStatusLabel,
+} from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
@@ -52,12 +56,24 @@ export default function ChallengeLayout({ children }) {
             setchallengeData(res.data);
             const status = res.data?.status;
             const isPeerReviewRoute = pathname?.includes('/peer-review');
-            const shouldBeInPeerReview =
-              status === ChallengeStatus.STARTED_PHASE_TWO ||
+            const isResultRoute = pathname?.includes('/result');
+            const isPeerReviewActive =
+              status === ChallengeStatus.STARTED_PHASE_TWO;
+            const isEnded =
+              status === ChallengeStatus.ENDED_PHASE_ONE ||
               status === ChallengeStatus.ENDED_PHASE_TWO;
-            if (shouldBeInPeerReview && !isPeerReviewRoute) {
+            if (isEnded && !isResultRoute) {
+              router.push(`/student/challenges/${challengeId}/result`);
+            } else if (!isEnded && isResultRoute) {
+              const fallbackRoute = isPeerReviewActive
+                ? 'peer-review'
+                : 'match';
+              router.push(
+                `/student/challenges/${challengeId}/${fallbackRoute}`
+              );
+            } else if (isPeerReviewActive && !isPeerReviewRoute) {
               router.push(`/student/challenges/${challengeId}/peer-review`);
-            } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
+            } else if (!isPeerReviewActive && isPeerReviewRoute) {
               router.push(`/student/challenges/${challengeId}/match`);
             }
           } else {
@@ -131,12 +147,8 @@ export default function ChallengeLayout({ children }) {
     switch (status) {
       case ChallengeStatus.STARTED_PHASE_ONE:
         return 'Coding Phase';
-      // here we can add also scoring phase and peer revirew phase(third sprint)
-      case '':
-        return '';
-
       default:
-        return status || 'Unknown';
+        return getChallengeStatusLabel(status);
     }
   };
   return (

@@ -18,6 +18,7 @@ import useMatchSettings from '#js/useMatchSetting';
 import useRoleGuard from '#js/useRoleGuard';
 import { MatchSettingStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
+import { formatDateTime } from '#js/date';
 import styles from './form.module.css';
 
 const IMPORTS_END_MARKER = '// __CODYMATCH_IMPORTS_END__';
@@ -83,6 +84,20 @@ const splitReferenceSolution = (value) => {
   };
 };
 
+const formatDisplayValue = (value) => {
+  const formatted = formatTestValue(value);
+  return formatted || '—';
+};
+
+const buildPeerReviewTestKey = (testCase) =>
+  JSON.stringify({
+    assignmentId: testCase.assignmentId,
+    input: testCase.input,
+    expectedOutput: testCase.expectedOutput,
+    notes: testCase.notes,
+    createdAt: testCase.createdAt,
+  });
+
 const assembleReferenceSolution = (imports, code) => {
   const trimmedImports = typeof imports === 'string' ? imports.trim() : '';
   const safeCode = typeof code === 'string' ? code : '';
@@ -132,6 +147,7 @@ export default function MatchSettingForm({ matchSettingId = null }) {
   });
   const {
     getMatchSetting,
+    getMatchSettingPeerReviewTests,
     createMatchSetting,
     updateMatchSetting,
     publishMatchSetting,
@@ -156,6 +172,13 @@ export default function MatchSettingForm({ matchSettingId = null }) {
   const [publishing, setPublishing] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [peerReviewTests, setPeerReviewTests] = useState([]);
+  const [peerReviewSummary, setPeerReviewSummary] = useState({
+    assignmentCount: 0,
+    totalTests: 0,
+  });
+  const [peerReviewLoading, setPeerReviewLoading] = useState(false);
+  const [peerReviewError, setPeerReviewError] = useState(null);
 
   useEffect(() => {
     setCurrentId(matchSettingId);
@@ -190,6 +213,35 @@ export default function MatchSettingForm({ matchSettingId = null }) {
     setLoading(false);
   }, [currentId, getMatchSetting]);
 
+  const loadPeerReviewTests = useCallback(async () => {
+    if (!currentId) return;
+    setPeerReviewLoading(true);
+    setPeerReviewError(null);
+    const result = await getMatchSettingPeerReviewTests(currentId);
+    if (result?.success === false) {
+      setPeerReviewError(
+        getApiErrorMessage(result, 'Unable to load peer review tests.')
+      );
+      setPeerReviewTests([]);
+      setPeerReviewSummary({ assignmentCount: 0, totalTests: 0 });
+      setPeerReviewLoading(false);
+      return;
+    }
+    const data = result?.data || result;
+    const tests = Array.isArray(data?.tests) ? data.tests : [];
+    const assignmentCount =
+      typeof data?.assignmentCount === 'number'
+        ? data.assignmentCount
+        : new Set(tests.map((testCase) => testCase.assignmentId)).size;
+    setPeerReviewTests(tests);
+    setPeerReviewSummary({
+      assignmentCount,
+      totalTests:
+        typeof data?.totalTests === 'number' ? data.totalTests : tests.length,
+    });
+    setPeerReviewLoading(false);
+  }, [currentId, getMatchSettingPeerReviewTests]);
+
   useEffect(() => {
     if (!currentId) {
       setLoading(false);
@@ -198,10 +250,30 @@ export default function MatchSettingForm({ matchSettingId = null }) {
     loadMatchSetting();
   }, [currentId, loadMatchSetting]);
 
+  useEffect(() => {
+    if (!currentId) {
+      setPeerReviewTests([]);
+      setPeerReviewSummary({ assignmentCount: 0, totalTests: 0 });
+      setPeerReviewError(null);
+      setPeerReviewLoading(false);
+      return;
+    }
+    loadPeerReviewTests();
+  }, [currentId, loadPeerReviewTests]);
+
   const statusLabel = useMemo(() => getStatusLabel(status), [status]);
   const statusVariant = useMemo(() => getStatusVariant(status), [status]);
   const isEditable = status !== MatchSettingStatus.READY;
   const isNew = !currentId;
+  const hasPeerReviewTests = peerReviewTests.length > 0;
+  const peerReviewSummaryText = useMemo(() => {
+    if (!hasPeerReviewTests) return 'No student-submitted tests yet.';
+    return `${peerReviewSummary.totalTests} tests from ${peerReviewSummary.assignmentCount} reviews.`;
+  }, [
+    hasPeerReviewTests,
+    peerReviewSummary.assignmentCount,
+    peerReviewSummary.totalTests,
+  ]);
   const {
     problemTitle,
     problemDescription,
@@ -263,6 +335,38 @@ export default function MatchSettingForm({ matchSettingId = null }) {
   const removePrivateTestCase = (id) => {
     setPrivateTests((prev) => prev.filter((testCase) => testCase.id !== id));
   };
+
+  const handleAddSuggestedTest = useCallback((testCase) => {
+    const inputValue = formatTestValue(testCase?.input).trim();
+    const outputValue = formatTestValue(testCase?.expectedOutput).trim();
+    if (!inputValue) {
+      setError('Suggested test is missing an input value.');
+      return;
+    }
+    setPrivateTests((prev) => {
+      const alreadyExists = prev.some((existing) => {
+        const existingInput =
+          typeof existing.input === 'string' ? existing.input.trim() : '';
+        const existingOutput =
+          typeof existing.output === 'string' ? existing.output.trim() : '';
+        return existingInput === inputValue && existingOutput === outputValue;
+      });
+      if (alreadyExists) {
+        setSuccessMessage('Test already exists in private tests.');
+        return prev;
+      }
+      setSuccessMessage('Test added to private tests.');
+      return [
+        ...prev,
+        {
+          id: createTestCaseId(),
+          input: inputValue,
+          output: outputValue,
+        },
+      ];
+    });
+    setError(null);
+  }, []);
 
   const buildPayload = () => {
     const referenceSolution = assembleReferenceSolution(
@@ -752,6 +856,108 @@ export default function MatchSettingForm({ matchSettingId = null }) {
           >
             Add private test
           </Button>
+        </div>
+      </div>
+
+      <div className={styles.card}>
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionTitleRow}>
+              <h2 className={styles.sectionTitle}>Student-submitted tests</h2>
+              {currentId ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={loadPeerReviewTests}
+                  disabled={peerReviewLoading}
+                >
+                  {peerReviewLoading ? 'Refreshing…' : 'Refresh'}
+                </Button>
+              ) : null}
+            </div>
+            <p className={styles.sectionDescription}>
+              Review tests students submitted during peer review. Add the best
+              ones to your private test suite.
+            </p>
+            <p className={styles.sectionMeta}>{peerReviewSummaryText}</p>
+          </div>
+
+          {peerReviewError ? (
+            <p className={styles.error}>{peerReviewError}</p>
+          ) : null}
+
+          {!isEditable ? (
+            <p className={styles.emptyHint}>
+              Unpublish this match setting to add tests.
+            </p>
+          ) : null}
+
+          {peerReviewLoading ? (
+            <p className={styles.emptyHint}>Loading peer review tests…</p>
+          ) : null}
+
+          {!peerReviewLoading && !hasPeerReviewTests ? (
+            <p className={styles.emptyHint}>
+              No peer review tests submitted yet.
+            </p>
+          ) : null}
+
+          {!peerReviewLoading && hasPeerReviewTests ? (
+            <div className={styles.testList}>
+              {peerReviewTests.map((testCase) => {
+                const reviewerName = testCase.reviewer?.username || 'Student';
+                const challengeTitle =
+                  testCase.challenge?.title || 'Unknown challenge';
+                const submittedAt = testCase.createdAt
+                  ? formatDateTime(testCase.createdAt)
+                  : null;
+                return (
+                  <div
+                    key={buildPeerReviewTestKey(testCase)}
+                    className={styles.testRow}
+                  >
+                    <div className={styles.fieldGroup}>
+                      <p className={styles.fieldLabel}>Input</p>
+                      <div className={styles.readonlyValue}>
+                        {formatDisplayValue(testCase.input)}
+                      </div>
+                    </div>
+                    <div className={styles.fieldGroup}>
+                      <p className={styles.fieldLabel}>Expected output</p>
+                      <div className={styles.readonlyValue}>
+                        {formatDisplayValue(testCase.expectedOutput)}
+                      </div>
+                      {testCase.notes ? (
+                        <p className={styles.note}>
+                          <span className={styles.noteLabel}>Notes:</span>{' '}
+                          {testCase.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className={styles.testActions}>
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        size='sm'
+                        onClick={() => handleAddSuggestedTest(testCase)}
+                        disabled={!isEditable}
+                      >
+                        Add to private tests
+                      </Button>
+                    </div>
+                    <div className={styles.suggestionMeta}>
+                      <span>Reviewer: {reviewerName}</span>
+                      <span>Challenge: {challengeTitle}</span>
+                      {submittedAt ? (
+                        <span>Submitted: {submittedAt}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
 

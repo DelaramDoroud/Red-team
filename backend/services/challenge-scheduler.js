@@ -17,7 +17,7 @@ const computePhaseOneEndMs = (challenge) => {
   }
   const startMs = new Date(challenge.startPhaseOneDateTime).getTime();
   if (Number.isNaN(startMs)) return null;
-  return startMs + Number(challenge.duration || 0) * 60 * 1000 + 3000;
+  return startMs + Number(challenge.duration || 0) * 60 * 1000 + 5000;
 };
 
 const markPhaseOneEnded = async (challengeId) => {

@@ -151,7 +151,7 @@ describe('Student challenge endpoints', () => {
   });
 
   describe('POST /api/rest/challenges/:challengeId/custom-tests/run', () => {
-    it('runs custom tests during phase one', async () => {
+    it('runs custom tests during the coding phase', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom`);
       const { challenge } = await createChallengeWithSetting({
@@ -191,7 +191,7 @@ describe('Student challenge endpoints', () => {
       expect(res.body.data.results.length).toBe(1);
     });
 
-    it('rejects custom tests when challenge is not in phase one', async () => {
+    it('rejects custom tests when challenge is not in the coding phase', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom2`);
       const { challenge } = await createChallengeWithSetting({
@@ -452,6 +452,56 @@ describe('Student challenge endpoints', () => {
       expect(res.body.data.studentSubmission.privateTestResults.length).toBe(1);
       expect(res.body.data.otherSubmissions.length).toBeGreaterThan(0);
       expect(res.body.data.peerReviewTests.length).toBeGreaterThan(0);
+    });
+
+    it('hides other submissions until the challenge fully ends', async () => {
+      const suffix = Date.now();
+      const student = await createUser(`${suffix}-result-phase-one`);
+      const reviewer = await createUser(`${suffix}-result-peer`);
+      const { challenge, challengeMatchSetting } =
+        await createChallengeWithSetting({
+          status: ChallengeStatus.ENDED_PHASE_ONE,
+          suffix: `${suffix}-result-phase-one`,
+        });
+
+      const { participant, match } = await createParticipantWithMatch({
+        challenge,
+        challengeMatchSetting,
+        student,
+      });
+      const { participant: reviewerParticipant, match: reviewerMatch } =
+        await createParticipantWithMatch({
+          challenge,
+          challengeMatchSetting,
+          student: reviewer,
+        });
+
+      const studentSubmission = await createSubmission({
+        match,
+        participant,
+        code: 'int main() { return 0; }',
+      });
+      await createSubmission({
+        match: reviewerMatch,
+        participant: reviewerParticipant,
+        code: 'int main() { return 1; }',
+      });
+
+      await PeerReviewAssignment.create({
+        submissionId: studentSubmission.id,
+        reviewerId: reviewerParticipant.id,
+        feedbackTests: [{ input: '1', expectedOutput: '1' }],
+      });
+
+      const res = await request(app).get(
+        `/api/rest/challenges/${challenge.id}/results?studentId=${student.id}`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.studentSubmission).toBeTruthy();
+      expect(res.body.data.otherSubmissions).toEqual([]);
+      expect(res.body.data.peerReviewTests).toEqual([]);
     });
 
     it('rejects results when challenge has not ended', async () => {

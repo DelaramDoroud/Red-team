@@ -158,26 +158,26 @@ router.post('/submissions', async (req, res) => {
       lock: transaction.LOCK.UPDATE,
     });
 
+    const submissionPayload = {
+      code,
+      status: submissionStatus,
+      isAutomaticSubmission,
+      isFinal: false,
+      privateTestResults: privateExecutionResult.testResults,
+      privateSummary: privateExecutionResult.summary,
+    };
+
     let submission;
     if (existingSubmission) {
-      submission = await existingSubmission.update(
-        {
-          code,
-          status: submissionStatus,
-          isAutomaticSubmission,
-          isFinal: false,
-        },
-        { transaction }
-      );
+      submission = await existingSubmission.update(submissionPayload, {
+        transaction,
+      });
     } else {
       submission = await Submission.create(
         {
           matchId,
           challengeParticipantId: match.challengeParticipantId,
-          code,
-          status: submissionStatus,
-          isAutomaticSubmission,
-          isFinal: false,
+          ...submissionPayload,
         },
         { transaction }
       );
