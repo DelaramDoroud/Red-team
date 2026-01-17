@@ -3,7 +3,7 @@
 import { useEffect, useId } from 'react';
 import { Button } from '#components/common/Button';
 import styles from './AlertDialog.module.css';
-
+import { createPortal } from 'react-dom';
 export default function AlertDialog({
   open,
   title = 'Confirm',
@@ -65,7 +65,7 @@ export default function AlertDialog({
     dialogProps['aria-describedby'] = descriptionId;
   }
 
-  return (
+  return createPortal(
     <div
       className={styles.overlay}
       role='button'
@@ -81,9 +81,9 @@ export default function AlertDialog({
           </h3>
         </div>
         {hasDescription && (
-          <p id={descriptionId} className={styles.description}>
+          <div id={descriptionId} className={styles.description}>
             {description}
-          </p>
+          </div>
         )}
         <div className={styles.actions}>
           {onCancel && (
@@ -106,6 +106,7 @@ export default function AlertDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
