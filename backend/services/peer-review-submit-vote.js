@@ -5,6 +5,8 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
+import Challenge from '#root/models/challenge.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 export const submitVote = async (
   userId,
@@ -52,6 +54,29 @@ export const submitVote = async (
   if (!assignment) {
     const error = new Error('Assignment not found');
     error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const challengeId =
+    assignment.submission?.match?.challengeMatchSetting?.challengeId;
+
+  if (!challengeId) {
+    const error = new Error('Challenge not found');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const challenge = await Challenge.findByPk(challengeId);
+
+  if (!challenge) {
+    const error = new Error('Challenge not found');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+    const error = new Error('Peer review phase has ended');
+    error.code = 'FORBIDDEN';
     throw error;
   }
 

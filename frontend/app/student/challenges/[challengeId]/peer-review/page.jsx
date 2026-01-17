@@ -113,11 +113,10 @@ export default function PeerReviewPage() {
 
   const [voteMap, setVoteMap] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
-
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
-  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [finalSummary, setFinalSummary] = useState(null);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
 
@@ -125,6 +124,10 @@ export default function PeerReviewPage() {
   const monacoRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+
+  const isVotingDisabled =
+    timeLeft === 0 ||
+    challengeInfo?.status !== ChallengeStatus.STARTED_PHASE_TWO;
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -328,10 +331,22 @@ export default function PeerReviewPage() {
     }
   };
 
-  const handleCloseSummaryDialog = () => {
+  const handleCloseSummaryDialog = useCallback(() => {
     setShowSummaryDialog(false);
     setFinalSummary(null);
-  };
+    router.push(`/student/challenges/${challengeId}/result`);
+  }, [router, challengeId]);
+
+  useEffect(() => {
+    const t = showSummaryDialog
+      ? setTimeout(() => {
+          handleCloseSummaryDialog();
+        }, 10000)
+      : null;
+    return () => {
+      if (t) clearTimeout(t);
+    };
+  }, [showSummaryDialog, handleCloseSummaryDialog]);
 
   const handleVoteChange = (newVoteType) => {
     if (!selectedAssignment) return;
@@ -719,6 +734,7 @@ export default function PeerReviewPage() {
                           value={option}
                           checked={isSelected}
                           onChange={() => handleVoteChange(option)}
+                          disabled={isVotingDisabled}
                           className='h-4 w-4 accent-primary cursor-pointer'
                         />
                       </label>
