@@ -7,8 +7,10 @@ import {
   act,
 } from '@testing-library/react';
 import { Provider } from 'react-redux';
+import { ChallengeStatus } from '#js/constants';
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
 import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
+import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
 import { given, when, andThen as then } from './bdd';
 import { getMockedStore, getMockedStoreWrapper } from './test-redux-provider';
 
@@ -142,6 +144,43 @@ describe('RT-4 Code Submission', () => {
         wrapper: getMockedStoreWrapper(preloadedState),
       }
     );
+  };
+
+  const renderMatchContainerWithDuration = ({
+    stateOverrides = {},
+    durationValue,
+  }) => {
+    const baseState = {
+      auth: { user: { id: studentId, role: 'student' }, isLoggedIn: true },
+    };
+    const preloadedState = {
+      ...baseState,
+      ...stateOverrides,
+      auth: {
+        ...baseState.auth,
+        ...(stateOverrides.auth || {}),
+      },
+    };
+    const store = getMockedStore(preloadedState);
+    const renderResult = render(
+      <Provider store={store}>
+        <DurationProvider value={durationValue}>
+          <MatchContainer challengeId={challengeId} studentId={studentId} />
+        </DurationProvider>
+      </Provider>
+    );
+
+    const rerenderWithDuration = (nextValue) => {
+      renderResult.rerender(
+        <Provider store={store}>
+          <DurationProvider value={nextValue}>
+            <MatchContainer challengeId={challengeId} studentId={studentId} />
+          </DurationProvider>
+        </Provider>
+      );
+    };
+
+    return { ...renderResult, rerenderWithDuration };
   };
 
   const setStudentCodeValue = (value) => {
@@ -435,7 +474,7 @@ describe('RT-4 Code Submission', () => {
     });
   });
 
-  it('should automatically submit when timer finishes', async () => {
+  it('auto-submits even if the student never ran the code', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
 
     await given(async () => {
@@ -458,10 +497,164 @@ describe('RT-4 Code Submission', () => {
     await then(async () => {
       await waitFor(
         () => {
-          expect(mockSubmitSubmission).toHaveBeenCalled();
+          expect(mockRunCode).toHaveBeenCalledWith({
+            matchSettingId: challengeId,
+            code: expect.any(String),
+            language: 'cpp',
+          });
+          expect(mockSubmitSubmission).toHaveBeenCalledWith({
+            matchId: 456,
+            code: expect.any(String),
+            isAutomatic: true,
+          });
         },
         { timeout: 2000 }
       );
+    });
+  });
+
+  it('auto-runs and auto-submits when phase one ends and public tests pass', async () => {
+    mockSubmitSubmission.mockResolvedValue({ success: true });
+
+    const { rerenderWithDuration } = renderMatchContainerWithDuration({
+      durationValue: { status: ChallengeStatus.STARTED_PHASE_ONE },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
+    const runCallsBeforeTimer = mockRunCode.mock.calls.length;
+
+    await act(async () => {
+      rerenderWithDuration({ status: ChallengeStatus.ENDED_PHASE_ONE });
+    });
+
+    await waitFor(
+      () => {
+        expect(mockRunCode.mock.calls.length).toBeGreaterThan(
+          runCallsBeforeTimer
+        );
+        expect(mockSubmitSubmission).toHaveBeenCalledWith({
+          matchId: 456,
+          code: expect.any(String),
+          isAutomatic: true,
+        });
+      },
+      { timeout: 2000 }
+    );
+  });
+
+  it('runs at phase end but does not auto-submit when public tests fail', async () => {
+    mockRunCode.mockResolvedValue({
+      success: true,
+      data: { isCompiled: true, isPassed: false, results: [] },
+    });
+
+    const { rerenderWithDuration } = renderMatchContainerWithDuration({
+      durationValue: { status: ChallengeStatus.STARTED_PHASE_ONE },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
+    await act(async () => {
+      rerenderWithDuration({ status: ChallengeStatus.ENDED_PHASE_ONE });
+    });
+
+    await waitFor(() => {
+      expect(mockRunCode).toHaveBeenCalled();
+    });
+    expect(mockSubmitSubmission).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId('message')).toHaveTextContent(
+        'Your latest code failed. Kept your last submission.'
+      );
+    });
+  });
+
+  it('auto-submits the latest code after a successful run without manual submit', async () => {
+    mockSubmitSubmission.mockResolvedValue({ success: true });
+
+    await given(async () => {
+      renderMatchContainer();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
+    await when(async () => {
+      await clickRunAndWait();
+    });
+    const runCallsBeforeTimer = mockRunCode.mock.calls.length;
+
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('timer-finish-btn'));
+    });
+
+    await then(async () => {
+      await waitFor(
+        () => {
+          expect(mockRunCode.mock.calls.length).toBeGreaterThan(
+            runCallsBeforeTimer
+          );
+          expect(mockSubmitSubmission).toHaveBeenCalledWith({
+            matchId: 456,
+            code: expect.any(String),
+            isAutomatic: true,
+          });
+        },
+        { timeout: 2000 }
+      );
+    });
+  });
+
+  it('does not auto-submit when public tests fail at time up', async () => {
+    mockRunCode.mockResolvedValue({
+      success: true,
+      data: { isCompiled: true, isPassed: false, results: [] },
+    });
+
+    await given(async () => {
+      renderMatchContainer();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('timer-finish-btn'));
+    });
+
+    await then(async () => {
+      await waitFor(() => {
+        expect(mockRunCode).toHaveBeenCalled();
+      });
+      expect(mockSubmitSubmission).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByTestId('message')).toHaveTextContent(
+          'Your latest code failed. Kept your last submission.'
+        );
+      });
     });
   });
 

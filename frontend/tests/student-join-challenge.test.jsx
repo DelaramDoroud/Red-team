@@ -28,7 +28,6 @@ vi.mock('#js/store/slices/auth', () => ({
   fetchUserInfo: () => async () => ({}),
 }));
 
-const mockPush = vi.fn();
 const mockRouter = {
   push: vi.fn(),
   replace: vi.fn(),
@@ -43,10 +42,9 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/student/challenges',
 }));
 
-const mockGetChallenges = vi.fn();
+const mockGetChallengesForStudent = vi.fn();
 const mockJoinChallenge = vi.fn();
 const mockAssignChallenge = vi.fn();
-const mockGetChallengeForJoinedStudent = vi.fn();
 
 vi.mock('#components/common/Button', () => {
   function Button({ children, ...props }) {
@@ -82,10 +80,9 @@ vi.mock('#js/useChallenge', () => ({
   __esModule: true,
   default: () => ({
     loading: false,
-    getChallenges: mockGetChallenges,
+    getChallengesForStudent: mockGetChallengesForStudent,
     joinChallenge: mockJoinChallenge,
     assignChallenge: mockAssignChallenge,
-    getChallengeForJoinedStudent: mockGetChallengeForJoinedStudent,
     createChallenge: vi.fn(),
     publishChallenge: vi.fn(),
     unpublishChallenge: vi.fn(),
@@ -102,7 +99,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
       title: 'Future challenge',
       duration,
       startDatetime: future1,
-      status: 'private',
+      status: 'public',
     },
     {
       id: 2,
@@ -118,50 +115,35 @@ describe('Student joins challenge page – Acceptance criteria', () => {
       startDatetime: visibleStart,
       status: ChallengeStatus.STARTED_PHASE_ONE,
     },
+    {
+      id: 4,
+      title: 'Peer review challenge',
+      duration,
+      startDatetime: visibleStart,
+      status: ChallengeStatus.STARTED_PHASE_TWO,
+    },
+    {
+      id: 5,
+      title: 'Completed challenge',
+      duration,
+      startDatetime: visibleStart,
+      status: ChallengeStatus.ENDED_PHASE_TWO,
+      joined: true,
+    },
   ];
   beforeEach(() => {
     vi.resetAllMocks();
-    mockGetChallenges.mockReset();
+    mockGetChallengesForStudent.mockReset();
     mockJoinChallenge.mockReset();
-    mockGetChallengeForJoinedStudent.mockReset();
-    mockPush.mockReset();
-    // Default mock for getChallengeForJoinedStudent - returns not joined
-    mockGetChallengeForJoinedStudent.mockResolvedValue({
-      success: true,
-      data: null,
-    });
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
-  // AC1: The student sees only one challenge when its date and time exactly match(<=) the current  date and time.
-  it('Student sees only one challenge when its start time is <= current time', async () => {
-    mockGetChallenges.mockResolvedValue({
+  it('shows status labels for upcoming, coding, peer review, and completed challenges', async () => {
+    mockGetChallengesForStudent.mockResolvedValue({
       success: true,
-      data: [sampleChallenges[1]],
-    });
-
-    await given(() => {
-      render(<StudentChallengesPage />);
-    });
-
-    await when(async () => {
-      /* no extra actions */
-    });
-
-    await then(async () => {
-      await waitFor(() => {
-        expect(screen.getByText('Current challenge')).toBeInTheDocument();
-      });
-      expect(screen.queryByText('Future challenge')).not.toBeInTheDocument();
-    });
-  });
-  // AC2:If no challenge matches the current date and time, the student sees a message :“There is no available challenge at the moment. Please wait for your teacher to schedule one.”
-  it('No challenge is displayed', async () => {
-    mockGetChallenges.mockResolvedValue({
-      success: true,
-      data: [sampleChallenges[0]],
+      data: sampleChallenges,
     });
 
     await given(() => {
@@ -170,20 +152,23 @@ describe('Student joins challenge page – Acceptance criteria', () => {
 
     await then(async () => {
       await waitFor(() => {
-        expect(
-          screen.getByText(
-            /There is no available challenge at the moment\. Please wait for your teacher to schedule one\./i
-          )
-        ).toBeInTheDocument();
+        expect(screen.getByText('Future challenge')).toBeInTheDocument();
       });
-
-      expect(screen.queryByText('Later challenge 1')).not.toBeInTheDocument();
-      expect(screen.queryByText('Later challenge 2')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Upcoming', { selector: 'p' })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Coding', { selector: 'p' })).toBeInTheDocument();
+      expect(
+        screen.getByText('Peer review', { selector: 'p' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('Completed', { selector: 'p' })
+      ).toBeInTheDocument();
     });
   });
-  // AC3:When a matching challenge is visible and the challenge has not started, a Join button is shown.
+
   it('shows a Join button when a visible challenge has not started', async () => {
-    mockGetChallenges.mockResolvedValue({
+    mockGetChallengesForStudent.mockResolvedValue({
       success: true,
       data: [sampleChallenges[1]],
     });
@@ -200,23 +185,54 @@ describe('Student joins challenge page – Acceptance criteria', () => {
       expect(screen.getByRole('button', { name: /join/i })).toBeInTheDocument();
     });
   });
+
+  it('calls joinChallenge when Join is clicked', async () => {
+    mockGetChallengesForStudent.mockResolvedValue({
+      success: true,
+      data: [sampleChallenges[1]],
+    });
+    mockJoinChallenge.mockResolvedValue({ success: true });
+
+    await given(() => {
+      render(<StudentChallengesPage />);
+    });
+
+    const joinButton = await screen.findByRole('button', { name: /join/i });
+    const user = userEvent.setup();
+    await user.click(joinButton);
+
+    expect(mockJoinChallenge).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('shows an empty state when no challenges are available', async () => {
+    mockGetChallengesForStudent.mockResolvedValue({
+      success: true,
+      data: [],
+    });
+
+    await given(() => {
+      render(<StudentChallengesPage />);
+    });
+
+    await then(async () => {
+      await waitFor(() => {
+        expect(
+          screen.getByText(/There are no challenges available yet./i)
+        ).toBeInTheDocument();
+      });
+    });
+  });
   // AC4:When the student clicks Join, the system records the student as joined.
   // AC5:After joining, the student sees the message: “Wait for the teacher to start the challenge.”
   it('shows "Wait for the teacher to start the challenge." after clicking Join', async () => {
     const user = userEvent.setup();
 
-    mockGetChallenges.mockResolvedValue({
+    mockGetChallengesForStudent.mockResolvedValue({
       success: true,
       data: [sampleChallenges[1]],
     });
 
     mockJoinChallenge.mockResolvedValue({ success: true });
-    // Initially, student hasn't joined (returns null)
-    // After joining, the component updates its internal state, so we don't need to change the mock
-    mockGetChallengeForJoinedStudent.mockResolvedValue({
-      success: true,
-      data: null, // Student hasn't joined initially
-    });
 
     await given(() => {
       render(<StudentChallengesPage />);
@@ -244,17 +260,12 @@ describe('Student joins challenge page – Acceptance criteria', () => {
   });
   // AC6:If the challenge has started and the student has not joined beforehand, the Join button is replaced with the message:“The challenge is in progress.”
   it('shows "The challenge is in progress." and student cannot join ', async () => {
-    mockGetChallenges.mockResolvedValue({
+    mockGetChallengesForStudent.mockResolvedValue({
       success: true,
       data: [sampleChallenges[2]],
     });
 
     mockJoinChallenge.mockResolvedValue({ success: true });
-    // Student hasn't joined, so return null
-    mockGetChallengeForJoinedStudent.mockResolvedValue({
-      success: true,
-      data: null,
-    });
 
     await given(() => {
       render(<StudentChallengesPage />);
