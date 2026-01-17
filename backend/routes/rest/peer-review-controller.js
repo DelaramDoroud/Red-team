@@ -4,8 +4,8 @@ import { handleException } from '#root/services/error.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
-// import Challenge from '#root/models/challenge.js';
-// import { ChallengeStatus } from '#root/models/enum/enums.js';
+import Challenge from '#root/models/challenge.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
 
@@ -133,14 +133,35 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
+    const challenge = await Challenge.findByPk(challengeId, { transaction: t });
+
+    if (!challenge) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
+      await t.commit();
+      return res.json({
+        success: true,
+        data: { finalized: true },
+      });
+    }
+
     const participants = await ChallengeParticipant.findAll({
       where: { challengeId },
       transaction: t,
     });
 
     if (participants.length === 0) {
-      await t.commit();
-      return res.json({ success: true });
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'Peer review cannot be finalized without participants',
+      });
     }
 
     for (const participant of participants) {
@@ -178,6 +199,13 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         await PeerReviewVote.bulkCreate(abstainVotes, { transaction: t });
       }
     }
+    await Challenge.update(
+      { status: ChallengeStatus.ENDED_PHASE_TWO },
+      {
+        where: { id: challengeId },
+        transaction: t,
+      }
+    );
 
     await t.commit();
     return res.json({
