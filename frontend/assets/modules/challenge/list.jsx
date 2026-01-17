@@ -10,33 +10,6 @@ import { Button } from '#components/common/Button';
 import Timer from '#components/common/Timer';
 import styles from './list.module.css';
 
-const formatTimer = (seconds) => {
-  if (seconds == null) return '—';
-  const safeSeconds = Math.max(0, seconds);
-  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
-  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
-  const secs = String(safeSeconds % 60).padStart(2, '0');
-  return `${hours}:${mins}:${secs}`;
-};
-
-const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
-  if (explicitEndValue) {
-    const explicitEnd = new Date(explicitEndValue).getTime();
-    return Number.isNaN(explicitEnd) ? null : explicitEnd;
-  }
-  if (!startValue || !durationMinutes) return null;
-  const startMs = new Date(startValue).getTime();
-  if (Number.isNaN(startMs)) return null;
-  return startMs + durationMinutes * 60 * 1000 + 3000;
-};
-
-const getBufferedStartMs = (value) => {
-  if (!value) return null;
-  const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return null;
-  return timestamp + 3000;
-};
-
 export default function ChallengeList() {
   const {
     loading,
@@ -55,15 +28,6 @@ export default function ChallengeList() {
   const [countdowns, setCountdowns] = useState({});
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
-  const [phaseNow, setPhaseNow] = useState(Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setPhaseNow(Date.now());
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
   const totalPages = Math.ceil(challenges.length / pageSize);
@@ -383,6 +347,30 @@ export default function ChallengeList() {
     }
   };
 
+  const renderTimeLeft = (challenge) => {
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
+      return (
+        <Timer
+          duration={challenge.duration}
+          challengeId={challenge.id}
+          startTime={challenge.startPhaseOneDateTime || challenge.startDatetime}
+          label='Time left'
+        />
+      );
+    }
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO) {
+      return (
+        <Timer
+          duration={challenge.durationPeerReview}
+          challengeId={`${challenge.id}-phase-two`}
+          startTime={challenge.startPhaseTwoDateTime}
+          label='Time left'
+        />
+      );
+    }
+    return null;
+  };
+
   // Countdown with persistence
   useEffect(() => {
     const timers = {};
@@ -464,7 +452,7 @@ export default function ChallengeList() {
     }
 
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-      return <Timer duration={challenge.duration} challengeId={challenge.id} />;
+      return null;
     }
 
     if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE) {
@@ -541,78 +529,6 @@ export default function ChallengeList() {
       <div className={styles.grid}>
         {currentItems.map((challenge) => {
           const studentCount = participantsMap[challenge.id] || 0;
-          const phaseOneStart =
-            challenge.startPhaseOneDateTime || challenge.startDatetime;
-          const phaseOneEndMs = getPhaseEndMs(
-            phaseOneStart,
-            challenge.duration,
-            challenge.endPhaseOneDateTime
-          );
-          const phaseOneTimeLeft =
-            challenge.status === ChallengeStatus.STARTED_PHASE_ONE &&
-            phaseOneEndMs
-              ? Math.max(0, Math.floor((phaseOneEndMs - phaseNow) / 1000))
-              : null;
-          const phaseOneCountdownSeconds = (() => {
-            if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE)
-              return null;
-            const bufferedStart = getBufferedStartMs(phaseOneStart);
-            if (!bufferedStart) return null;
-            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
-          })();
-
-          const phaseTwoStart = challenge.startPhaseTwoDateTime;
-          const phaseTwoEndMs = getPhaseEndMs(
-            phaseTwoStart,
-            challenge.durationPeerReview,
-            challenge.endPhaseTwoDateTime
-          );
-          const phaseTwoTimeLeft =
-            challenge.status === ChallengeStatus.STARTED_PHASE_TWO &&
-            phaseTwoEndMs
-              ? Math.max(0, Math.floor((phaseTwoEndMs - phaseNow) / 1000))
-              : null;
-          const phaseTwoCountdownSeconds = (() => {
-            if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO)
-              return null;
-            const bufferedStart = getBufferedStartMs(phaseTwoStart);
-            if (!bufferedStart) return null;
-            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
-          })();
-
-          const phaseOneActive =
-            challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
-          const phaseTwoActive =
-            challenge.status === ChallengeStatus.STARTED_PHASE_TWO;
-          const extraInfo =
-            phaseOneActive || phaseTwoActive ? (
-              <div className={styles.extraInfo}>
-                {phaseOneActive && (
-                  <div className={styles.extraInfoRow}>
-                    <span className={styles.extraInfoLabel}>
-                      Challenge in progress
-                    </span>
-                    <span>
-                      {phaseOneCountdownSeconds > 0
-                        ? `Starting in ${phaseOneCountdownSeconds}s`
-                        : `Time left ${formatTimer(phaseOneTimeLeft)}`}
-                    </span>
-                  </div>
-                )}
-                {phaseTwoActive && (
-                  <div className={styles.extraInfoRow}>
-                    <span className={styles.extraInfoLabel}>
-                      Challenge in progress
-                    </span>
-                    <span>
-                      {phaseTwoCountdownSeconds > 0
-                        ? `Starting in ${phaseTwoCountdownSeconds}s`
-                        : `Time left ${formatTimer(phaseTwoTimeLeft)}`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : null;
 
           return (
             <ChallengeCard
@@ -620,9 +536,9 @@ export default function ChallengeList() {
               challenge={{ ...challenge, participants: studentCount }}
               href={`/challenges/${challenge.id}`}
               actions={renderActions(challenge, studentCount)}
+              extraInfo={renderTimeLeft(challenge)}
               onAllowedNumberChange={handleAllowedNumberChange}
               allowedNumberError={reviewErrors[challenge.id]}
-              extraInfo={extraInfo}
             />
           );
         })}

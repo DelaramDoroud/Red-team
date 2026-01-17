@@ -4,7 +4,22 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { setChallengeStartTime } from '#js/store/slices/ui';
 
-export default function Timer({ duration, challengeId, onFinish }) {
+const resolveTimestamp = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+export default function Timer({
+  duration,
+  challengeId,
+  startTime,
+  onFinish,
+  label = 'Timer:',
+}) {
   const COUNTDOWN_DURATION = 3;
   const dispatch = useAppDispatch();
   const userId = useAppSelector((state) => state.auth.user?.id);
@@ -31,15 +46,29 @@ export default function Timer({ duration, challengeId, onFinish }) {
   useEffect(() => {
     if (!userId) return undefined;
 
-    let startTime = storedStartTime;
+    const explicitStartTime = resolveTimestamp(startTime);
+    let baseStartTime = explicitStartTime ?? storedStartTime;
 
-    if (!startTime) {
-      startTime = Date.now() + COUNTDOWN_DURATION * 1000;
-      dispatch(setChallengeStartTime({ userId, challengeId, startTime }));
+    if (!baseStartTime) {
+      baseStartTime = Date.now();
+    }
+
+    if (
+      !storedStartTime ||
+      (explicitStartTime && storedStartTime !== explicitStartTime)
+    ) {
+      dispatch(
+        setChallengeStartTime({
+          userId,
+          challengeId,
+          startTime: baseStartTime,
+        })
+      );
     }
 
     const now = Date.now();
-    const countdownSec = Math.ceil((startTime - now) / 1000);
+    const effectiveStartTime = baseStartTime + COUNTDOWN_DURATION * 1000;
+    const countdownSec = Math.ceil((effectiveStartTime - now) / 1000);
 
     if (countdownSec > 0) {
       setCountdownRemaining(countdownSec);
@@ -50,10 +79,10 @@ export default function Timer({ duration, challengeId, onFinish }) {
     }
 
     if (duration && duration > 0) {
-      endTimeRef.current = startTime + duration * 60 * 1000;
+      endTimeRef.current = effectiveStartTime + duration * 60 * 1000;
     }
     return undefined;
-  }, [userId, challengeId, storedStartTime, dispatch, duration]);
+  }, [userId, challengeId, storedStartTime, dispatch, duration, startTime]);
 
   useEffect(() => {
     if (!showCountdown || countdownRemainingRef.current <= 0) return undefined;
@@ -121,7 +150,7 @@ export default function Timer({ duration, challengeId, onFinish }) {
 
       {timeLeft !== null && (
         <div data-testid='timer-value' className='font-mono tabular-nums'>
-          Timer: {formatTime(timeLeft)}
+          {label} {formatTime(timeLeft)}
         </div>
       )}
     </>
