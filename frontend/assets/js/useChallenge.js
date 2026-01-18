@@ -230,6 +230,18 @@ export default function useChallenge() {
     [fetchData]
   );
 
+  const exitPeerReview = useCallback(
+    async (challengeId, studentId, votes = []) => {
+      const url = `${API_REST_BASE}/peer-review/exit`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId, studentId, votes }),
+      });
+    },
+    [fetchData]
+  );
+
   return useMemo(
     () => ({
       loading,
@@ -256,6 +268,7 @@ export default function useChallenge() {
       getStudentVotes,
       submitPeerReviewVote,
       finalizePeerReview,
+      exitPeerReview,
     }),
     [
       loading,
@@ -282,6 +295,7 @@ export default function useChallenge() {
       getStudentVotes,
       submitPeerReviewVote,
       finalizePeerReview,
+      exitPeerReview,
     ]
   );
 }

@@ -20,7 +20,11 @@ import { DurationProvider } from './(context)/DurationContext';
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const { getChallengeForJoinedStudent } = useChallenge();
+  const {
+    getChallengeForJoinedStudent,
+    getStudentPeerReviewAssignments,
+    getStudentVotes,
+  } = useChallenge();
   const router = useRouter();
   const pathname = usePathname();
   const redirectOnError = useApiErrorRedirect();
@@ -56,7 +60,46 @@ export default function ChallengeLayout({ children }) {
             const shouldBeInPeerReview =
               status === ChallengeStatus.STARTED_PHASE_TWO ||
               status === ChallengeStatus.ENDED_PHASE_TWO;
+
             if (isResultRoute) return;
+
+            if (isPeerReviewRoute && shouldBeInPeerReview) {
+              try {
+                const [assignmentsRes, votesRes] = await Promise.all([
+                  getStudentPeerReviewAssignments(challengeId, studentId),
+                  getStudentVotes(challengeId),
+                ]);
+
+                if (
+                  assignmentsRes?.success &&
+                  votesRes?.success &&
+                  Array.isArray(assignmentsRes.assignments) &&
+                  Array.isArray(votesRes.votes)
+                ) {
+                  const { assignments } = assignmentsRes;
+                  const { votes } = votesRes;
+                  const voteMap = new Map(
+                    votes.map((v) => [v.submissionId, v])
+                  );
+
+                  const allAssignmentsHaveVotes = assignments.every(
+                    (assignment) => voteMap.has(assignment.submissionId)
+                  );
+
+                  if (
+                    allAssignmentsHaveVotes &&
+                    assignments.length > 0 &&
+                    status === ChallengeStatus.STARTED_PHASE_TWO
+                  ) {
+                    router.push(`/student/challenges/${challengeId}/result`);
+                    return;
+                  }
+                }
+              } catch (err) {
+                // If check fails, allow normal flow
+              }
+            }
+
             if (shouldBeInPeerReview && !isPeerReviewRoute) {
               router.push(`/student/challenges/${challengeId}/peer-review`);
             } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
@@ -115,6 +158,8 @@ export default function ChallengeLayout({ children }) {
     challengeId,
     studentId,
     getChallengeForJoinedStudent,
+    getStudentPeerReviewAssignments,
+    getStudentVotes,
     isAuthorized,
     pathname,
     redirectOnError,
