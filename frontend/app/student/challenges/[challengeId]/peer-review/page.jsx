@@ -434,6 +434,53 @@ export default function PeerReviewPage() {
     }
   };
 
+  const saveCurrentVotes = async () => {
+    if (!challengeId || !studentId || hasExited || isExiting) {
+      return;
+    }
+
+    const votesToSubmit = assignments
+      .filter((assignment) => {
+        const vote = voteMap[assignment.submissionId];
+        return vote && vote.type;
+      })
+      .map((assignment) => {
+        const vote = voteMap[assignment.submissionId];
+        return {
+          submissionId: assignment.submissionId,
+          vote: vote.type,
+          testCaseInput: vote.type === 'incorrect' ? vote.input || null : null,
+          expectedOutput:
+            vote.type === 'incorrect' ? vote.output || null : null,
+        };
+      });
+
+    const res = await exitPeerReview(challengeId, studentId, votesToSubmit);
+
+    if (res?.success === false) {
+      const errorMsg =
+        getApiErrorMessage(res, 'Unable to save votes') ||
+        'Failed to save votes';
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleContinue = async () => {
+    setIsExiting(true);
+    setExitDialogOpen(false);
+
+    try {
+      const success = await saveCurrentVotes();
+      if (success) {
+        toast.success('Votes saved successfully.');
+      }
+    } catch (err) {
+      toast.error('Unable to save votes. Please try again.');
+    } finally {
+      setIsExiting(false);
+    }
+  };
+
   const handleExit = async () => {
     if (!challengeId || !studentId || hasExited || isExiting) return;
 
@@ -441,30 +488,8 @@ export default function PeerReviewPage() {
     setExitDialogOpen(false);
 
     try {
-      const votesToSubmit = assignments
-        .filter((assignment) => {
-          const vote = voteMap[assignment.submissionId];
-          return vote && vote.type;
-        })
-        .map((assignment) => {
-          const vote = voteMap[assignment.submissionId];
-          return {
-            submissionId: assignment.submissionId,
-            vote: vote.type,
-            testCaseInput:
-              vote.type === 'incorrect' ? vote.input || null : null,
-            expectedOutput:
-              vote.type === 'incorrect' ? vote.output || null : null,
-          };
-        });
-
-      const res = await exitPeerReview(challengeId, studentId, votesToSubmit);
-
-      if (res?.success === false) {
-        const errorMsg =
-          getApiErrorMessage(res, 'Unable to exit peer review') ||
-          'Failed to exit peer review';
-        toast.error(errorMsg);
+      const success = await saveCurrentVotes();
+      if (!success) {
         setIsExiting(false);
         return;
       }
@@ -915,7 +940,7 @@ export default function PeerReviewPage() {
         open={exitDialogOpen}
         assignments={assignments}
         voteMap={voteMap}
-        onContinue={() => setExitDialogOpen(false)}
+        onContinue={handleContinue}
         onExit={handleExit}
       />
     </div>
