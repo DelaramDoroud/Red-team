@@ -340,8 +340,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
     await PeerReviewVote.create({
       peerReviewAssignmentId: assignments[1].id,
       vote: 'incorrect',
-      testCaseInput: 'input',
-      expectedOutput: 'output',
+      testCaseInput: '[1, 2, 3]',
+      expectedOutput: '["result"]',
     });
 
     // Finalize
@@ -361,8 +361,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
       where: { peerReviewAssignmentId: assignments[1].id },
     });
     expect(vote1.vote).toBe('incorrect');
-    expect(vote1.testCaseInput).toBe('input');
-    expect(vote1.expectedOutput).toBe('output');
+    expect(vote1.testCaseInput).toBe('[1, 2, 3]');
+    expect(vote1.expectedOutput).toBe('["result"]');
 
     const vote2 = await PeerReviewVote.findOne({
       where: { peerReviewAssignmentId: assignments[2].id },
