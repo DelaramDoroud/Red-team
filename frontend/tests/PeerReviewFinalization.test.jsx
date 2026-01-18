@@ -128,9 +128,6 @@ describe('Peer Review Finalization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Set system time to avoid drift, but we won't use fake timers for ticking
-    // Actually, simpler to just let Component calculate times.
-
     mockUseRoleGuard.mockReturnValue({
       user: { id: 1, role: 'student' },
       isAuthorized: true,
@@ -227,8 +224,7 @@ describe('Peer Review Finalization', () => {
   });
 
   it('displays timer countdown correctly', async () => {
-    // Challenge started 30 seconds ago with 1 minute duration
-    // So 30 seconds remaining
+    // Challenge started 30 seconds ago with 1 minute duration...so 30 seconds remaining
     const activeChallenge = {
       ...baseChallenge,
       startPhaseTwoDateTime: new Date(Date.now() - 30 * 1000).toISOString(),

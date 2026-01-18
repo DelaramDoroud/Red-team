@@ -112,7 +112,7 @@ test)
     db
 
   echo "Waiting for test DB to become ready..."
-  for _ in {1..10}; do
+  for _ in {1..30}; do
     if docker exec test-db pg_isready > /dev/null 2>&1; then
       echo "test-db is ready"
       break
