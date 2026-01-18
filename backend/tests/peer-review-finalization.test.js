@@ -470,8 +470,8 @@ describe('Peer Review Finalization', () => {
     await PeerReviewVote.create({
       peerReviewAssignmentId: assignment.id,
       vote: 'incorrect',
-      testCaseInput: 'test',
-      expectedOutput: 'expected',
+      testCaseInput: '[1, 2, 3]',
+      expectedOutput: '["result"]',
     });
 
     // Get vote ID before finalization
@@ -496,8 +496,8 @@ describe('Peer Review Finalization', () => {
       where: { peerReviewAssignmentId: assignment.id },
     });
     expect(voteAfter.vote).toBe('incorrect');
-    expect(voteAfter.testCaseInput).toBe('test');
-    expect(voteAfter.expectedOutput).toBe('expected');
+    expect(voteAfter.testCaseInput).toBe('[1, 2, 3]');
+    expect(voteAfter.expectedOutput).toBe('["result"]');
   });
 
   it('should handle error when challenge has no participants gracefully', async () => {
