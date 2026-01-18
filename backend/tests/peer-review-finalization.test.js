@@ -462,4 +462,63 @@ describe('Peer Review Finalization', () => {
     });
     expect(vote2.vote).toBe('abstain'); // Should be abstain
   });
+
+  it('should handle finalization with all votes already submitted - no changes', async () => {
+    const { challenge, assignment } = await createChallengeAndParticipants();
+
+    // Create votes for all assignments
+    await PeerReviewVote.create({
+      peerReviewAssignmentId: assignment.id,
+      vote: 'incorrect',
+      testCaseInput: 'test',
+      expectedOutput: 'expected',
+    });
+
+    // Get vote ID before finalization
+    await PeerReviewVote.findOne({
+      where: { peerReviewAssignmentId: assignment.id },
+    });
+    const voteCountBefore = await PeerReviewVote.count();
+
+    // Finalize
+    const res = await request(app)
+      .post('/api/rest/peer-review/finalize-challenge')
+      .send({ challengeId: challenge.id });
+
+    expect(res.status).toBe(200);
+
+    // Verify no new votes were created
+    const voteCountAfter = await PeerReviewVote.count();
+    expect(voteCountAfter).toBe(voteCountBefore);
+
+    // Verify existing vote unchanged
+    const voteAfter = await PeerReviewVote.findOne({
+      where: { peerReviewAssignmentId: assignment.id },
+    });
+    expect(voteAfter.vote).toBe('incorrect');
+    expect(voteAfter.testCaseInput).toBe('test');
+    expect(voteAfter.expectedOutput).toBe('expected');
+  });
+
+  it('should handle error when challenge has no participants gracefully', async () => {
+    // Create a challenge with no participants
+    const challenge = await Challenge.create({
+      title: 'No Participants Test',
+      duration: 60,
+      startDatetime: new Date(),
+      endDatetime: new Date(new Date().getTime() + 3600000),
+      durationPeerReview: 10,
+      allowedNumberOfReview: 2,
+      status: ChallengeStatus.STARTED_PHASE_TWO,
+      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000),
+    });
+    createdChallenges.push(challenge.id);
+
+    const res = await request(app)
+      .post('/api/rest/peer-review/finalize-challenge')
+      .send({ challengeId: challenge.id });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/participants/i);
+  });
 });

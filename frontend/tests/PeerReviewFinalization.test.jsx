@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
@@ -69,8 +69,8 @@ vi.mock('#components/common/card', () => ({
 
 vi.mock('#components/peerReview/PeerReviewSummaryDialog', () => ({
   __esModule: true,
-  default: ({ isOpen, onClose, summary }) =>
-    isOpen ? (
+  default: ({ open, onClose, summary }) =>
+    open ? (
       <div data-testid='summary-dialog'>
         <h3>Peer Review Summary</h3>
         <p>Total: {summary?.total || 0}</p>
@@ -333,5 +333,74 @@ describe('Peer Review Finalization', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Failed to load summary');
     });
+  });
+
+  it('redirects to result page after closing summary', async () => {
+    const expiredChallenge = {
+      ...baseChallenge,
+      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      durationPeerReview: 1,
+    };
+
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
+      success: true,
+      assignments: [{ id: 1, submissionId: 11, code: 'code' }],
+      challenge: expiredChallenge,
+    });
+
+    renderWithRedux(<PeerReviewPage />);
+
+    // Wait for finalization
+    await waitFor(() => {
+      expect(mockFinalizePeerReview).toHaveBeenCalled();
+    });
+
+    // Wait for summary fetch
+    await waitFor(() => {
+      expect(mockGetPeerReviewSummary).toHaveBeenCalled();
+    });
+
+    // Wait for finalization and summary dialog
+    await waitFor(() => {
+      expect(screen.getByTestId('summary-dialog')).toBeInTheDocument();
+    });
+
+    // Close the dialog
+    const closeBtn = screen.getByRole('button', { name: /close/i });
+    fireEvent.click(closeBtn);
+
+    // Verify redirect
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/student/challenges/123/result');
+    });
+  }, 10000);
+
+  it('blocks access when challenge status is ENDED_PHASE_TWO', async () => {
+    const completedChallenge = {
+      ...baseChallenge,
+      status: ChallengeStatus.ENDED_PHASE_TWO,
+    };
+
+    mockGetStudentPeerReviewAssignments.mockResolvedValue({
+      success: true,
+      assignments: [{ id: 1, submissionId: 11, code: 'code' }],
+      challenge: completedChallenge,
+    });
+
+    renderWithRedux(<PeerReviewPage />);
+
+    // Wait for content to load
+    await waitFor(() => {
+      expect(screen.getByText('code')).toBeInTheDocument();
+    });
+
+    // Verify all voting controls are disabled
+    const correctRadio = await screen.findByDisplayValue('correct');
+    const incorrectRadio = await screen.findByDisplayValue('incorrect');
+    const abstainRadio = await screen.findByDisplayValue('abstain');
+
+    expect(correctRadio).toBeDisabled();
+    expect(incorrectRadio).toBeDisabled();
+    expect(abstainRadio).toBeDisabled();
   });
 });
