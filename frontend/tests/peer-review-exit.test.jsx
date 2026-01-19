@@ -802,18 +802,18 @@ describe('Peer Review Exit Functionality', () => {
         expect(mockExitPeerReview).toHaveBeenCalled();
       });
 
-      const correctRadios = screen.queryAllByRole('radio', {
-        name: /correct/i,
-      });
-      if (correctRadios.length > 0) {
-        correctRadios.forEach((radio) => {
-          expect(radio).toBeDisabled();
+      await waitFor(() => {
+        const correctRadios = screen.queryAllByRole('radio', {
+          name: /correct/i,
         });
-      } else {
-        await waitFor(() => {
+        if (correctRadios.length > 0) {
+          correctRadios.forEach((radio) => {
+            expect(radio).toBeDisabled();
+          });
+        } else {
           expect(mockPush).toHaveBeenCalled();
-        });
-      }
+        }
+      });
     });
   });
 

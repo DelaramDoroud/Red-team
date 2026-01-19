@@ -436,7 +436,7 @@ export default function PeerReviewPage() {
 
   const saveCurrentVotes = async () => {
     if (!challengeId || !studentId || hasExited || isExiting) {
-      return;
+      return false;
     }
 
     const votesToSubmit = assignments
@@ -462,7 +462,10 @@ export default function PeerReviewPage() {
         getApiErrorMessage(res, 'Unable to save votes') ||
         'Failed to save votes';
       toast.error(errorMsg);
+      return false;
     }
+
+    return true;
   };
 
   const handleContinue = async () => {
