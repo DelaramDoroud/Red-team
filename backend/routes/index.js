@@ -7,7 +7,7 @@ import schemaRouter from '#root/routes/rest/schema-controller.js';
 import submissionRouter from '#root/routes/rest/submission-controller.js';
 import runRouter from '#root/routes/rest/run-controller.js';
 import eventsRouter from '#root/routes/rest/events-controller.js';
-import peerReviewCotroller from '#root/routes/rest/peer-review-controller.js';
+import peerReviewController from '#root/routes/rest/peer-review-controller.js';
 
 const router = Router();
 
@@ -21,7 +21,7 @@ router.use(restApiPrefix, schemaRouter);
 router.use(restApiPrefix, submissionRouter);
 router.use(restApiPrefix, runRouter);
 router.use(restApiPrefix, eventsRouter);
-router.use(restApiPrefix, peerReviewCotroller);
+router.use(restApiPrefix, peerReviewController);
 
 router.all(/\/api\/(.*)/, (_req, res) => {
   res.status(404);

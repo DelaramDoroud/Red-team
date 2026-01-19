@@ -24,7 +24,11 @@ import { DurationProvider } from './(context)/DurationContext';
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const { getChallengeForJoinedStudent } = useChallenge();
+  const {
+    getChallengeForJoinedStudent,
+    getStudentPeerReviewAssignments,
+    getStudentVotes,
+  } = useChallenge();
   const router = useRouter();
   const pathname = usePathname();
   const redirectOnError = useApiErrorRedirect();
@@ -62,6 +66,7 @@ export default function ChallengeLayout({ children }) {
             const isEnded =
               status === ChallengeStatus.ENDED_PHASE_ONE ||
               status === ChallengeStatus.ENDED_PHASE_TWO;
+            /* START part from match-setting branch */
             if (isEnded && !isResultRoute) {
               router.push(`/student/challenges/${challengeId}/result`);
             } else if (!isEnded && isResultRoute) {
@@ -76,6 +81,54 @@ export default function ChallengeLayout({ children }) {
             } else if (!isPeerReviewActive && isPeerReviewRoute) {
               router.push(`/student/challenges/${challengeId}/match`);
             }
+            /* END part from match-setting branch */
+
+            /* START part from main branch */
+            // if (isResultRoute) return;
+            //
+            // if (isPeerReviewRoute && shouldBeInPeerReview) {
+            //   try {
+            //     const [assignmentsRes, votesRes] = await Promise.all([
+            //       getStudentPeerReviewAssignments(challengeId, studentId),
+            //       getStudentVotes(challengeId),
+            //     ]);
+            //
+            //     if (
+            //       assignmentsRes?.success &&
+            //       votesRes?.success &&
+            //       Array.isArray(assignmentsRes.assignments) &&
+            //       Array.isArray(votesRes.votes)
+            //     ) {
+            //       const { assignments } = assignmentsRes;
+            //       const { votes } = votesRes;
+            //       const voteMap = new Map(
+            //         votes.map((v) => [v.submissionId, v])
+            //       );
+            //
+            //       const allAssignmentsHaveVotes = assignments.every(
+            //         (assignment) => voteMap.has(assignment.submissionId)
+            //       );
+            //
+            //       if (
+            //         allAssignmentsHaveVotes &&
+            //         assignments.length > 0 &&
+            //         status === ChallengeStatus.STARTED_PHASE_TWO
+            //       ) {
+            //         router.push(`/student/challenges/${challengeId}/result`);
+            //         return;
+            //       }
+            //     }
+            //   } catch (err) {
+            //     // If check fails, allow normal flow
+            //   }
+            // }
+            //
+            // if (shouldBeInPeerReview && !isPeerReviewRoute) {
+            //   router.push(`/student/challenges/${challengeId}/peer-review`);
+            // } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
+            //   router.push(`/student/challenges/${challengeId}/match`);
+            // }
+            /* END part from main branch */
           } else {
             if (redirectOnError(res)) return;
             setError({
@@ -129,6 +182,8 @@ export default function ChallengeLayout({ children }) {
     challengeId,
     studentId,
     getChallengeForJoinedStudent,
+    getStudentPeerReviewAssignments,
+    getStudentVotes,
     isAuthorized,
     pathname,
     redirectOnError,
@@ -147,6 +202,10 @@ export default function ChallengeLayout({ children }) {
     switch (status) {
       case ChallengeStatus.STARTED_PHASE_ONE:
         return 'Coding Phase';
+      // here we can add also scoring phase and peer revirew phase(third sprint)
+      case '':
+        return '';
+
       default:
         return getChallengeStatusLabel(status);
     }
