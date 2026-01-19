@@ -149,7 +149,7 @@ describe('RT-162: Incorrect Choice Validation with Code Runner', () => {
 
     // Mock the code runner to indicate the test case passes
     vi.mocked(executeCodeTests).mockResolvedValue({
-      results: [
+      testResults: [
         {
           passed: true, // The code passes this test case - so voting "incorrect" is invalid
           actualOutput: '1',
@@ -181,7 +181,7 @@ describe('RT-162: Incorrect Choice Validation with Code Runner', () => {
 
     // Mock code runner showing compilation error
     vi.mocked(executeCodeTests).mockResolvedValue({
-      results: [
+      testResults: [
         {
           passed: false,
           actualOutput: '', // Empty output from error
@@ -211,7 +211,7 @@ describe('RT-162: Incorrect Choice Validation with Code Runner', () => {
 
     // Mock code runner showing test case fails
     vi.mocked(executeCodeTests).mockResolvedValue({
-      results: [
+      testResults: [
         {
           passed: false, // Test case fails - vote is valid
           actualOutput: '1',
@@ -320,7 +320,7 @@ describe('RT-162: Incorrect Choice Validation with Code Runner', () => {
     const { assignment, reviewer, submission } = await createVotingScenario();
 
     vi.mocked(executeCodeTests).mockResolvedValue({
-      results: [
+      testResults: [
         {
           passed: false,
           actualOutput: '1',

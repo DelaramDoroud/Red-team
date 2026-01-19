@@ -136,7 +136,7 @@ export const submitVote = async (
         });
 
         // Check if the test case actually exposes a bug (test should fail)
-        const testResult = testResults.results?.[0];
+        const testResult = testResults.testResults?.[0];
         if (testResult) {
           // If the code passes the test case, the vote is invalid
           if (testResult.passed) {
