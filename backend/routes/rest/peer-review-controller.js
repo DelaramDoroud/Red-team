@@ -150,6 +150,21 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
+    // RT-182: Ensure finaization only happens after timer expiration
+    const now = new Date();
+    const peerReviewEndTime = new Date(
+      new Date(challenge.startPhaseTwoDateTime).getTime() +
+        challenge.durationPeerReview * 60000
+    );
+
+    if (now < peerReviewEndTime) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'Peer review phase has not ended yet',
+      });
+    }
+
     const participants = await ChallengeParticipant.findAll({
       where: { challengeId },
       transaction: t,
