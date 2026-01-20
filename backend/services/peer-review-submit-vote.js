@@ -173,10 +173,8 @@ export const submitVote = async (
 
         // For unexpected errors, log but allow the vote (code runner might be unavailable)
         // This prevents service disruption
-        console.error(
-          'Error validating test case against code runner:',
-          error.message
-        );
+        // Log the error object so callers can inspect stack/message
+        console.error('Error validating test case', error);
       }
     }
 
