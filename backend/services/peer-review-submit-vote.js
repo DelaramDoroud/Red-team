@@ -123,7 +123,6 @@ export const submitVote = async (
     const language = assignment.submission?.language;
 
     console.log('DEBUG: submissionCode:', submissionCode);
-    console.log('DEBUG: language:', language);
 
     if (submissionCode && language) {
       try {
