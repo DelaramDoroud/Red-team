@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
@@ -19,6 +20,7 @@ import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { useAppSelector } from '#js/store/hooks';
 import { validateIncorrectInput } from '#js/utils';
+import ExitConfirmationModal from './ExitConfirmationModal';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -90,6 +92,7 @@ const formatCodeWithNewlines = (code) => {
 export default function PeerReviewPage() {
   const params = useParams();
   const router = useRouter();
+  const hasFinalizedRef = useRef(false);
   const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
   const studentId = user?.id;
   const challengeId = params?.challengeId;
@@ -99,6 +102,8 @@ export default function PeerReviewPage() {
     getPeerReviewSummary,
     submitPeerReviewVote,
     getStudentVotes,
+    finalizePeerReview,
+    exitPeerReview,
   } = useChallenge();
 
   const redirectOnError = useApiErrorRedirect();
@@ -109,15 +114,25 @@ export default function PeerReviewPage() {
 
   const [voteMap, setVoteMap] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
-
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
+  const [finalSummary, setFinalSummary] = useState(null);
+  const [exitDialogOpen, setExitDialogOpen] = useState(false);
+  const [hasExited, setHasExited] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+
+  const isVotingDisabled =
+    hasExited ||
+    isExiting ||
+    timeLeft === 0 ||
+    challengeInfo?.status !== ChallengeStatus.STARTED_PHASE_TWO;
 
   useEffect(() => {
     if (!challengeId || !studentId || !isAuthorized) return undefined;
@@ -159,24 +174,42 @@ export default function PeerReviewPage() {
               output: v.expectedOutput || '',
             };
           });
-          console.log(
-            '✅ Votes hydrated from GET /votes endpoint:',
-            initialVoteMap
-          );
+          // console.log(
+          //   '✅ Votes hydrated from GET /votes endpoint:',
+          //   initialVoteMap
+          // );
         } else {
-          console.warn(
-            '⚠️ Could not fetch votes independently or no votes found.'
-          );
+          // console.warn(
+          //   '⚠️ Could not fetch votes independently or no votes found.'
+          // );
         }
 
         setVoteMap(initialVoteMap);
 
+        const challengeStatus = assignmentsRes?.challenge?.status;
+
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
+
+          const allAssignmentsHaveVotes = nextAssignments.every((assignment) =>
+            Boolean(initialVoteMap[assignment.submissionId]?.type)
+          );
+
+          if (
+            allAssignmentsHaveVotes &&
+            nextAssignments.length > 0 &&
+            challengeStatus === ChallengeStatus.STARTED_PHASE_TWO
+          ) {
+            setHasExited(true);
+            toast.success('Thanks for your participation.');
+            setTimeout(() => {
+              router.push(`/student/challenges/${challengeId}/result`);
+            }, 1500);
+          }
         }
       } catch (_err) {
         if (!cancelled) {
-          console.error(_err);
+          // console.error(_err);
           setError('Unable to load data.');
           setAssignments([]);
         }
@@ -196,6 +229,7 @@ export default function PeerReviewPage() {
     getStudentPeerReviewAssignments,
     getStudentVotes,
     redirectOnError,
+    router,
   ]);
 
   useEffect(() => {
@@ -224,6 +258,56 @@ export default function PeerReviewPage() {
       monacoRef.current.editor.setTheme(monacoTheme);
     }
   }, [monacoTheme]);
+
+  const fetchPeerReviewSummary = useCallback(async () => {
+    if (!challengeId || !studentId) {
+      return {
+        success: false,
+        error: 'Missing challenge or student',
+      };
+    }
+
+    const res = await getPeerReviewSummary(challengeId, studentId);
+
+    if (res?.success === false) {
+      return {
+        success: false,
+        error: getApiErrorMessage(res, 'Unable to load summary'),
+      };
+    }
+
+    return {
+      success: true,
+      summary: res?.summary || {
+        total: 0,
+        voted: 0,
+        correct: 0,
+        incorrect: 0,
+        abstain: 0,
+        unvoted: 0,
+      },
+    };
+  }, [challengeId, studentId, getPeerReviewSummary]);
+
+  useEffect(() => {
+    if (timeLeft === 0 && challengeId && !hasFinalizedRef.current) {
+      hasFinalizedRef.current = true;
+
+      finalizePeerReview(challengeId)
+        .then(async () => {
+          const result = await fetchPeerReviewSummary();
+          if (result.success) {
+            setFinalSummary(result.summary);
+            setShowSummaryDialog(true);
+          } else {
+            toast.error(result.error);
+          }
+        })
+        .catch(() => {
+          setError('Unable to finalize peer review.');
+        });
+    }
+  }, [timeLeft, challengeId, finalizePeerReview, fetchPeerReviewSummary]);
 
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
@@ -255,6 +339,8 @@ export default function PeerReviewPage() {
     input = null,
     output = null
   ) => {
+    if (hasExited || isExiting) return;
+
     const res = await submitPeerReviewVote(
       assignmentId,
       voteType,
@@ -265,14 +351,31 @@ export default function PeerReviewPage() {
     if (res?.success) {
       toast.success('Vote saved');
     } else {
-      console.error('Save failed', res);
+      // console.error('Save failed', res);
       const msg = res?.error?.message || 'Failed to save vote';
       toast.error(msg);
     }
   };
 
+  const handleCloseSummaryDialog = useCallback(() => {
+    setShowSummaryDialog(false);
+    setFinalSummary(null);
+    router.push(`/student/challenges/${challengeId}/result`);
+  }, [router, challengeId]);
+
+  useEffect(() => {
+    const t = showSummaryDialog
+      ? setTimeout(() => {
+          handleCloseSummaryDialog();
+        }, 10000)
+      : null;
+    return () => {
+      if (t) clearTimeout(t);
+    };
+  }, [showSummaryDialog, handleCloseSummaryDialog]);
+
   const handleVoteChange = (newVoteType) => {
-    if (!selectedAssignment) return;
+    if (!selectedAssignment || hasExited || isExiting) return;
 
     const { submissionId } = selectedAssignment;
     const assignmentId = selectedAssignment.id;
@@ -300,7 +403,7 @@ export default function PeerReviewPage() {
   };
 
   const handleIncorrectDetailsChange = (field, value) => {
-    if (!selectedAssignment) return;
+    if (!selectedAssignment || hasExited || isExiting) return;
     const { submissionId } = selectedAssignment;
     const assignmentId = selectedAssignment.id;
 
@@ -331,8 +434,78 @@ export default function PeerReviewPage() {
     }
   };
 
-  const handleExit = () => {
-    router.push('/student/challenges');
+  const saveCurrentVotes = async () => {
+    if (!challengeId || !studentId || hasExited || isExiting) {
+      return false;
+    }
+
+    const votesToSubmit = assignments
+      .filter((assignment) => {
+        const vote = voteMap[assignment.submissionId];
+        return vote && vote.type;
+      })
+      .map((assignment) => {
+        const vote = voteMap[assignment.submissionId];
+        return {
+          submissionId: assignment.submissionId,
+          vote: vote.type,
+          testCaseInput: vote.type === 'incorrect' ? vote.input || null : null,
+          expectedOutput:
+            vote.type === 'incorrect' ? vote.output || null : null,
+        };
+      });
+
+    const res = await exitPeerReview(challengeId, studentId, votesToSubmit);
+
+    if (res?.success === false) {
+      const errorMsg =
+        getApiErrorMessage(res, 'Unable to save votes') ||
+        'Failed to save votes';
+      toast.error(errorMsg);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleContinue = async () => {
+    setIsExiting(true);
+    setExitDialogOpen(false);
+
+    try {
+      const success = await saveCurrentVotes();
+      if (success) {
+        toast.success('Votes saved successfully.');
+      }
+    } catch (err) {
+      toast.error('Unable to save votes. Please try again.');
+    } finally {
+      setIsExiting(false);
+    }
+  };
+
+  const handleExit = async () => {
+    if (!challengeId || !studentId || hasExited || isExiting) return;
+
+    setIsExiting(true);
+    setExitDialogOpen(false);
+
+    try {
+      const success = await saveCurrentVotes();
+      if (!success) {
+        setIsExiting(false);
+        return;
+      }
+
+      setHasExited(true);
+      toast.success('Thanks for your participation.');
+      setTimeout(() => {
+        router.push(`/student/challenges/${challengeId}/result`);
+      }, 1500);
+    } catch (err) {
+      toast.error('Unable to exit peer review. Please try again.');
+      setIsExiting(false);
+    }
   };
 
   const handlePrev = () => {
@@ -553,8 +726,13 @@ export default function PeerReviewPage() {
             >
               Summary
             </Button>
-            {timeLeft > 0 && (
-              <Button className='w-full' variant='outline' onClick={handleExit}>
+            {timeLeft > 0 && !hasExited && !isExiting && (
+              <Button
+                className='w-full'
+                variant='outline'
+                onClick={() => setExitDialogOpen(true)}
+                disabled={hasExited || isExiting}
+              >
                 Exit
               </Button>
             )}
@@ -653,6 +831,7 @@ export default function PeerReviewPage() {
                           value={option}
                           checked={isSelected}
                           onChange={() => handleVoteChange(option)}
+                          disabled={isVotingDisabled}
                           className='h-4 w-4 accent-primary cursor-pointer'
                         />
                       </label>
@@ -755,6 +934,18 @@ export default function PeerReviewPage() {
           </Card>
         </section>
       </div>
+      <PeerReviewSummaryDialog
+        open={showSummaryDialog}
+        summary={finalSummary}
+        onClose={handleCloseSummaryDialog}
+      />
+      <ExitConfirmationModal
+        open={exitDialogOpen}
+        assignments={assignments}
+        voteMap={voteMap}
+        onContinue={handleContinue}
+        onExit={handleExit}
+      />
     </div>
   );
 }

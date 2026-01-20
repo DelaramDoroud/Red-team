@@ -26,6 +26,7 @@ frontend/.yarn/install-state.gz
 frontend/.vercel
 frontend/*/custom
 frontend/.env*.local
+frontend/pnpm-lock.yaml
 
 # Docker
 docker/.env

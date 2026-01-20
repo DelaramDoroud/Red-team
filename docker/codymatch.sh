@@ -112,7 +112,7 @@ test)
     db
 
   echo "Waiting for test DB to become ready..."
-  for _ in {1..10}; do
+  for _ in {1..30}; do
     if docker exec test-db pg_isready > /dev/null 2>&1; then
       echo "test-db is ready"
       break
@@ -186,9 +186,9 @@ test)
   ;;
 lint)
   echo "Running backend linting..."
-  "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend npm run lint
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend npm run lint
   echo "Running frontend linting..."
-  "${DOCKER_COMPOSE[@]}" run --rm --no-deps frontend npm run lint
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend npm run lint
   ;;
 backend|frontend)
     case $2 in
