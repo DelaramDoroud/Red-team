@@ -120,15 +120,13 @@ export const submitVote = async (
 
     // RT-162: Test the input test case against the code runner and output to validate
     const submissionCode = assignment.submission?.code;
-    const language = assignment.submission?.language;
 
     console.log('DEBUG: submissionCode:', submissionCode);
 
-    if (submissionCode && language) {
+    if (submissionCode) {
       try {
         const testResults = await executeCodeTests({
           code: submissionCode,
-          language,
           testCases: [
             {
               input: inputJson,
