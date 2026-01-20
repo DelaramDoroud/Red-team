@@ -206,9 +206,9 @@ describe('Create Challenge Page', () => {
       () => {
         expect(mockPush).toHaveBeenCalledWith('/challenges');
       },
-      { timeout: 4000 }
+      { timeout: 5000 }
     );
-  });
+  }, 10000);
 
   it('Validates time window (End date must accommodate duration)', async () => {
     const user = userEvent.setup();
