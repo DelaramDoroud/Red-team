@@ -89,7 +89,6 @@ const createVotingScenario = async () => {
     matchId: match.id,
     challengeParticipantId: authorParticipant.id,
     code: 'function solve(nums) { return nums[0]; }', // Intentionally incorrect code
-    language: 'javascript',
     status: SubmissionStatus.PROBABLY_CORRECT,
     isFinal: true,
   });
@@ -338,7 +337,6 @@ describe('RT-162: Incorrect Choice Validation with Code Runner', () => {
     // Verify code runner was called with submission code and correct parameters
     expect(vi.mocked(executeCodeTests)).toHaveBeenCalledWith({
       code: submission.code,
-      language: submission.language,
       testCases: [
         {
           input: [1, 2, 3],
