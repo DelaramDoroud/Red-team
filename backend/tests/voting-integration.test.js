@@ -489,7 +489,7 @@ describe('RT-181: Complete Voting Flow Integration Tests', () => {
       const challengeId =
         assignment.submission.match.challengeMatchSetting.challengeId;
       await Challenge.update(
-        { status: ChallengeStatus.ENDED },
+        { status: ChallengeStatus.ENDED_PHASE_TWO },
         { where: { id: challengeId } }
       );
 

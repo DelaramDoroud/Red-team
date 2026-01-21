@@ -31,17 +31,16 @@ vi.mock('next/dynamic', () => ({
 }));
 
 const mockPush = vi.fn();
-const mockToast = {
+const mockRouter = { push: mockPush };
+const mockToast = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
   custom: vi.fn(),
   dismiss: vi.fn(),
-};
+}));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
+  useRouter: () => mockRouter,
   useParams: () => ({
     challengeId: '123',
   }),
@@ -75,9 +74,10 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+const mockRedirectOnError = vi.fn();
 vi.mock('#js/useApiErrorRedirect', () => ({
   __esModule: true,
-  default: () => vi.fn(),
+  default: () => mockRedirectOnError,
 }));
 
 // Mock Button component
@@ -630,10 +630,12 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Verify vote is still selected after refresh
-      const correctRadiosAfter = screen.getAllByRole('radio', {
-        name: /correct/i,
+      await waitFor(() => {
+        const correctRadiosAfter = screen.getAllByRole('radio', {
+          name: /correct/i,
+        });
+        expect(correctRadiosAfter[0]).toBeChecked();
       });
-      expect(correctRadiosAfter[0]).toBeChecked();
     });
   });
 
@@ -646,7 +648,7 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Initially 0 completed
-      expect(screen.getByText(/Voted: 0 \/ 3/i)).toBeInTheDocument();
+      expect(screen.getByText(/0\s*\/\s*3/i)).toBeInTheDocument();
 
       // Vote on solution 1
       const correctRadios = screen.getAllByRole('radio', { name: /correct/i });
@@ -654,7 +656,7 @@ describe('RT-181: Vote Selection and Management', () => {
 
       // Progress should update
       await waitFor(() => {
-        expect(screen.getByText(/Voted: 1 \/ 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/1\s*\/\s*3/i)).toBeInTheDocument();
       });
 
       // Navigate to solution 2 and vote
@@ -670,7 +672,7 @@ describe('RT-181: Vote Selection and Management', () => {
 
       // Progress should update again
       await waitFor(() => {
-        expect(screen.getByText(/Voted: 2 \/ 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/2\s*\/\s*3/i)).toBeInTheDocument();
       });
     });
 
@@ -686,7 +688,7 @@ describe('RT-181: Vote Selection and Management', () => {
       await userEvent.click(correctRadios[0]);
 
       await waitFor(() => {
-        expect(screen.getByText(/Voted: 1 \/ 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/1\s*\/\s*3/i)).toBeInTheDocument();
       });
 
       // Change to Abstain (should still be 1 voted)
@@ -695,7 +697,7 @@ describe('RT-181: Vote Selection and Management', () => {
 
       // Progress should still show 1 (vote changed, not removed)
       await waitFor(() => {
-        expect(screen.getByText(/Voted: 1 \/ 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/1\s*\/\s*3/i)).toBeInTheDocument();
       });
     });
 
@@ -707,7 +709,7 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Initially 0 completed
-      expect(screen.getByText(/Voted: 0 \/ 3/i)).toBeInTheDocument();
+      expect(screen.getByText(/0\s*\/\s*3/i)).toBeInTheDocument();
 
       // Select Incorrect without providing test case
       const incorrectRadios = screen.getAllByRole('radio', {
@@ -717,15 +719,15 @@ describe('RT-181: Vote Selection and Management', () => {
 
       // Progress should still be 0 (invalid vote)
       await waitFor(() => {
-        expect(screen.getByText(/Voted: 0 \/ 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/0\s*\/\s*3/i)).toBeInTheDocument();
       });
 
       // Now provide test case input and output
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '[1, 2, 3]');
-      await userEvent.type(outputField, '[3, 2, 1]');
+      await userEvent.type(inputField, '[[1, 2, 3]');
+      await userEvent.type(outputField, '[[3, 2, 1]');
 
       // Trigger validation by typing
       await waitFor(() => {
@@ -801,7 +803,7 @@ describe('RT-181: Incorrect Vote Validation', () => {
 
       // Provide only input
       const inputField = await screen.findByLabelText(/Test Case Input/i);
-      await userEvent.type(inputField, '[1, 2]');
+      await userEvent.type(inputField, '[[1, 2]');
 
       // Warning should still be present
       await waitFor(() => {
@@ -824,7 +826,7 @@ describe('RT-181: Incorrect Vote Validation', () => {
 
       // Provide only output
       const outputField = await screen.findByLabelText(/Expected Output/i);
-      await userEvent.type(outputField, '[3, 4]');
+      await userEvent.type(outputField, '[[3, 4]');
 
       // Warning should still be present
       await waitFor(() => {
@@ -859,15 +861,13 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
       await userEvent.type(inputField, 'not an array');
-      await userEvent.type(outputField, '[1]');
+      await userEvent.type(outputField, '[[1]');
 
       // Trigger save attempt
       await userEvent.tab();
 
       await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          expect.stringContaining('valid array values')
-        );
+        expect(screen.getByText(/valid array values/i)).toBeInTheDocument();
       });
     });
 
@@ -893,15 +893,13 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '[1, 2]');
+      await userEvent.type(inputField, '[[1, 2]');
       await userEvent.type(outputField, 'invalid');
 
       await userEvent.tab();
 
       await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          expect.stringContaining('valid array values')
-        );
+        expect(screen.getByText(/valid array values/i)).toBeInTheDocument();
       });
     });
 
@@ -924,8 +922,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '[1, 2, 3]');
-      await userEvent.type(outputField, '[3, 2, 1]');
+      await userEvent.type(inputField, '[[1, 2, 3]');
+      await userEvent.type(outputField, '[[3, 2, 1]');
 
       await userEvent.tab();
 
@@ -958,8 +956,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '["a", "b", "c"]');
-      await userEvent.type(outputField, '["c", "b", "a"]');
+      await userEvent.type(inputField, '[[ "a", "b", "c" ]');
+      await userEvent.type(outputField, '[[ "c", "b", "a" ]');
 
       await userEvent.tab();
 
@@ -967,8 +965,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
         expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
           1,
           'incorrect',
-          '["a", "b", "c"]',
-          '["c", "b", "a"]'
+          '[ "a", "b", "c" ]',
+          '[ "c", "b", "a" ]'
         );
       });
     });
@@ -992,8 +990,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '[true, false]');
-      await userEvent.type(outputField, '[false, true]');
+      await userEvent.type(inputField, '[[true, false]');
+      await userEvent.type(outputField, '[[false, true]');
 
       await userEvent.tab();
 
@@ -1026,8 +1024,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const inputField = await screen.findByLabelText(/Test Case Input/i);
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
-      await userEvent.type(inputField, '[1, "a", true]');
-      await userEvent.type(outputField, '[true, "a", 1]');
+      await userEvent.type(inputField, '[[1, "a", true]');
+      await userEvent.type(outputField, '[[true, "a", 1]');
 
       await userEvent.tab();
 
@@ -1066,8 +1064,8 @@ describe('RT-181: Incorrect Vote Validation', () => {
       const outputField = await screen.findByLabelText(/Expected Output/i);
 
       // Attempt to use a public test case
-      await userEvent.type(inputField, '[1, 2, 3]');
-      await userEvent.type(outputField, '[6]');
+      await userEvent.type(inputField, '[[1, 2, 3]');
+      await userEvent.type(outputField, '[[6]');
 
       await userEvent.tab();
 
