@@ -103,6 +103,11 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
         .status(400)
         .json({ success: false, error: { message: error.message } });
     }
+    if (error.code === 'INVALID_TEST_CASE') {
+      return res
+        .status(400)
+        .json({ success: false, error: { message: error.message } });
+    }
     if (error.code === 'NOT_FOUND') {
       return res
         .status(404)

@@ -373,10 +373,15 @@ export default function PeerReviewPage() {
 
   const completedCount = useMemo(
     () =>
-      assignments.filter((assignment) =>
-        Boolean(voteMap[assignment.submissionId]?.type)
-      ).length,
-    [assignments, voteMap]
+      assignments.filter((assignment) => {
+        const vote = voteMap[assignment.submissionId];
+        if (!vote?.type) return false;
+        if (vote.type === 'incorrect') {
+          return !validationErrors[assignment.submissionId];
+        }
+        return true;
+      }).length,
+    [assignments, voteMap, validationErrors]
   );
 
   const progressValue = assignments.length

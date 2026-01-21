@@ -7,6 +7,7 @@ import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
 import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
 
 export const submitVote = async (
   userId,
@@ -140,6 +141,66 @@ export const submitVote = async (
       );
       error.code = 'INVALID_INPUT';
       throw error;
+    }
+
+    // RT-162: Test the input test case against the code runner and output to validate
+    const submissionCode = assignment.submission?.code;
+
+    console.log('DEBUG: submissionCode:', submissionCode);
+
+    if (submissionCode) {
+      try {
+        const testResults = await executeCodeTests({
+          code: submissionCode,
+          testCases: [
+            {
+              input: inputJson,
+              output: expectedOutput,
+            },
+          ],
+        });
+
+        console.log(
+          'DEBUG: testResults:',
+          JSON.stringify(testResults, null, 2)
+        );
+
+        // Check if the test case actually exposes a bug (test should fail)
+        const testResult = testResults.testResults?.[0];
+        console.log('DEBUG: testResult:', testResult);
+
+        if (testResult) {
+          // If the code passes the test case, the vote is invalid
+          if (testResult.passed) {
+            console.log('DEBUG: Test passed, throwing INVALID_TEST_CASE');
+            const error = new Error(
+              'This test case actually passes with the provided expected output. The code is correct for this input, so you cannot vote "incorrect" with this test case.'
+            );
+            error.code = 'INVALID_TEST_CASE';
+            throw error;
+          }
+
+          // Warning: if the actual output is empty or the code has compilation errors
+          if (testResult.exitCode !== 0 || !testResult.actualOutput?.trim()) {
+            const error = new Error(
+              'The code failed to execute on this test case (compilation error or runtime error). This test case may not be valid.'
+            );
+            error.code = 'INVALID_TEST_CASE';
+            throw error;
+          }
+        }
+      } catch (error) {
+        console.log('DEBUG: Caught error:', error.message, error.code);
+        // Re-throw validation errors as-is
+        if (error.code === 'INVALID_TEST_CASE') {
+          throw error;
+        }
+
+        // For unexpected errors, log but allow the vote (code runner might be unavailable)
+        // This prevents service disruption
+        // Log the error object so callers can inspect stack/message
+        console.error('Error validating test case', error);
+      }
     }
 
     cleanInput = testCaseInput;
