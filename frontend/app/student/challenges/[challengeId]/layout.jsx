@@ -20,15 +20,11 @@ import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { DurationProvider } from './(context)/DurationContext';
 
-// shared layout for both /match and /result
+// shared layout for match, peer review, and results
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const {
-    getChallengeForJoinedStudent,
-    getStudentPeerReviewAssignments,
-    getStudentVotes,
-  } = useChallenge();
+  const { getChallengeForJoinedStudent } = useChallenge();
   const router = useRouter();
   const pathname = usePathname();
   const redirectOnError = useApiErrorRedirect();
@@ -61,74 +57,36 @@ export default function ChallengeLayout({ children }) {
             const status = res.data?.status;
             const isPeerReviewRoute = pathname?.includes('/peer-review');
             const isResultRoute = pathname?.includes('/result');
+            const isMatchRoute = pathname?.includes('/match');
             const isPeerReviewActive =
               status === ChallengeStatus.STARTED_PHASE_TWO;
             const isEnded =
               status === ChallengeStatus.ENDED_PHASE_ONE ||
               status === ChallengeStatus.ENDED_PHASE_TWO;
-            /* START part from match-setting branch */
-            if (isEnded && !isResultRoute) {
-              router.push(`/student/challenges/${challengeId}/result`);
-            } else if (!isEnded && isResultRoute) {
-              const fallbackRoute = isPeerReviewActive
-                ? 'peer-review'
-                : 'match';
-              router.push(
-                `/student/challenges/${challengeId}/${fallbackRoute}`
-              );
-            } else if (isPeerReviewActive && !isPeerReviewRoute) {
-              router.push(`/student/challenges/${challengeId}/peer-review`);
-            } else if (!isPeerReviewActive && isPeerReviewRoute) {
-              router.push(`/student/challenges/${challengeId}/match`);
+            let expectedSegment = 'match';
+            if (isEnded) {
+              expectedSegment = 'result';
+            } else if (isPeerReviewActive) {
+              expectedSegment = 'peer-review';
             }
-            /* END part from match-setting branch */
 
-            /* START part from main branch */
-            // if (isResultRoute) return;
-            //
-            // if (isPeerReviewRoute && shouldBeInPeerReview) {
-            //   try {
-            //     const [assignmentsRes, votesRes] = await Promise.all([
-            //       getStudentPeerReviewAssignments(challengeId, studentId),
-            //       getStudentVotes(challengeId),
-            //     ]);
-            //
-            //     if (
-            //       assignmentsRes?.success &&
-            //       votesRes?.success &&
-            //       Array.isArray(assignmentsRes.assignments) &&
-            //       Array.isArray(votesRes.votes)
-            //     ) {
-            //       const { assignments } = assignmentsRes;
-            //       const { votes } = votesRes;
-            //       const voteMap = new Map(
-            //         votes.map((v) => [v.submissionId, v])
-            //       );
-            //
-            //       const allAssignmentsHaveVotes = assignments.every(
-            //         (assignment) => voteMap.has(assignment.submissionId)
-            //       );
-            //
-            //       if (
-            //         allAssignmentsHaveVotes &&
-            //         assignments.length > 0 &&
-            //         status === ChallengeStatus.STARTED_PHASE_TWO
-            //       ) {
-            //         router.push(`/student/challenges/${challengeId}/result`);
-            //         return;
-            //       }
-            //     }
-            //   } catch (err) {
-            //     // If check fails, allow normal flow
-            //   }
-            // }
-            //
-            // if (shouldBeInPeerReview && !isPeerReviewRoute) {
-            //   router.push(`/student/challenges/${challengeId}/peer-review`);
-            // } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
-            //   router.push(`/student/challenges/${challengeId}/match`);
-            // }
-            /* END part from main branch */
+            let shouldRedirect = false;
+            if (expectedSegment === 'result' && !isResultRoute) {
+              shouldRedirect = true;
+            } else if (
+              expectedSegment === 'peer-review' &&
+              !isPeerReviewRoute
+            ) {
+              shouldRedirect = true;
+            } else if (expectedSegment === 'match' && !isMatchRoute) {
+              shouldRedirect = true;
+            }
+
+            if (shouldRedirect) {
+              router.push(
+                `/student/challenges/${challengeId}/${expectedSegment}`
+              );
+            }
           } else {
             if (redirectOnError(res)) return;
             setError({
@@ -182,8 +140,6 @@ export default function ChallengeLayout({ children }) {
     challengeId,
     studentId,
     getChallengeForJoinedStudent,
-    getStudentPeerReviewAssignments,
-    getStudentVotes,
     isAuthorized,
     pathname,
     redirectOnError,

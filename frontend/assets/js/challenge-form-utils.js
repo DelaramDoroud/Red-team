@@ -21,6 +21,32 @@ const resolvePickerValue = (value) => {
   return value;
 };
 
+const isDateTimeInputWithinLimits = (value) => {
+  if (typeof value !== 'string') return true;
+  if (!value) return true;
+  const matches = [...value.matchAll(/\d+/g)];
+  return matches.every((match) => {
+    const digits = match[0];
+    const startIndex = match.index ?? 0;
+    const endIndex = startIndex + digits.length;
+    const prevChar = value[startIndex - 1];
+    const nextChar = value[endIndex];
+    let maxLength = 2;
+
+    if (nextChar === ':') {
+      maxLength = 2;
+    } else if (prevChar === ':') {
+      maxLength = 2;
+    } else if (nextChar === '/') {
+      maxLength = 2;
+    } else if (prevChar === '/') {
+      maxLength = nextChar === '/' ? 2 : 4;
+    }
+
+    return digits.length <= maxLength;
+  });
+};
+
 const DATE_TIME_PATTERN =
   '^\\d{1,2}:\\d{2}\\s*(AM|PM),\\s*\\d{2}/\\d{2}/\\d{4}$';
 
@@ -168,6 +194,7 @@ export {
   parsePositiveInt,
   isValidYearValue,
   resolvePickerValue,
+  isDateTimeInputWithinLimits,
   DATE_TIME_PATTERN,
   normalizeDateTimeInput,
   resolveDateTimeInputValue,

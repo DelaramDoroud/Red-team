@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ChallengeList from '#modules/challenge/list';
 
@@ -45,6 +45,8 @@ const mockGetChallengeParticipants = vi.fn(async () => ({
 const mockAssignChallenge = vi.fn();
 const mockAssignPeerReviews = vi.fn();
 const mockStartPeerReview = vi.fn();
+const mockPublishChallenge = vi.fn();
+const mockValidate = vi.fn();
 
 // Mock useFetchData to avoid Redux dependency
 vi.mock('#js/useFetchData', () => ({
@@ -60,10 +62,18 @@ vi.mock('#js/useChallenge', () => ({
     loading: false,
     getChallenges: mockGetChallenges,
     getChallengeParticipants: mockGetChallengeParticipants,
+    publishChallenge: mockPublishChallenge,
     assignChallenge: mockAssignChallenge,
     assignPeerReviews: mockAssignPeerReviews,
     startPeerReview: mockStartPeerReview,
     startChallenge: vi.fn(),
+  }),
+}));
+
+vi.mock('#js/useJsonSchema', () => ({
+  default: () => ({
+    validate: mockValidate,
+    loading: false,
   }),
 }));
 
@@ -82,6 +92,12 @@ describe('ChallengeList', () => {
     mockGetChallengeParticipants.mockResolvedValue({
       success: true,
       data: [],
+    });
+    mockPublishChallenge.mockResolvedValue({ success: true });
+    mockValidate.mockResolvedValue({
+      valid: true,
+      errors: [],
+      fields: [],
     });
   });
 
@@ -102,6 +118,7 @@ describe('ChallengeList', () => {
         duration: 45,
         startDatetime: '2025-02-01T10:00:00.000Z',
         status: 'private',
+        matchSettings: [{ id: 1 }],
       },
     ]);
 
@@ -114,5 +131,56 @@ describe('ChallengeList', () => {
         { timeout: 5000 }
       )
     ).toBeInTheDocument();
+  }, 10000);
+
+  it('enables publish for valid private challenges', async () => {
+    mockGetChallenges.mockResolvedValueOnce([
+      {
+        id: 3,
+        title: 'Publishable challenge',
+        duration: 45,
+        startDatetime: '2025-03-01T10:00:00.000Z',
+        endDatetime: '2025-03-01T12:00:00.000Z',
+        durationPeerReview: 30,
+        allowedNumberOfReview: 2,
+        status: 'private',
+        matchSettings: [{ id: 1 }],
+      },
+    ]);
+
+    render(<ChallengeList scope='private' />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled()
+    );
+    const publishButton = screen.getByRole('button', { name: 'Publish' });
+    fireEvent.click(publishButton);
+
+    await waitFor(() => expect(mockPublishChallenge).toHaveBeenCalledWith(3));
+  }, 10000);
+
+  it('disables publish for invalid private challenges', async () => {
+    mockGetChallenges.mockResolvedValueOnce([
+      {
+        id: 4,
+        title: '',
+        duration: null,
+        startDatetime: null,
+        status: 'private',
+        matchSettings: [],
+      },
+    ]);
+    mockValidate.mockResolvedValueOnce({
+      valid: false,
+      errors: ['title is required'],
+      fields: ['title'],
+    });
+
+    render(<ChallengeList scope='private' />);
+
+    const publishButton = await screen.findByRole('button', {
+      name: 'Publish',
+    });
+    expect(publishButton).toBeDisabled();
   }, 10000);
 });

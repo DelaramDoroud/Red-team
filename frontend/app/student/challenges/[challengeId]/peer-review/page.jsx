@@ -136,6 +136,7 @@ export default function PeerReviewPage() {
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const redirectTimeoutRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
 
@@ -150,6 +151,10 @@ export default function PeerReviewPage() {
     let cancelled = false;
 
     const loadData = async () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -213,7 +218,8 @@ export default function PeerReviewPage() {
           ) {
             setHasExited(true);
             toast.success('Thanks for your participation.');
-            setTimeout(() => {
+            redirectTimeoutRef.current = setTimeout(() => {
+              redirectTimeoutRef.current = null;
               router.push(`/student/challenges/${challengeId}/result`);
             }, 1500);
           }
@@ -232,6 +238,10 @@ export default function PeerReviewPage() {
     loadData();
     return () => {
       cancelled = true;
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
     };
   }, [
     challengeId,
@@ -677,7 +687,11 @@ export default function PeerReviewPage() {
 
       setHasExited(true);
       toast.success('Thanks for your participation.');
-      setTimeout(() => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+      redirectTimeoutRef.current = setTimeout(() => {
+        redirectTimeoutRef.current = null;
         router.push(`/student/challenges/${challengeId}/result`);
       }, 1500);
     } catch (err) {

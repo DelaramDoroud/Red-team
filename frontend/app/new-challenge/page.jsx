@@ -15,6 +15,7 @@ import {
   parsePositiveInt,
   isValidYearValue,
   resolvePickerValue,
+  isDateTimeInputWithinLimits,
   DATE_TIME_PATTERN,
   normalizeDateTimeInput,
   resolveDateTimeInputValue,
@@ -79,6 +80,9 @@ export default function NewChallengePage() {
     let nextChallenge = { ...challenge };
 
     if (name === 'startDatetime' || name === 'endDatetime') {
+      if (!isDateTimeInputWithinLimits(value)) {
+        return;
+      }
       const { normalized, inputValue } = resolveDateTimeInputValue(value);
       nextChallenge = {
         ...nextChallenge,

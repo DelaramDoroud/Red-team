@@ -18,8 +18,9 @@ vi.mock('next/dynamic', () => ({
 }));
 
 const mockPush = vi.fn();
+const mockRouter = { push: mockPush };
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => mockRouter,
   useParams: () => ({ challengeId: '123' }),
 }));
 
@@ -46,9 +47,10 @@ vi.mock('#js/useChallenge', () => ({
   }),
 }));
 
+const mockRedirectOnError = vi.fn();
 vi.mock('#js/useApiErrorRedirect', () => ({
   __esModule: true,
-  default: () => vi.fn(),
+  default: () => mockRedirectOnError,
 }));
 
 vi.mock('#components/common/Button', () => ({
@@ -124,6 +126,12 @@ const baseChallenge = {
   durationPeerReview: 1, // 1 minute duration
 };
 
+const createExpiredStartTime = (durationMinutes) => {
+  const bufferSeconds = 5;
+  const secondsAgo = durationMinutes * 60 + bufferSeconds + 5;
+  return new Date(Date.now() - secondsAgo * 1000).toISOString();
+};
+
 describe('Peer Review Finalization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -157,7 +165,7 @@ describe('Peer Review Finalization', () => {
     // Challenge expired 1 minute ago
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -178,7 +186,7 @@ describe('Peer Review Finalization', () => {
   it('fetches summary after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -243,15 +251,15 @@ describe('Peer Review Finalization', () => {
     await waitFor(() => {
       const timerElement = screen.getByText(/00:00:/);
       expect(timerElement).toBeInTheDocument();
-      // Should show approximately 30 seconds remaining
-      expect(timerElement.textContent).toMatch(/00:00:(2[0-9]|30)/);
+      // Should show approximately 35 seconds remaining (5s countdown buffer)
+      expect(timerElement.textContent).toMatch(/00:00:3[0-9]/);
     });
   });
 
   it('shows confirmation dialog after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -277,7 +285,7 @@ describe('Peer Review Finalization', () => {
   it('handles finalization API error gracefully', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -303,7 +311,7 @@ describe('Peer Review Finalization', () => {
   it('handles summary fetch error after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -334,7 +342,7 @@ describe('Peer Review Finalization', () => {
   it('redirects to result page after closing summary', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 61 * 1000).toISOString(),
+      startPhaseTwoDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 

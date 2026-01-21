@@ -16,7 +16,7 @@
     "start": "next start",
     "debug": "next dev",
     "build": "next build",
-    "lint": "eslint . --fix && stylelint '**/*.css' --fix && prettier --write . && markdownlint --fix \"**/*.md\" --ignore node_modules",
+    "lint": "eslint . --fix --ignore-path .lintignore && stylelint '**/*.css' --fix --ignore-path .lintignore && prettier --write . --ignore-path .lintignore && sh -c \"if find . \\( -path './node_modules' -o -path './.next' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print -quit | grep -q .; then markdownlint --fix --ignore-path .lintignore .; fi\"",
     "lint:scss": "stylelint '**/*.scss' --fix",
     "format": "prettier --write .",
     "test": "vitest",
@@ -90,7 +90,7 @@
       "prettier --write"
     ],
     "**/*.md": [
-      "markdownlint --fix"
+      "markdownlint --fix --ignore-path .lintignore"
     ]
   }
 }

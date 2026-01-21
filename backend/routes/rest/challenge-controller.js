@@ -30,6 +30,7 @@ const router = Router();
 
 const getRequestRole = (req) =>
   req.session?.user?.role || req.user?.role || null;
+const getRequestUser = (req) => req.session?.user || req.user || null;
 const isPrivilegedRole = (role) => role === 'teacher' || role === 'admin';
 const shouldHidePrivate = (req) => !isPrivilegedRole(getRequestRole(req));
 const isEndedStatus = (status) =>
@@ -1800,6 +1801,113 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
   }
 });
 
+router.post('/challenges/:challengeId/publish', async (req, res) => {
+  let transaction;
+  try {
+    const toIsoString = (value) =>
+      value instanceof Date ? value.toISOString() : value;
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    transaction = await sequelize.transaction();
+    const challenge = await Challenge.findByPk(challengeId, {
+      include: [
+        {
+          model: MatchSetting,
+          as: 'matchSettings',
+          through: { attributes: [] },
+        },
+      ],
+      transaction,
+    });
+    if (!challenge) {
+      await transaction.rollback();
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status === ChallengeStatus.PUBLIC) {
+      await transaction.commit();
+      return res.json({ success: true, challenge });
+    }
+
+    if (challenge.status !== ChallengeStatus.PRIVATE) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge can only be published from private status.',
+      });
+    }
+
+    const matchSettingIds = (challenge.matchSettings || [])
+      .map((setting) => setting?.id)
+      .filter((id) => Number.isInteger(id));
+    if (matchSettingIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        error: { message: 'At least one match setting is required.' },
+      });
+    }
+
+    const payload = {
+      title: challenge.title,
+      duration: challenge.duration,
+      startDatetime: toIsoString(challenge.startDatetime),
+      endDatetime: toIsoString(challenge.endDatetime),
+      durationPeerReview: challenge.durationPeerReview,
+      allowedNumberOfReview: challenge.allowedNumberOfReview ?? 5,
+      status: ChallengeStatus.PUBLIC,
+      matchSettingIds,
+    };
+
+    await validateChallengeData(payload, {
+      validatorKey: 'challenge-public',
+    });
+
+    const overlappingChallenge = await Challenge.findOne({
+      where: {
+        id: { [Op.ne]: challengeId },
+        status: ChallengeStatus.PUBLIC,
+        startDatetime: { [Op.lt]: payload.endDatetime },
+        endDatetime: { [Op.gt]: payload.startDatetime },
+      },
+      transaction,
+    });
+    if (overlappingChallenge) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Challenge time overlaps with an existing challenge.',
+          code: 'challenge_overlap',
+        },
+      });
+    }
+
+    await challenge.update({ status: ChallengeStatus.PUBLIC }, { transaction });
+    await transaction.commit();
+    emitChallengeUpdate(challenge);
+    return res.json({ success: true, challenge });
+  } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error('Failed to rollback challenge publish transaction', {
+          rollbackError,
+        });
+      }
+    }
+    handleException(res, error);
+  }
+});
+
 router.post('/challenges/:challengeId/unpublish', async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
@@ -1945,6 +2053,7 @@ router.patch('/challenges/:challengeId', async (req, res) => {
       const overlappingChallenge = await Challenge.findOne({
         where: {
           id: { [Op.ne]: challengeId },
+          status: ChallengeStatus.PUBLIC,
           startDatetime: { [Op.lt]: payload.endDatetime },
           endDatetime: { [Op.gt]: payload.startDatetime },
         },
@@ -2021,6 +2130,13 @@ router.get('/challenges/:challengeId', async (req, res) => {
       return res
         .status(404)
         .json({ success: false, error: 'Challenge not found' });
+    }
+    const requestUser = getRequestUser(req);
+    if (!requestUser && challenge.status === ChallengeStatus.PRIVATE) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not logged in',
+      });
     }
     if (
       shouldHidePrivate(req) &&

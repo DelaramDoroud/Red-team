@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import { API_REST_BASE, ChallengeStatus } from '#js/constants';
+import useJsonSchema from '#js/useJsonSchema';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
 import { Button } from '#components/common/Button';
@@ -21,24 +22,58 @@ const isActiveStatus = (status) =>
 const isUpcomingStatus = (status) =>
   status === ChallengeStatus.PUBLIC || status === ChallengeStatus.ASSIGNED;
 const isEndedStatus = (status) => status === ChallengeStatus.ENDED_PHASE_TWO;
+const parseNumericValue = (value) => {
+  if (value === '' || value === null || value === undefined) return value;
+  if (typeof value === 'number') return value;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
+};
+const getMatchSettingIds = (challenge) => {
+  if (Array.isArray(challenge?.matchSettingIds)) {
+    return challenge.matchSettingIds.filter((id) => Number.isInteger(id));
+  }
+  if (Array.isArray(challenge?.matchSettings)) {
+    return challenge.matchSettings
+      .map((setting) => setting?.id)
+      .filter((id) => Number.isInteger(id));
+  }
+  return [];
+};
+const buildPublishPayload = (challenge) => ({
+  id: challenge?.id,
+  title: challenge?.title,
+  duration: parseNumericValue(challenge?.duration),
+  startDatetime: challenge?.startDatetime,
+  endDatetime: challenge?.endDatetime,
+  durationPeerReview: parseNumericValue(challenge?.durationPeerReview),
+  allowedNumberOfReview: parseNumericValue(challenge?.allowedNumberOfReview),
+  matchSettingIds: getMatchSettingIds(challenge),
+  status: ChallengeStatus.PUBLIC,
+});
 
 export default function ChallengeList({ scope = 'main' }) {
   const {
     loading,
     getChallenges,
     getChallengeParticipants,
+    publishChallenge,
     assignChallenge,
     startChallenge,
     assignPeerReviews,
     startPeerReview,
   } = useChallenge();
 
+  const { validate } = useJsonSchema();
   const [challenges, setChallenges] = useState([]);
   const [participantsMap, setParticipantsMap] = useState({});
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
+  const [publishEligibility, setPublishEligibility] = useState({});
+  const [publishValidationError, setPublishValidationError] = useState(null);
+  const [publishValidationLoading, setPublishValidationLoading] =
+    useState(false);
   const isPrivateView = scope === 'private';
   const dispatch = useAppDispatch();
   const userId = useAppSelector((state) => state.auth?.user?.id);
@@ -117,7 +152,7 @@ export default function ChallengeList({ scope = 'main' }) {
       }
       if (!payload?.challengeId) return;
 
-      if (typeof payload.count === 'number') {
+      if (typeof payload?.count === 'number') {
         setParticipantsMap((prev) => ({
           ...prev,
           [payload.challengeId]: payload.count,
@@ -127,7 +162,7 @@ export default function ChallengeList({ scope = 'main' }) {
 
       try {
         const res = await getChallengeParticipantsRef.current(
-          payload.challengeId
+          payload?.challengeId
         );
         const count =
           res?.success && Array.isArray(res.data) ? res.data.length : 0;
@@ -197,6 +232,74 @@ export default function ChallengeList({ scope = 'main' }) {
     privateChallenges,
     upcomingChallenges,
   ]);
+
+  useEffect(() => {
+    let isActive = true;
+    if (!isPrivateView) {
+      setPublishEligibility({});
+      setPublishValidationError(null);
+      setPublishValidationLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+    if (!privateChallenges.length) {
+      setPublishEligibility({});
+      setPublishValidationError(null);
+      setPublishValidationLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+    const validateForPublish = async () => {
+      setPublishValidationLoading(true);
+      setPublishValidationError(null);
+      try {
+        const results = await Promise.all(
+          privateChallenges.map(async (challenge) => {
+            const payload = buildPublishPayload(challenge);
+            const outcome = await validate({
+              itemTypeData: { type: 'challenge-public' },
+              data: payload,
+              kind: 'public',
+            });
+            return {
+              id: challenge.id,
+              valid: outcome.valid,
+              errors: outcome.errors,
+            };
+          })
+        );
+
+        if (!isActive) return;
+        const nextEligibility = {};
+        results.forEach((result) => {
+          if (!result?.id) return;
+          nextEligibility[result.id] = {
+            valid: result.valid,
+            errors: result.errors,
+          };
+        });
+        setPublishEligibility(nextEligibility);
+      } catch (validationError) {
+        if (!isActive) return;
+        setPublishEligibility({});
+        setPublishValidationError(
+          validationError?.message ||
+            'Unable to validate challenges for publishing.'
+        );
+      } finally {
+        if (isActive) {
+          setPublishValidationLoading(false);
+        }
+      }
+    };
+
+    validateForPublish();
+    return () => {
+      isActive = false;
+    };
+  }, [isPrivateView, privateChallenges, validate]);
 
   useEffect(() => {
     if (!visibleChallenges.length) return;
@@ -399,6 +502,37 @@ export default function ChallengeList({ scope = 'main' }) {
     }
   };
 
+  const handlePublish = async (challenge) => {
+    if (!challenge?.id) return;
+    setAssignNotice(null);
+    setError(null);
+    setPendingAction(challenge.id, 'publish', true);
+    try {
+      const res = await publishChallenge(challenge.id);
+      if (res?.success) {
+        setAssignNotice({
+          tone: 'success',
+          text: 'Challenge published successfully.',
+        });
+        setChallenges((prev) =>
+          prev.map((item) =>
+            item.id === challenge.id
+              ? { ...item, status: ChallengeStatus.PUBLIC }
+              : item
+          )
+        );
+        return;
+      }
+      setError(
+        res?.error?.message || res?.message || 'Unable to publish challenge'
+      );
+    } catch {
+      setError('Unable to publish challenge');
+    } finally {
+      setPendingAction(challenge.id, 'publish', false);
+    }
+  };
+
   const renderTimeLeft = (challenge) => {
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
       return (
@@ -473,6 +607,48 @@ export default function ChallengeList({ scope = 'main' }) {
   }, [dispatch, userId, visibleChallenges]);
 
   const renderActions = (challenge, studentCount) => {
+    if (isPrivateView) {
+      const eligibility = publishEligibility[challenge.id];
+      const isPublishing = pending[challenge.id]?.publish;
+      const isValid = Boolean(eligibility?.valid);
+      const isChecking = publishValidationLoading && !eligibility;
+      let label = 'Publish';
+      if (isPublishing) {
+        label = 'Publishing...';
+      } else if (isChecking) {
+        label = 'Checking...';
+      }
+      let title = 'Publish this challenge';
+      if (publishValidationError) {
+        title = publishValidationError;
+      } else if (!isValid) {
+        if (eligibility?.errors?.length) {
+          title = `Complete required fields: ${eligibility.errors.join(' | ')}`;
+        } else {
+          title = 'Complete required fields before publishing.';
+        }
+      }
+
+      return (
+        <Button
+          size='sm'
+          onClick={(event) => {
+            event.preventDefault();
+            handlePublish(challenge);
+          }}
+          disabled={
+            isPublishing ||
+            !isValid ||
+            Boolean(publishValidationError) ||
+            isChecking
+          }
+          title={title}
+        >
+          {label}
+        </Button>
+      );
+    }
+
     const hasStudents = studentCount > 0;
     const now = new Date();
     const canStartNow =
@@ -604,6 +780,9 @@ export default function ChallengeList({ scope = 'main' }) {
           </div>
         </div>
         {error && <p className={styles.error}>{error}</p>}
+        {publishValidationError && (
+          <p className={styles.error}>{publishValidationError}</p>
+        )}
         {assignNotice && (
           <p
             className={`${styles.notice} ${getNoticeClassName(

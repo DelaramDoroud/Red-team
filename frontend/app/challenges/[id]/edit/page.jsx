@@ -16,6 +16,7 @@ import {
   parsePositiveInt,
   isValidYearValue,
   resolvePickerValue,
+  isDateTimeInputWithinLimits,
   DATE_TIME_PATTERN,
   normalizeDateTimeInput,
   resolveDateTimeInputValue,
@@ -46,13 +47,45 @@ const mergeMatchSettings = (readySettings, selectedSettings) => {
   return merged;
 };
 
+const resolveChallengePayload = (result) => {
+  if (!result || result?.success === false) return null;
+  const direct =
+    result?.challenge || result?.data?.challenge || result?.data || result;
+  if (!direct || typeof direct !== 'object') return null;
+  if (!Object.prototype.hasOwnProperty.call(direct, 'id')) return null;
+  return direct;
+};
+
+const resolveMatchSettingsPayload = (result) => {
+  if (!result || result?.success === false) return [];
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result?.matchSettings)) return result.matchSettings;
+  if (Array.isArray(result?.data?.matchSettings)) {
+    return result.data.matchSettings;
+  }
+  return [];
+};
+
+const resolveMatchSettingPayload = (result) => {
+  if (!result || result?.success === false) return null;
+  const direct =
+    result?.matchSetting ||
+    result?.data?.matchSetting ||
+    result?.data ||
+    result;
+  if (!direct || typeof direct !== 'object') return null;
+  if (!Object.prototype.hasOwnProperty.call(direct, 'id')) return null;
+  return direct;
+};
+
 export default function EditChallengePage() {
   const params = useParams();
   const router = useRouter();
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
   });
-  const { getMatchSettings } = useMatchSettings();
+  const { getMatchSettings, getMatchSetting } = useMatchSettings();
   const { getChallengeById, updateChallenge } = useChallenge();
   const challengeId = params?.id;
   const defaultDateTimes = buildDefaultDateTimes({
@@ -79,6 +112,7 @@ export default function EditChallengePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [overlapPayload, setOverlapPayload] = useState(null);
+  const [initialStatus, setInitialStatus] = useState(null);
   const startPickerRef = useRef(null);
   const endPickerRef = useRef(null);
 
@@ -103,6 +137,7 @@ export default function EditChallengePage() {
     let nextChallenge = { ...challenge };
 
     if (name === 'startDatetime' || name === 'endDatetime') {
+      if (!isDateTimeInputWithinLimits(value)) return;
       const { normalized, inputValue } = resolveDateTimeInputValue(value);
       nextChallenge = {
         ...nextChallenge,
@@ -261,66 +296,87 @@ export default function EditChallengePage() {
         ]);
         if (!mountedRef.current) return;
 
-        if (challengeResult?.success === false) {
+        const challengeData = resolveChallengePayload(challengeResult);
+        if (!challengeData) {
           setError(
-            challengeResult.message || 'Unable to load challenge details.'
+            challengeResult?.message || 'Unable to load challenge details.'
           );
           setLoadingChallenge(false);
           return;
         }
 
-        const challengeData =
-          challengeResult?.challenge ||
-          challengeResult?.data ||
-          challengeResult;
-        if (!challengeData) {
-          setError('Unable to load challenge details.');
-          setLoadingChallenge(false);
-          return;
-        }
+        const {
+          title,
+          duration,
+          allowedNumberOfReview,
+          durationPeerReview,
+          status,
+          startDatetime,
+          endDatetime,
+          startPhaseOneDateTime,
+          endPhaseTwoDateTime,
+          matchSettings: challengeMatchSettings,
+        } = challengeData;
 
-        const localStart = buildLocalDateTime(challengeData.startDatetime);
-        const localEnd = buildLocalDateTime(challengeData.endDatetime);
+        const startSource = startDatetime || startPhaseOneDateTime || null;
+        const endSource = endDatetime || endPhaseTwoDateTime || null;
+        const localStart = buildLocalDateTime(startSource);
+        const localEnd = buildLocalDateTime(endSource);
         let matchSettingIds = [];
         if (Array.isArray(challengeData.matchSettingIds)) {
           matchSettingIds = challengeData.matchSettingIds;
-        } else if (Array.isArray(challengeData.matchSettings)) {
-          matchSettingIds = challengeData.matchSettings.map(
-            (setting) => setting.id
-          );
+        } else if (Array.isArray(challengeMatchSettings)) {
+          matchSettingIds = challengeMatchSettings
+            .map((setting) => setting?.id)
+            .filter(Boolean);
         }
+        matchSettingIds = Array.from(new Set(matchSettingIds));
 
-        setChallenge({
-          title: challengeData.title || '',
+        let nextChallenge = {
+          title: title || '',
           startDatetime: localStart,
           endDatetime: localEnd,
           startDatetimeInput: localStart ? formatDateTime(localStart) : '',
           endDatetimeInput: localEnd ? formatDateTime(localEnd) : '',
-          duration: String(challengeData.duration ?? ''),
-          allowedNumberOfReview: String(
-            challengeData.allowedNumberOfReview ?? ''
-          ),
+          duration: String(duration ?? ''),
+          allowedNumberOfReview: String(allowedNumberOfReview ?? ''),
           matchSettingIds,
-          status: challengeData.status || Constants.ChallengeStatus.PRIVATE,
-          durationPeerReview: String(challengeData.durationPeerReview ?? ''),
-        });
+          status: status || Constants.ChallengeStatus.PRIVATE,
+          durationPeerReview: String(durationPeerReview ?? ''),
+        };
 
-        let readySettings = [];
-        if (Array.isArray(matchSettingsResult)) {
-          readySettings = matchSettingsResult;
-        } else if (Array.isArray(matchSettingsResult?.data)) {
-          readySettings = matchSettingsResult.data;
+        if (!localEnd && localStart) {
+          const updated = updateEndDateTime(nextChallenge);
+          if (updated) {
+            nextChallenge = {
+              ...nextChallenge,
+              ...updated,
+            };
+          }
         }
-        const mergedSettings = mergeMatchSettings(
+
+        setChallenge(nextChallenge);
+        setInitialStatus(status || Constants.ChallengeStatus.PRIVATE);
+
+        const readySettings = resolveMatchSettingsPayload(matchSettingsResult);
+        let mergedSettings = mergeMatchSettings(
           readySettings,
-          challengeData.matchSettings
+          challengeMatchSettings
         );
+
+        if (mergedSettings.length === 0 && matchSettingIds.length > 0) {
+          const selectedSettings = await Promise.all(
+            matchSettingIds.map((id) => getMatchSetting(id))
+          );
+          const resolvedSelected = selectedSettings
+            .map((result) => resolveMatchSettingPayload(result))
+            .filter(Boolean);
+          mergedSettings = mergeMatchSettings(readySettings, resolvedSelected);
+        }
+
         setMatchSettings(mergedSettings);
 
-        if (
-          challengeData.status &&
-          challengeData.status !== Constants.ChallengeStatus.PRIVATE
-        ) {
+        if (status && status !== Constants.ChallengeStatus.PRIVATE) {
           setError(
             'This challenge must be private to edit. Unpublish it first.'
           );
@@ -340,12 +396,18 @@ export default function EditChallengePage() {
     return () => {
       mountedRef.current = false;
     };
-  }, [challengeId, getChallengeById, getMatchSettings, isAuthorized]);
+  }, [
+    challengeId,
+    getChallengeById,
+    getMatchSetting,
+    getMatchSettings,
+    isAuthorized,
+  ]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!isAuthorized) return;
-    if (challenge.status !== Constants.ChallengeStatus.PRIVATE) return;
+    if (initialStatus !== Constants.ChallengeStatus.PRIVATE) return;
     setSuccessMessage(null);
     setError(null);
 
@@ -506,7 +568,7 @@ export default function EditChallengePage() {
   };
 
   const formDisabled =
-    challenge.status !== Constants.ChallengeStatus.PRIVATE || loadingChallenge;
+    loadingChallenge || initialStatus !== Constants.ChallengeStatus.PRIVATE;
 
   if (!isAuthorized) return null;
 

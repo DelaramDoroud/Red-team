@@ -15,7 +15,7 @@
     "migrate-undo": "node migrator.js db:migrate:undo",
     "migrate-undo-all": "node migrator.js db:migrate:undo:all",
     "migration:new": "node scripts/create-migration.js",
-    "lint": "eslint . --fix && prettier --write . && markdownlint --fix \"**/*.md\" --ignore node_modules",
+    "lint": "eslint . --fix && prettier --write . --ignore-path .lintignore && sh -c \"if find . \\( -path './node_modules' -o -path './.next' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print -quit | grep -q .; then markdownlint --fix --ignore-path .lintignore .; fi\"",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -72,7 +72,7 @@
       "prettier --write"
     ],
     "**/*.md": [
-      "markdownlint --fix"
+      "markdownlint --fix --ignore-path .lintignore"
     ]
   }
 }
