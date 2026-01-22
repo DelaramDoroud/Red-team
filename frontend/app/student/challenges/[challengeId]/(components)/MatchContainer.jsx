@@ -329,9 +329,8 @@ export default function MatchContainer({ challengeId, studentId }) {
   const hasSignatureToken = Boolean(startSignature);
   const shouldIgnoreSavedDraft = Boolean(
     savedDraftEntry &&
-    ((savedDraftEntry.signature &&
-      savedDraftEntry.signature !== challengeSignature) ||
-      (hasSignatureToken && !savedDraftEntry.signature))
+    savedDraftEntry.signature &&
+    savedDraftEntry.signature !== challengeSignature
   );
   const activeDraftEntry = shouldIgnoreSavedDraft ? null : savedDraftEntry;
   const savedLastCompiledSnapshot = normalizeSnapshot(
@@ -425,7 +424,7 @@ export default function MatchContainer({ challengeId, studentId }) {
 
   useEffect(() => {
     hasLoadedFromStorage.current = false;
-  }, [matchId, challengeId]);
+  }, [matchId, challengeId, studentId, challengeSignature]);
 
   useEffect(() => {
     if (!matchData) return;
@@ -465,6 +464,22 @@ export default function MatchContainer({ challengeId, studentId }) {
     };
     setDraftSaveState('saved');
     hasLoadedFromStorage.current = true;
+    if (
+      studentId &&
+      activeDraftEntry &&
+      hasSignatureToken &&
+      !activeDraftEntry.signature
+    ) {
+      dispatch(
+        setDraftCode({
+          userId: studentId,
+          key: storageKeyBase,
+          imports: nextImports,
+          studentCode: nextStudentCode,
+          signature: challengeSignature,
+        })
+      );
+    }
   }, [
     matchData,
     activeDraftEntry,
@@ -472,6 +487,11 @@ export default function MatchContainer({ challengeId, studentId }) {
     defaultImports,
     fixedPrefix,
     fixedSuffix,
+    studentId,
+    hasSignatureToken,
+    dispatch,
+    storageKeyBase,
+    challengeSignature,
   ]);
 
   useEffect(() => {

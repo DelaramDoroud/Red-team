@@ -20,7 +20,10 @@ import startChallengeService from '#root/services/start-challenge.js';
 import startPeerReviewService from '#root/services/start-peer-review.js';
 import assignPeerReviews from '#root/services/assign-peer-reviews.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
-import { schedulePhaseOneEndForChallenge } from '#root/services/challenge-scheduler.js';
+import {
+  schedulePhaseOneEndForChallenge,
+  schedulePhaseTwoEndForChallenge,
+} from '#root/services/challenge-scheduler.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
 import { Op } from 'sequelize';
@@ -1104,6 +1107,7 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
     }
 
     const { challenge: updatedChallenge } = result;
+    await schedulePhaseTwoEndForChallenge(updatedChallenge);
     emitChallengeUpdate(updatedChallenge);
 
     return res.json({
@@ -1689,7 +1693,38 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
       });
     }
 
-    const isFullyEnded = challenge.status === ChallengeStatus.ENDED_PHASE_TWO;
+    const manualSubmission = await Submission.findOne({
+      where: { matchId: match.id, isAutomaticSubmission: false },
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+
+    const automaticSubmission = await Submission.findOne({
+      where: { matchId: match.id, isAutomaticSubmission: true },
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+
+    const submissionSummary = {
+      hasManualSubmission: Boolean(manualSubmission),
+      hasAutomaticSubmission: Boolean(automaticSubmission),
+      automaticStatus: automaticSubmission?.status || null,
+      finalIsAutomatic: studentSubmission?.isAutomaticSubmission === true,
+    };
+
+    const phaseTwoEndTimestamp = challenge.endPhaseTwoDateTime
+      ? new Date(challenge.endPhaseTwoDateTime).getTime()
+      : null;
+    const hasPhaseTwoEnded =
+      phaseTwoEndTimestamp !== null
+        ? phaseTwoEndTimestamp <= Date.now()
+        : false;
+    const isFullyEnded =
+      challenge.status === ChallengeStatus.ENDED_PHASE_TWO && hasPhaseTwoEnded;
     let otherSubmissions = [];
     if (isFullyEnded) {
       const submissions = await Submission.findAll({
@@ -1768,6 +1803,7 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
           id: challenge.id,
           title: challenge.title,
           status: challenge.status,
+          endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
         },
         matchSetting: match.challengeMatchSetting?.matchSetting
           ? {
@@ -1781,11 +1817,14 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
               id: studentSubmission.id,
               code: studentSubmission.code,
               status: studentSubmission.status,
+              isAutomaticSubmission: studentSubmission.isAutomaticSubmission,
+              isFinal: studentSubmission.isFinal,
               privateSummary: studentSubmission.privateSummary,
               privateTestResults: studentSubmission.privateTestResults || [],
               createdAt: studentSubmission.createdAt,
             }
           : null,
+        submissionSummary,
         finalization: {
           totalMatches,
           finalSubmissionCount,
@@ -1998,10 +2037,13 @@ router.patch('/challenges/:challengeId', async (req, res) => {
         .json({ success: false, error: 'Challenge not found' });
     }
 
-    if (challenge.status !== ChallengeStatus.PRIVATE) {
+    const isEditableStatus =
+      challenge.status === ChallengeStatus.PRIVATE ||
+      challenge.status === ChallengeStatus.PUBLIC;
+    if (!isEditableStatus) {
       return res.status(409).json({
         success: false,
-        error: 'Unpublish this challenge before editing.',
+        error: 'Challenge can only be edited before it starts.',
       });
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
@@ -12,7 +12,11 @@ import {
   CardTitle,
 } from '#components/common/card';
 import AlertDialog from '#components/common/AlertDialog';
-import { ChallengeStatus, getChallengeStatusLabel } from '#js/constants';
+import {
+  API_REST_BASE,
+  ChallengeStatus,
+  getChallengeStatusLabel,
+} from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
@@ -163,6 +167,11 @@ export default function ChallengeDetailPage() {
   const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
   const [phaseNow, setPhaseNow] = useState(Date.now());
+  const getChallengeParticipantsRef = useRef(getChallengeParticipants);
+
+  useEffect(() => {
+    getChallengeParticipantsRef.current = getChallengeParticipants;
+  }, [getChallengeParticipants]);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -218,6 +227,46 @@ export default function ChallengeDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!challengeId || typeof EventSource === 'undefined') return undefined;
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+    const handleParticipantJoined = async (event) => {
+      let payload = null;
+      if (event?.data) {
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          payload = null;
+        }
+      }
+      const payloadId = Number(payload?.challengeId);
+      if (!payloadId || payloadId !== Number(challengeId)) return;
+      if (typeof payload?.count === 'number') {
+        setStudentCount(payload?.count);
+      }
+      try {
+        const res = await getChallengeParticipantsRef.current(payloadId);
+        if (res?.success && Array.isArray(res.data)) {
+          setStudentCount(res.data.length);
+          setParticipants(res.data);
+        }
+      } catch {
+        // Keep the last known list if refresh fails.
+      }
+    };
+
+    source.addEventListener(
+      'challenge-participant-joined',
+      handleParticipantJoined
+    );
+
+    return () => {
+      source.close();
+    };
+  }, [challengeId]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return undefined;

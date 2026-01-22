@@ -19,12 +19,13 @@ import {
   TableRow,
 } from '#components/common/Table';
 import useChallenge from '#js/useChallenge';
-import useRoleGuard from '#js/useRoleGuard';
+import { useAppSelector } from '#js/store/hooks';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
 import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
+import { useDuration } from '../(context)/DurationContext';
 
 const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
@@ -55,7 +56,18 @@ const buildTestKey = (result) => {
 export default function ChallengeResultPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
+  const durationContext = useDuration();
+  const challengeStatus = durationContext?.status;
+  const hasChallengeStatus =
+    challengeStatus !== null && challengeStatus !== undefined;
+  const isChallengeEnded = challengeStatus === ChallengeStatus.ENDED_PHASE_TWO;
+  const canLoadResults =
+    !durationContext || (hasChallengeStatus && isChallengeEnded);
+  const {
+    user,
+    loading: authLoading,
+    isLoggedIn,
+  } = useAppSelector((state) => state.auth);
   const studentId = user?.id;
   const challengeId = params?.challengeId;
   const { getChallengeResults } = useChallenge();
@@ -66,14 +78,23 @@ export default function ChallengeResultPage() {
   const [resultData, setResultData] = useState(null);
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
+  const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
 
   const loadResults = useCallback(async () => {
-    if (!challengeId || !studentId || !isAuthorized) return;
+    if (!challengeId || !studentId || !isLoggedIn) return;
+    setAwaitingChallengeEnd(false);
     setLoading(true);
     setError(null);
     try {
       const res = await getChallengeResults(challengeId, studentId);
       if (res?.success === false) {
+        const apiMessage = res?.error?.message || getApiErrorMessage(res, null);
+        if (apiMessage?.toLowerCase().includes('has not ended yet')) {
+          setAwaitingChallengeEnd(true);
+          setLoading(false);
+          setError(null);
+          return;
+        }
         if (redirectOnError(res)) return;
         setError(getApiErrorMessage(res, 'Unable to load results.'));
         setResultData(null);
@@ -98,14 +119,19 @@ export default function ChallengeResultPage() {
   }, [
     challengeId,
     studentId,
-    isAuthorized,
+    isLoggedIn,
     getChallengeResults,
     redirectOnError,
   ]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!challengeId || !studentId || !isAuthorized) return undefined;
+    if (durationContext && hasChallengeStatus && !isChallengeEnded) {
+      setLoading(false);
+      return undefined;
+    }
+    if (!canLoadResults) return undefined;
+    if (!challengeId || !studentId || !isLoggedIn) return undefined;
     const run = async () => {
       if (cancelled) return;
       await loadResults();
@@ -114,17 +140,74 @@ export default function ChallengeResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [challengeId, studentId, isAuthorized, loadResults]);
+  }, [
+    canLoadResults,
+    challengeId,
+    durationContext,
+    hasChallengeStatus,
+    isChallengeEnded,
+    isLoggedIn,
+    loadResults,
+    studentId,
+  ]);
 
   useEffect(() => {
-    if (!isFinalizationPending) return undefined;
+    if (!isFinalizationPending || !canLoadResults) return undefined;
     const timeoutId = setTimeout(() => {
       loadResults();
     }, 4000);
     return () => clearTimeout(timeoutId);
-  }, [isFinalizationPending, loadResults]);
+  }, [canLoadResults, isFinalizationPending, loadResults]);
 
-  if (!isAuthorized || !studentId) return null;
+  if (authLoading) {
+    return (
+      <div className='max-w-4xl mx-auto px-4 py-10'>
+        <Card>
+          <CardContent className='py-8 text-sm text-muted-foreground'>
+            Loading your profile...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !studentId) return null;
+
+  if (durationContext && !hasChallengeStatus && loading) {
+    return (
+      <div className='max-w-4xl mx-auto px-4 py-10'>
+        <Card>
+          <CardContent className='py-8 text-sm text-muted-foreground'>
+            Loading challenge status...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isWaitingForResults =
+    awaitingChallengeEnd ||
+    (durationContext && hasChallengeStatus && !isChallengeEnded);
+
+  if (isWaitingForResults) {
+    return (
+      <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
+        <Card>
+          <CardHeader>
+            <CardTitle>Peer review in progress</CardTitle>
+            <CardDescription>
+              Your review is complete. Results will be available once the
+              challenge ends.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='text-sm text-muted-foreground'>
+            You can play a quick round of Snake while you wait.
+          </CardContent>
+        </Card>
+        <SnakeGame />
+      </div>
+    );
+  }
 
   if (isFinalizationPending) {
     const totalMatches = finalization?.totalMatches;
@@ -215,7 +298,13 @@ export default function ChallengeResultPage() {
   }
 
   const { challenge, matchSetting } = resultData;
-  const isFullyEnded = challenge?.status === ChallengeStatus.ENDED_PHASE_TWO;
+  const phaseTwoEndTimestamp = challenge?.endPhaseTwoDateTime
+    ? new Date(challenge.endPhaseTwoDateTime).getTime()
+    : null;
+  const hasPhaseTwoEnded =
+    phaseTwoEndTimestamp !== null ? phaseTwoEndTimestamp <= Date.now() : false;
+  const isFullyEnded =
+    challenge?.status === ChallengeStatus.ENDED_PHASE_TWO && hasPhaseTwoEnded;
   const studentSubmission = resultData?.studentSubmission || null;
   const privateResults = Array.isArray(studentSubmission?.privateTestResults)
     ? studentSubmission.privateTestResults

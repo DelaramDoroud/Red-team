@@ -57,9 +57,14 @@ const getStartTimestamp = (value) => {
   return timestamp;
 };
 
+const getChallengeStartTimestamp = (challenge) =>
+  getStartTimestamp(
+    challenge?.startPhaseOneDateTime || challenge?.startDatetime
+  );
+
 const sortByStartAsc = (a, b) => {
-  const aStart = getStartTimestamp(a.startDatetime);
-  const bStart = getStartTimestamp(b.startDatetime);
+  const aStart = getChallengeStartTimestamp(a);
+  const bStart = getChallengeStartTimestamp(b);
   if (aStart == null && bStart == null) return 0;
   if (aStart == null) return 1;
   if (bStart == null) return -1;
@@ -67,8 +72,8 @@ const sortByStartAsc = (a, b) => {
 };
 
 const sortByStartDesc = (a, b) => {
-  const aStart = getStartTimestamp(a.startDatetime);
-  const bStart = getStartTimestamp(b.startDatetime);
+  const aStart = getChallengeStartTimestamp(a);
+  const bStart = getChallengeStartTimestamp(b);
   if (aStart == null && bStart == null) return 0;
   if (aStart == null) return 1;
   if (bStart == null) return -1;
@@ -222,10 +227,8 @@ export default function StudentChallengesPage() {
   const nowMs = now.getTime();
 
   const getStudentStatusLabel = (challenge) => {
-    const startTime = challenge.startDatetime
-      ? new Date(challenge.startDatetime)
-      : null;
-    const isUpcoming = startTime ? startTime > now : false;
+    const startTimestamp = getChallengeStartTimestamp(challenge);
+    const isUpcoming = startTimestamp !== null ? startTimestamp > nowMs : false;
     if (isUpcoming) return 'Upcoming';
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) return 'Coding';
     if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE)
@@ -237,7 +240,7 @@ export default function StudentChallengesPage() {
     if (challenge.status === ChallengeStatus.PUBLIC)
       return challenge.joined ? 'Joined' : 'Joinable';
     if (challenge.status === ChallengeStatus.ASSIGNED)
-      return challenge.joined ? 'Assigned' : 'Joinable';
+      return challenge.joined ? 'Assigned' : 'Assigned';
     return challenge.status || 'Unknown';
   };
 
@@ -261,16 +264,22 @@ export default function StudentChallengesPage() {
     const isPhaseTwoActive = status === ChallengeStatus.STARTED_PHASE_TWO;
     const isPhaseOneComplete = status === ChallengeStatus.ENDED_PHASE_ONE;
     const isPhaseTwoComplete = status === ChallengeStatus.ENDED_PHASE_TWO;
-    const startTime = challenge.startDatetime
-      ? new Date(challenge.startDatetime)
-      : null;
-    const isUpcoming = startTime ? startTime > now : false;
+    const startTimestamp = getChallengeStartTimestamp(challenge);
+    const isUpcoming = startTimestamp !== null ? startTimestamp > nowMs : false;
     const isJoining = pendingActions[challenge.id]?.join;
 
     if (isUpcoming) {
       return (
         <div className='text-muted-foreground font-semibold text-sm'>
           Starts soon
+        </div>
+      );
+    }
+
+    if (!isJoined && status === ChallengeStatus.ASSIGNED) {
+      return (
+        <div className='text-destructive font-semibold text-sm'>
+          Assignments are already set. Contact your teacher if you need access.
         </div>
       );
     }
@@ -366,7 +375,7 @@ export default function StudentChallengesPage() {
 
     const joinableCurrent = challenges.filter((challenge) => {
       if (challenge.status !== ChallengeStatus.PUBLIC) return false;
-      const startTimestamp = getStartTimestamp(challenge.startDatetime);
+      const startTimestamp = getChallengeStartTimestamp(challenge);
       if (startTimestamp == null) return false;
       return startTimestamp <= nowMs;
     });
@@ -377,10 +386,7 @@ export default function StudentChallengesPage() {
     }
 
     const nonJoinedActive = challenges.filter(
-      (challenge) =>
-        !challenge.joined &&
-        activeStatuses.has(challenge.status) &&
-        challenge.status !== ChallengeStatus.ASSIGNED
+      (challenge) => !challenge.joined && activeStatuses.has(challenge.status)
     );
     if (nonJoinedActive.length > 0) {
       const sorted = [...nonJoinedActive].sort((a, b) => {
@@ -397,12 +403,11 @@ export default function StudentChallengesPage() {
 
   const upcomingChallenge = useMemo(() => {
     const candidates = challenges.filter((challenge) => {
-      const startTimestamp = getStartTimestamp(challenge.startDatetime);
+      const startTimestamp = getChallengeStartTimestamp(challenge);
       if (startTimestamp == null) return false;
       if (startTimestamp <= nowMs) return false;
       if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) return false;
-      if (activeChallenge && challenge.id === activeChallenge.id) return false;
-      return true;
+      return !(activeChallenge && challenge.id === activeChallenge.id);
     });
 
     if (candidates.length === 0) return null;
@@ -450,7 +455,9 @@ export default function StudentChallengesPage() {
                 Start
               </dt>
               <dd className='text-foreground font-medium'>
-                {formatDateTime(challenge.startDatetime)}
+                {formatDateTime(
+                  challenge.startPhaseOneDateTime || challenge.startDatetime
+                )}
               </dd>
             </div>
             <div className='space-y-1'>

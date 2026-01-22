@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 import { Button } from '#components/common/Button';
 import Timer from '#components/common/Timer';
+import SnakeGame from '#components/common/SnakeGame';
 import {
   Card,
   CardContent,
@@ -19,15 +20,26 @@ import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
-import { useAppSelector } from '#js/store/hooks';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setPeerReviewExit } from '#js/store/slices/ui';
 import { validateIncorrectInput } from '#js/utils';
 import ExitConfirmationModal from './ExitConfirmationModal';
+import { useDuration } from '../(context)/DurationContext';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
 });
 
 const COUNTDOWN_BUFFER_MS = 5000;
+const MESSAGE_PHASE1_NO_SUBMISSION_INVALID =
+  'You did not submit any code. We checked your draft, but it did not pass the public tests, so your submission is not valid.';
+const MESSAGE_PHASE1_NO_SUBMISSION_VALID =
+  'You did not submit any code. Your draft passed the public tests, so your submission is valid.';
+const MESSAGE_PHASE1_SUBMITTED = 'You submitted your code.';
+const MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER =
+  'You submitted your code. However, your latest version is better, so we kept this latest version automatically.';
+const MESSAGE_PEER_REVIEW_WAIT =
+  "Wait for the peer review phase to start so you can review your classmates' code.";
 
 const buildTimeLeft = (startValue, durationMinutes, endValue) => {
   if (endValue) {
@@ -94,12 +106,41 @@ const formatCodeWithNewlines = (code) => {
   return result.join('\n');
 };
 
+const resolveCodingPhaseMessage = (summary) => {
+  if (!summary) return MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+  const hasManual = summary?.hasManualSubmission;
+  const hasAutomatic = summary?.hasAutomaticSubmission;
+  const automaticValid =
+    summary?.automaticStatus && summary.automaticStatus !== 'wrong';
+
+  if (!hasManual) {
+    return hasAutomatic && automaticValid
+      ? MESSAGE_PHASE1_NO_SUBMISSION_VALID
+      : MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+  }
+
+  return summary?.finalIsAutomatic
+    ? MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER
+    : MESSAGE_PHASE1_SUBMITTED;
+};
+
 export default function PeerReviewPage() {
   const params = useParams();
   const router = useRouter();
   const hasFinalizedRef = useRef(false);
-  const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
-  const studentId = user?.id;
+  const dispatch = useAppDispatch();
+  const durationContext = useDuration();
+  const durationStatus = durationContext?.status;
+  const authState = useAppSelector((state) => state.auth);
+  const authUser = authState?.user;
+  const authLoading = authState?.loading;
+  const isLoggedIn = authState?.isLoggedIn;
+  const { user: guardUser, isAuthorized } = useRoleGuard({
+    allowedRoles: ['student'],
+  });
+  const effectiveUser = authUser || guardUser;
+  const studentId = effectiveUser?.id;
+  const isStudentUser = effectiveUser?.role === 'student';
   const challengeId = params?.challengeId;
   const {
     getStudentPeerReviewAssignments,
@@ -109,6 +150,7 @@ export default function PeerReviewPage() {
     savePeerReviewTests,
     finalizePeerReview,
     exitPeerReview,
+    getChallengeResults,
   } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
@@ -130,6 +172,10 @@ export default function PeerReviewPage() {
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
   const [finalSummary, setFinalSummary] = useState(null);
+  const [submissionSummary, setSubmissionSummary] = useState(null);
+  const [finalization, setFinalization] = useState(null);
+  const [finalizationError, setFinalizationError] = useState(null);
+  const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -146,8 +192,30 @@ export default function PeerReviewPage() {
     timeLeft === 0 ||
     challengeInfo?.status !== ChallengeStatus.STARTED_PHASE_TWO;
 
+  const loadFinalization = useCallback(async () => {
+    if (!challengeId || !studentId) return;
+    const res = await getChallengeResults(challengeId, studentId);
+    if (res?.success === false) {
+      if (redirectOnError(res)) return;
+      setFinalizationError(
+        getApiErrorMessage(res, 'Unable to load submission summary.')
+      );
+      setFinalization(null);
+      setSubmissionSummary(null);
+      setIsFinalizationPending(false);
+      return;
+    }
+    const payload = res?.data || res;
+    const finalizationInfo = payload?.finalization || null;
+    const resultsReady = finalizationInfo?.resultsReady !== false;
+    setFinalization(finalizationInfo);
+    setSubmissionSummary(payload?.submissionSummary || null);
+    setIsFinalizationPending(!resultsReady);
+    setFinalizationError(null);
+  }, [challengeId, studentId, getChallengeResults, redirectOnError]);
+
   useEffect(() => {
-    if (!challengeId || !studentId || !isAuthorized) return undefined;
+    if (!challengeId || !studentId || !isStudentUser) return undefined;
     let cancelled = false;
 
     const loadData = async () => {
@@ -203,6 +271,14 @@ export default function PeerReviewPage() {
         setVoteMap(initialVoteMap);
 
         const challengeStatus = assignmentsRes?.challenge?.status;
+        if (challengeStatus === ChallengeStatus.ENDED_PHASE_ONE) {
+          await loadFinalization();
+        } else {
+          setSubmissionSummary(null);
+          setFinalization(null);
+          setFinalizationError(null);
+          setIsFinalizationPending(false);
+        }
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
@@ -216,6 +292,13 @@ export default function PeerReviewPage() {
             nextAssignments.length > 0 &&
             challengeStatus === ChallengeStatus.STARTED_PHASE_TWO
           ) {
+            dispatch(
+              setPeerReviewExit({
+                userId: studentId,
+                challengeId: String(challengeId),
+                value: true,
+              })
+            );
             setHasExited(true);
             toast.success('Thanks for your participation.');
             redirectTimeoutRef.current = setTimeout(() => {
@@ -245,13 +328,26 @@ export default function PeerReviewPage() {
     };
   }, [
     challengeId,
+    dispatch,
     studentId,
-    isAuthorized,
+    isStudentUser,
+    durationStatus,
     getStudentPeerReviewAssignments,
     getStudentVotes,
+    loadFinalization,
     redirectOnError,
     router,
   ]);
+
+  useEffect(() => {
+    if (!isFinalizationPending) return undefined;
+    if (challengeInfo?.status !== ChallengeStatus.ENDED_PHASE_ONE)
+      return undefined;
+    const timeoutId = setTimeout(() => {
+      loadFinalization();
+    }, 4000);
+    return () => clearTimeout(timeoutId);
+  }, [challengeInfo?.status, isFinalizationPending, loadFinalization]);
 
   useEffect(() => {
     if (assignments.length === 0) {
@@ -352,6 +448,8 @@ export default function PeerReviewPage() {
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
     challengeInfo?.status === ChallengeStatus.ENDED_PHASE_TWO;
+  const isCodingPhaseComplete =
+    challengeInfo?.status === ChallengeStatus.ENDED_PHASE_ONE;
 
   const selectedAssignment = assignments[selectedIndex] || null;
   const selectedAssignmentId = selectedAssignment?.id;
@@ -415,8 +513,17 @@ export default function PeerReviewPage() {
   const handleCloseSummaryDialog = useCallback(() => {
     setShowSummaryDialog(false);
     setFinalSummary(null);
+    if (studentId && challengeId) {
+      dispatch(
+        setPeerReviewExit({
+          userId: studentId,
+          challengeId: String(challengeId),
+          value: true,
+        })
+      );
+    }
     router.push(`/student/challenges/${challengeId}/result`);
-  }, [router, challengeId]);
+  }, [router, challengeId, dispatch, studentId]);
 
   useEffect(() => {
     const t = showSummaryDialog
@@ -690,6 +797,13 @@ export default function PeerReviewPage() {
         return;
       }
 
+      dispatch(
+        setPeerReviewExit({
+          userId: studentId,
+          challengeId: String(challengeId),
+          value: true,
+        })
+      );
       setHasExited(true);
       toast.success('Thanks for your participation.');
       if (redirectTimeoutRef.current) {
@@ -796,9 +910,85 @@ export default function PeerReviewPage() {
     }
   };
 
-  if (!isAuthorized || !studentId) return null;
+  if (authLoading && !studentId) {
+    return (
+      <div className='max-w-3xl mx-auto px-4 py-8'>
+        <Card>
+          <CardContent className='py-8 text-sm text-muted-foreground'>
+            Loading your profile...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if ((!isLoggedIn && !isAuthorized) || !studentId || !isStudentUser)
+    return null;
 
   if (!loading && !isPeerReviewActive) {
+    const progressText =
+      typeof finalization?.totalMatches === 'number' &&
+      typeof finalization?.finalSubmissionCount === 'number'
+        ? `${finalization.finalSubmissionCount} / ${finalization.totalMatches}`
+        : null;
+    const pendingText =
+      typeof finalization?.pendingFinalCount === 'number'
+        ? `${finalization.pendingFinalCount}`
+        : null;
+    const codingPhaseMessage = isCodingPhaseComplete
+      ? resolveCodingPhaseMessage(submissionSummary)
+      : null;
+
+    if (isCodingPhaseComplete) {
+      return (
+        <div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
+          <Card>
+            <CardHeader>
+              <CardTitle>Coding phase complete</CardTitle>
+              <CardDescription>
+                Wait for your teacher to start the peer review phase.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-2 text-sm text-muted-foreground'>
+              <p>{codingPhaseMessage}</p>
+              <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
+            </CardContent>
+          </Card>
+
+          {isFinalizationPending && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preparing submissions</CardTitle>
+                  <CardDescription>
+                    We are finalizing submissions before peer review begins.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-2 text-sm text-muted-foreground'>
+                  {progressText && (
+                    <p>
+                      Finalized submissions:{' '}
+                      <span className='font-semibold'>{progressText}</span>
+                    </p>
+                  )}
+                  {pendingText && (
+                    <p>
+                      Pending calculations:{' '}
+                      <span className='font-semibold'>{pendingText}</span>
+                    </p>
+                  )}
+                  {finalizationError && (
+                    <p className='text-amber-700'>{finalizationError}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <SnakeGame />
+            </>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className='max-w-3xl mx-auto px-4 py-8 space-y-4'>
         <Card>

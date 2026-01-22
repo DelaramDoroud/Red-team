@@ -558,7 +558,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
     expect(res.body.error.code).toBe('challenge_overlap');
   });
 
-  it('rejects updates when the challenge is not private', async () => {
+  it('updates a public challenge before it starts', async () => {
     const startTime = new Date(Date.now() + 96 * 60 * 60 * 1000);
     const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
     const challenge = await Challenge.create({
@@ -569,6 +569,44 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       durationPeerReview: 30,
       allowedNumberOfReview: 2,
       status: 'public',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const payload = {
+      title: 'Attempted Update',
+      duration: 60,
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${challenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe(payload.status);
+  });
+
+  it('rejects updates when the challenge has already started', async () => {
+    const startTime = new Date(Date.now() + 96 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Started Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'started_phase_one',
     });
     createdChallengeIds.push(challenge.id);
     const settings = await MatchSetting.findAll({

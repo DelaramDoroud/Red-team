@@ -6,6 +6,7 @@ const initialState = {
   challengeDrafts: {},
   challengeTimers: {},
   challengeCountdowns: {},
+  peerReviewExits: {},
 };
 
 const getDraftEntry = (userDrafts, key) =>
@@ -213,6 +214,31 @@ const uiSlice = createSlice({
         ),
       };
     },
+    setPeerReviewExit: (state, action) => {
+      const { userId, challengeId, value } = action.payload || {};
+      if (!userId || !challengeId || typeof value !== 'boolean') return state;
+      return {
+        ...state,
+        peerReviewExits: upsertUserValue(
+          state.peerReviewExits || {},
+          userId,
+          challengeId,
+          value
+        ),
+      };
+    },
+    clearPeerReviewExit: (state, action) => {
+      const { userId, challengeId } = action.payload || {};
+      if (!userId || !challengeId) return state;
+      return {
+        ...state,
+        peerReviewExits: removeUserKey(
+          state.peerReviewExits || {},
+          userId,
+          challengeId
+        ),
+      };
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -220,11 +246,13 @@ const uiSlice = createSlice({
         ...state,
         challengeDrafts: {},
         challengeCountdowns: {},
+        peerReviewExits: {},
       }))
       .addCase(clearUser, (state) => ({
         ...state,
         challengeDrafts: {},
         challengeCountdowns: {},
+        peerReviewExits: {},
       }));
   },
 });
@@ -240,6 +268,8 @@ export const {
   clearChallengeTimer,
   setChallengeCountdown,
   clearChallengeCountdown,
+  setPeerReviewExit,
+  clearPeerReviewExit,
 } = uiSlice.actions;
 
 export const uiReducer = uiSlice.reducer;

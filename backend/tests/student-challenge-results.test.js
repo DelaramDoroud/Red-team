@@ -394,6 +394,9 @@ describe('Student challenge endpoints', () => {
           status: ChallengeStatus.ENDED_PHASE_TWO,
           suffix: `${suffix}-result`,
         });
+      await challenge.update({
+        endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000),
+      });
 
       const { participant: participant, match } =
         await createParticipantWithMatch({

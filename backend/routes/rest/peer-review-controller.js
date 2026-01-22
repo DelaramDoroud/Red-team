@@ -8,6 +8,8 @@ import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus, VoteType } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
+import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { broadcastEvent } from '#root/services/event-stream.js';
 
 const router = Router();
 
@@ -124,115 +126,61 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   }
 });
 router.post('/peer-review/finalize-challenge', async (req, res) => {
-  const t = await PeerReviewVote.sequelize.transaction();
-
   try {
     const { challengeId } = req.body;
 
     if (!challengeId) {
-      await t.rollback();
       return res.status(400).json({
         success: false,
         error: 'challengeId is required',
       });
     }
 
-    const challenge = await Challenge.findByPk(challengeId, { transaction: t });
+    const result = await finalizePeerReviewChallenge({ challengeId });
 
-    if (!challenge) {
-      await t.rollback();
+    if (result.status === 'challenge_not_found') {
       return res.status(404).json({
         success: false,
         error: 'Challenge not found',
       });
     }
 
-    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
-      await t.commit();
-      return res.json({
-        success: true,
-        data: { finalized: true },
-      });
-    }
-
-    // RT-182: Ensure finaization only happens after timer expiration
-    const now = new Date();
-    const peerReviewEndTime = new Date(
-      new Date(challenge.startPhaseTwoDateTime).getTime() +
-        challenge.durationPeerReview * 60000
-    );
-
-    if (now < peerReviewEndTime) {
-      await t.rollback();
+    if (result.status === 'peer_review_not_ended') {
       return res.status(400).json({
         success: false,
         error: 'Peer review phase has not ended yet',
       });
     }
 
-    const participants = await ChallengeParticipant.findAll({
-      where: { challengeId },
-      transaction: t,
-    });
-
-    if (participants.length === 0) {
-      await t.rollback();
+    if (result.status === 'no_participants') {
       return res.status(400).json({
         success: false,
         error: 'Peer review cannot be finalized without participants',
       });
     }
 
-    for (const participant of participants) {
-      const reviewerId = participant.id;
-
-      const assignments = await PeerReviewAssignment.findAll({
-        where: { reviewerId },
-        transaction: t,
+    if (result.status === 'update_failed') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to finalize peer review',
       });
-
-      const assignmentIds = assignments.map((a) => a.id);
-      if (assignmentIds.length === 0) continue;
-
-      const existingVotes = await PeerReviewVote.findAll({
-        where: {
-          peerReviewAssignmentId: { [Op.in]: assignmentIds },
-        },
-        transaction: t,
-      });
-
-      const votedAssignmentIds = new Set(
-        existingVotes.map((v) => v.peerReviewAssignmentId)
-      );
-
-      const abstainVotes = assignmentIds
-        .filter((id) => !votedAssignmentIds.has(id))
-        .map((id) => ({
-          peerReviewAssignmentId: id,
-          vote: 'abstain',
-          testCaseInput: null,
-          expectedOutput: null,
-        }));
-
-      if (abstainVotes.length > 0) {
-        await PeerReviewVote.bulkCreate(abstainVotes, { transaction: t });
-      }
     }
-    await Challenge.update(
-      { status: ChallengeStatus.ENDED_PHASE_TWO },
-      {
-        where: { id: challengeId },
-        transaction: t,
-      }
-    );
 
-    await t.commit();
+    if (result.status === 'ok' && result.challenge) {
+      broadcastEvent({
+        event: 'challenge-updated',
+        data: {
+          challengeId: result.challenge.id,
+          status: result.challenge.status,
+        },
+      });
+    }
+
     return res.json({
       success: true,
       data: { finalized: true },
     });
   } catch (error) {
-    await t.rollback();
     return handleException(res, error);
   }
 });

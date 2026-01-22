@@ -222,9 +222,10 @@ export default function MatchView({
       <div className='max-w-2xl mx-auto py-10'>
         <Card>
           <CardHeader>
-            <CardTitle>Challenge assigned</CardTitle>
+            <CardTitle>Challenge lobby</CardTitle>
             <CardDescription>
-              Waiting for your teacher to start the coding phase.
+              You joined successfully. Please wait for your teacher to start the
+              coding phase.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -279,6 +280,10 @@ export default function MatchView({
       displayMessage = 'The coding phase has ended.';
     }
 
+    const finalNotice =
+      peerReviewPendingMessage ||
+      "Wait for the peer review phase to start so you can review your classmates' code.";
+
     return (
       <div
         className='max-w-4xl mx-auto py-10 space-y-4'
@@ -286,7 +291,9 @@ export default function MatchView({
       >
         <Card>
           <CardHeader>
-            <CardTitle>Coding phase finished — wait for peer review.</CardTitle>
+            <CardTitle>
+              Coding phase finished. Wait for peer review to start.
+            </CardTitle>
             <CardDescription data-testid='message'>
               {displayMessage}
             </CardDescription>
@@ -297,11 +304,9 @@ export default function MatchView({
                 {peerReviewNotice}
               </p>
             ) : null}
-            {peerReviewPendingMessage ? (
-              <p className='text-sm font-medium text-slate-600 mb-4'>
-                {peerReviewPendingMessage}
-              </p>
-            ) : null}
+            <p className='text-sm font-medium text-slate-600 mb-4'>
+              {finalNotice}
+            </p>
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
             <pre className='bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm'>
               {finalCode || ''}
@@ -321,10 +326,12 @@ export default function MatchView({
       <div className='max-w-2xl mx-auto py-10'>
         <Card>
           <CardHeader>
-            <CardTitle>Coding phase finished — wait for peer review.</CardTitle>
+            <CardTitle>
+              Coding phase finished. Wait for peer review to start.
+            </CardTitle>
             <CardDescription>
               {message ||
-                'Challenge is over. You can no longer submit your solution.'}
+                'The coding phase has ended. Your submission has been finalized.'}
             </CardDescription>
           </CardHeader>
           {peerReviewNotice ? (

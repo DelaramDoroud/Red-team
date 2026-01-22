@@ -18,6 +18,7 @@ import {
 import useRoleGuard from '#js/useRoleGuard';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
+import { useAppSelector } from '#js/store/hooks';
 import { DurationProvider } from './(context)/DurationContext';
 
 // shared layout for match, peer review, and results
@@ -31,17 +32,26 @@ export default function ChallengeLayout({ children }) {
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const {
-    user,
-    isAuthorized,
-    loading: authLoading,
-  } = useRoleGuard({
+  const authState = useAppSelector((state) => state.auth);
+  const authUser = authState?.user;
+  const authLoading = authState?.loading;
+  const isLoggedIn = authState?.isLoggedIn;
+  const peerReviewExitMap = useAppSelector((state) => state.ui.peerReviewExits);
+  const { user: guardUser, isAuthorized } = useRoleGuard({
     allowedRoles: ['student'],
   });
-  const studentId = user?.id;
+  const effectiveUser = authUser || guardUser;
+  const studentId = effectiveUser?.id;
+  const isStudentUser = effectiveUser?.role === 'student';
+  const peerReviewExitKey = challengeId ? String(challengeId) : null;
+  const hasExitedPeerReview = Boolean(
+    studentId &&
+    peerReviewExitKey &&
+    peerReviewExitMap?.[studentId]?.[peerReviewExitKey]
+  );
 
   useEffect(() => {
-    if (!challengeId || !studentId || !isAuthorized) return () => {};
+    if (!challengeId || !studentId || !isStudentUser) return () => {};
 
     let cancelled = false;
 
@@ -60,13 +70,21 @@ export default function ChallengeLayout({ children }) {
             const isMatchRoute = pathname?.includes('/match');
             const isPeerReviewActive =
               status === ChallengeStatus.STARTED_PHASE_TWO;
-            const isEnded =
-              status === ChallengeStatus.ENDED_PHASE_ONE ||
-              status === ChallengeStatus.ENDED_PHASE_TWO;
+            const isEndedPhaseTwo = status === ChallengeStatus.ENDED_PHASE_TWO;
+            const isEndedPhaseOne = status === ChallengeStatus.ENDED_PHASE_ONE;
             let expectedSegment = 'match';
-            if (isEnded) {
+            if (isEndedPhaseTwo) {
               expectedSegment = 'result';
+            } else if (isEndedPhaseOne) {
+              expectedSegment = 'peer-review';
             } else if (isPeerReviewActive) {
+              expectedSegment = hasExitedPeerReview ? 'result' : 'peer-review';
+            }
+            if (
+              expectedSegment === 'result' &&
+              !isEndedPhaseTwo &&
+              !hasExitedPeerReview
+            ) {
               expectedSegment = 'peer-review';
             }
 
@@ -140,7 +158,8 @@ export default function ChallengeLayout({ children }) {
     challengeId,
     studentId,
     getChallengeForJoinedStudent,
-    isAuthorized,
+    isStudentUser,
+    hasExitedPeerReview,
     pathname,
     redirectOnError,
     router,
@@ -166,13 +185,18 @@ export default function ChallengeLayout({ children }) {
         return getChallengeStatusLabel(status);
     }
   };
+  const titleText = loading ? 'Loading challenge...' : title || 'Unknown';
+  const phaseText = loading ? '' : phaseLabel();
+  const showAuthLoading = authLoading && !effectiveUser;
+  const canRenderChildren = isStudentUser && (isAuthorized || isLoggedIn);
+
   return (
     <div className='max-w-7xl mx-auto px-3 py-2 space-y-2 sm:px-4'>
       <Card>
         <CardHeader>
           <CardTitle>
-            {loading ? 'Loading challenge...' : title || 'Unknown'}-{' '}
-            <span>{phaseLabel()}</span>
+            {titleText}
+            {phaseText ? ` - ${phaseText}` : ''}
           </CardTitle>
         </CardHeader>
 
@@ -183,8 +207,15 @@ export default function ChallengeLayout({ children }) {
             </p>
           </CardContent>
         )}
+        {showAuthLoading && (
+          <CardContent>
+            <p className='text-sm text-muted-foreground'>
+              Loading your profile...
+            </p>
+          </CardContent>
+        )}
       </Card>
-      {isAuthorized && !authLoading && (
+      {canRenderChildren && (
         <DurationProvider
           value={{
             duration: Number(duration) || 0,
