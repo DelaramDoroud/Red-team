@@ -53,6 +53,14 @@ Submission.init(
       field: 'updated_at',
       defaultValue: DataTypes.NOW,
     },
+    publicTestResults: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    privateTestResults: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   {
     sequelize,
