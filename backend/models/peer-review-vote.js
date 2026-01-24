@@ -1,6 +1,6 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '#root/services/sequelize.js';
-import { VoteType } from '#root/models/enum/enums.js';
+import { VoteType, EvaluationStatus } from '#root/models/enum/enums.js';
 
 class PeerReviewVote extends Model {}
 
@@ -26,7 +26,6 @@ PeerReviewVote.init(
         },
       },
     },
-
     testCaseInput: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -48,6 +47,36 @@ PeerReviewVote.init(
       allowNull: false,
       field: 'updated_at',
       defaultValue: DataTypes.NOW,
+    },
+    referenceOutput: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'reference_output',
+    },
+    actualOutput: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'actual_output',
+    },
+    isExpectedOutputCorrect: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      field: 'is_expected_output_correct',
+    },
+    isBugProven: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      field: 'is_bug_proven',
+    },
+    isVoteCorrect: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      field: 'is_vote_correct',
+    },
+    evaluationStatus: {
+      type: DataTypes.ENUM(...Object.values(EvaluationStatus)),
+      allowNull: true,
+      field: 'evaluation_status',
     },
   },
   {
