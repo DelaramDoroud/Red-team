@@ -503,26 +503,26 @@ router.post('/peer-review/exit', async (req, res) => {
 
 // import { runReferenceSolution } from '#root/services/reference-solution-evaluation.js';
 
-router.post('/test-reference', async (req, res) => {
-  try {
-    const { referenceSolution, testCaseInput, expectedOutput } = req.body;
+// router.post('/test-reference', async (req, res) => {
+//   try {
+//     const { referenceSolution, testCaseInput, expectedOutput } = req.body;
 
-    const result = await runReferenceSolution({
-      referenceSolution,
-      testCaseInput,
-      expectedOutput,
-    });
+//     const result = await runReferenceSolution({
+//       referenceSolution,
+//       testCaseInput,
+//       expectedOutput,
+//     });
 
-    return res.json({
-      success: true,
-      result,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
-});
+//     return res.json({
+//       success: true,
+//       result,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       error: err.message,
+//     });
+//   }
+// });
 
 export default router;
