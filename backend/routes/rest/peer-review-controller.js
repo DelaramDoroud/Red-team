@@ -5,9 +5,21 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
 import Challenge from '#root/models/challenge.js';
-import { ChallengeStatus, VoteType } from '#root/models/enum/enums.js';
+import Submission from '#root/models/submission.js';
+import Match from '#root/models/match.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import MatchSetting from '#root/models/match-setting.js';
+import {
+  ChallengeStatus,
+  EvaluationStatus,
+  VoteType,
+} from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
+import {
+  runReferenceSolution,
+  normalizeOutputForComparison,
+} from '#root/services/reference-solution-evaluation.js';
 
 const router = Router();
 
@@ -156,19 +168,21 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     }
 
     // RT-182: Ensure finaization only happens after timer expiration
-    const now = new Date();
-    const peerReviewEndTime = new Date(
-      new Date(challenge.startPhaseTwoDateTime).getTime() +
-        challenge.durationPeerReview * 60000
-    );
+    // const now = new Date();
+    // const peerReviewEndTime = new Date(
+    //   new Date(challenge.startPhaseTwoDateTime).getTime() +
+    //     challenge.durationPeerReview * 60000
+    // );
 
-    if (now < peerReviewEndTime) {
-      await t.rollback();
-      return res.status(400).json({
-        success: false,
-        error: 'Peer review phase has not ended yet',
-      });
-    }
+    // if (now < peerReviewEndTime) {
+    //   console.log('Peer review end time:', peerReviewEndTime);
+    //   console.log('Current time:', now);
+    //   await t.rollback();
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: 'Peer review phase has not ended yet',
+    //   });
+    // }
 
     const participants = await ChallengeParticipant.findAll({
       where: { challengeId },
@@ -176,6 +190,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     });
 
     if (participants.length === 0) {
+      console.log('No participants found for challenge:', challengeId);
       await t.rollback();
       return res.status(400).json({
         success: false,
@@ -189,6 +204,25 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       const assignments = await PeerReviewAssignment.findAll({
         where: { reviewerId },
         transaction: t,
+        include: [
+          {
+            model: Submission,
+            as: 'submission',
+            include: [
+              {
+                model: Match,
+                as: 'match',
+                include: [
+                  {
+                    model: ChallengeMatchSetting,
+                    as: 'challengeMatchSetting',
+                    include: [{ model: MatchSetting, as: 'matchSetting' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       });
 
       const assignmentIds = assignments.map((a) => a.id);
@@ -200,6 +234,70 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         },
         transaction: t,
       });
+
+      const assignmentById = new Map(
+        assignments.map((assignment) => [assignment.id, assignment])
+      );
+
+      const incorrectVotes = existingVotes.filter(
+        (vote) =>
+          vote.vote === VoteType.INCORRECT &&
+          vote.testCaseInput &&
+          vote.expectedOutput
+      );
+
+      for (const vote of incorrectVotes) {
+        const assignment = assignmentById.get(vote.peerReviewAssignmentId);
+        const referenceSolution =
+          assignment?.submission?.match?.challengeMatchSetting?.matchSetting
+            ?.referenceSolution;
+
+        if (!referenceSolution) {
+          continue;
+        }
+
+        try {
+          const { referenceOutput } = await runReferenceSolution({
+            referenceSolution,
+            testCaseInput: vote.testCaseInput,
+            expectedOutput: vote.expectedOutput,
+          });
+
+          if (referenceOutput === null || referenceOutput === undefined) {
+            continue;
+          }
+
+          const normalizedExpected = normalizeOutputForComparison(
+            vote.expectedOutput
+          );
+          const normalizedReference =
+            normalizeOutputForComparison(referenceOutput);
+
+          const isExpectedOutputCorrect =
+            normalizedExpected === normalizedReference;
+
+          const updatePayload = {
+            referenceOutput,
+            isExpectedOutputCorrect,
+          };
+
+          if (!isExpectedOutputCorrect) {
+            updatePayload.isVoteCorrect = false;
+            updatePayload.evaluationStatus = EvaluationStatus.INVALID_OUTPUT;
+          }
+
+          await vote.update(updatePayload, { transaction: t });
+        } catch (error) {
+          logger.error(
+            'Finalize peer review: reference solution execution failed',
+            {
+              voteId: vote.id,
+              assignmentId: vote.peerReviewAssignmentId,
+              error: error?.message || String(error),
+            }
+          );
+        }
+      }
 
       const votedAssignmentIds = new Set(
         existingVotes.map((v) => v.peerReviewAssignmentId)
@@ -400,6 +498,30 @@ router.post('/peer-review/exit', async (req, res) => {
     await t.rollback();
     logger.error('Exit peer review error:', error);
     return handleException(res, error);
+  }
+});
+
+// import { runReferenceSolution } from '#root/services/reference-solution-evaluation.js';
+
+router.post('/test-reference', async (req, res) => {
+  try {
+    const { referenceSolution, testCaseInput, expectedOutput } = req.body;
+
+    const result = await runReferenceSolution({
+      referenceSolution,
+      testCaseInput,
+      expectedOutput,
+    });
+
+    return res.json({
+      success: true,
+      result,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 });
 

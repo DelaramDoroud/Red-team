@@ -1,15 +1,20 @@
 import {
   describe,
   it,
+  beforeAll,
   expect,
   vi,
-  beforeAll,
   afterAll,
   beforeEach,
   afterEach,
 } from 'vitest';
 import request from 'supertest';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
+import { runReferenceSolution } from '#root/services/reference-solution-evaluation.js';
+
+vi.mock('#root/services/reference-solution-evaluation.js', () => ({
+  runReferenceSolution: vi.fn(),
+}));
 
 let app;
 let sequelize;
@@ -320,6 +325,70 @@ describe('Peer Review Finalization', () => {
       where: { peerReviewAssignmentId: assignment.id },
     });
     expect(vote.vote).toBe('correct');
+  });
+
+  it('stores reference output and marks incorrect vote invalid when expected output mismatches', async () => {
+    const { challenge, assignment } = await createChallengeAndParticipants();
+
+    await PeerReviewVote.create({
+      peerReviewAssignmentId: assignment.id,
+      vote: 'incorrect',
+      testCaseInput: '[1, 2, 3]',
+      expectedOutput: '[1]',
+    });
+
+    vi.mocked(runReferenceSolution).mockResolvedValue({
+      referenceOutput: '[2]',
+      language: 'javascript',
+      testResult: { passed: false },
+    });
+
+    const res = await request(app)
+      .post('/api/rest/peer-review/finalize-challenge')
+      .send({ challengeId: challenge.id });
+
+    expect(res.status).toBe(200);
+
+    const vote = await PeerReviewVote.findOne({
+      where: { peerReviewAssignmentId: assignment.id },
+    });
+
+    expect(vote.referenceOutput).toBe('[2]');
+    expect(vote.isExpectedOutputCorrect).toBe(false);
+    expect(vote.isVoteCorrect).toBe(false);
+    expect(vote.evaluationStatus).toBe('invalid_expected_output');
+  });
+
+  it('stores reference output and marks expected output correct when outputs match', async () => {
+    const { challenge, assignment } = await createChallengeAndParticipants();
+
+    await PeerReviewVote.create({
+      peerReviewAssignmentId: assignment.id,
+      vote: 'incorrect',
+      testCaseInput: '[4, 5]',
+      expectedOutput: '[9]',
+    });
+
+    vi.mocked(runReferenceSolution).mockResolvedValue({
+      referenceOutput: '[9]',
+      language: 'javascript',
+      testResult: { passed: false },
+    });
+
+    const res = await request(app)
+      .post('/api/rest/peer-review/finalize-challenge')
+      .send({ challengeId: challenge.id });
+
+    expect(res.status).toBe(200);
+
+    const vote = await PeerReviewVote.findOne({
+      where: { peerReviewAssignmentId: assignment.id },
+    });
+
+    expect(vote.referenceOutput).toBe('[9]');
+    expect(vote.isExpectedOutputCorrect).toBe(true);
+    expect(vote.isVoteCorrect).toBeNull();
+    expect(vote.evaluationStatus).toBeNull();
   });
 
   it('should rollback transaction on database error', async () => {
