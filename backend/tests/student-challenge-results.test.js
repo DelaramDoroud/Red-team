@@ -75,7 +75,6 @@ const createSubmission = async ({
   code,
   isFinal = true,
   privateTestResults = [],
-  privateSummary = null,
 }) =>
   Submission.create({
     matchId: match.id,
@@ -83,8 +82,7 @@ const createSubmission = async ({
     code,
     status: SubmissionStatus.PROBABLY_CORRECT,
     isFinal,
-    privateTestResults,
-    privateSummary,
+    privateTestResults: JSON.stringify(privateTestResults),
   });
 
 const resetTables = async () => {
@@ -419,18 +417,11 @@ describe('Student challenge endpoints', () => {
           actualOutput: '1',
         },
       ];
-      const privateSummary = {
-        total: 1,
-        passed: 1,
-        failed: 0,
-        allPassed: true,
-      };
       const studentSubmission = await createSubmission({
         match,
         participant,
         code: 'int main() { return 0; }',
         privateTestResults,
-        privateSummary,
       });
       await createSubmission({
         match: reviewerMatch,

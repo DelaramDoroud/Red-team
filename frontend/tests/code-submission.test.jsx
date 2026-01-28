@@ -259,8 +259,6 @@ describe('RT-4 Code Submission', () => {
       data: {
         publicTestResults: [{ passed: true }, { passed: true }],
         privateTestResults: [{ passed: true }, { passed: true }],
-        publicSummary: { total: 2, passed: 2, allPassed: true },
-        privateSummary: { total: 2, passed: 2, allPassed: true },
         isCompiled: true,
         isPassed: true,
       },

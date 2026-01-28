@@ -320,7 +320,6 @@ export default function ChallengeResultPage() {
   const hasPeerReviewTests = peerReviewTests.some(
     (review) => Array.isArray(review.tests) && review.tests.length > 0
   );
-  const privateSummary = studentSubmission?.privateSummary || null;
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -359,35 +358,6 @@ export default function ChallengeResultPage() {
                   {studentSubmission.code || ''}
                 </pre>
               </div>
-
-              {privateSummary && (
-                <div className='grid gap-3 sm:grid-cols-3'>
-                  <div className='rounded-lg border border-border bg-card px-3 py-2'>
-                    <p className='text-xs uppercase text-muted-foreground'>
-                      Total tests
-                    </p>
-                    <p className='text-lg font-semibold'>
-                      {privateSummary.total ?? 0}
-                    </p>
-                  </div>
-                  <div className='rounded-lg border border-border bg-card px-3 py-2'>
-                    <p className='text-xs uppercase text-muted-foreground'>
-                      Passed
-                    </p>
-                    <p className='text-lg font-semibold text-emerald-600'>
-                      {privateSummary.passed ?? 0}
-                    </p>
-                  </div>
-                  <div className='rounded-lg border border-border bg-card px-3 py-2'>
-                    <p className='text-xs uppercase text-muted-foreground'>
-                      Failed
-                    </p>
-                    <p className='text-lg font-semibold text-red-600'>
-                      {privateSummary.failed ?? 0}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               <div>
                 <p className='text-sm font-semibold'>Private test results</p>

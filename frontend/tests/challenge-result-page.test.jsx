@@ -85,7 +85,6 @@ describe('ChallengeResultPage', () => {
           id: 99,
           code: 'int main() { return 0; }',
           createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
-          privateSummary: { total: 1, passed: 1, failed: 0 },
           privateTestResults: [
             {
               testIndex: 0,

@@ -74,6 +74,19 @@ const normalizeFeedbackTests = (tests) =>
           : null,
     }));
 
+const parseTestResults = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 router.get('/challenges', async (req, res) => {
   try {
     const where = shouldHidePrivate(req)
@@ -1819,8 +1832,9 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
               status: studentSubmission.status,
               isAutomaticSubmission: studentSubmission.isAutomaticSubmission,
               isFinal: studentSubmission.isFinal,
-              privateSummary: studentSubmission.privateSummary,
-              privateTestResults: studentSubmission.privateTestResults || [],
+              privateTestResults: parseTestResults(
+                studentSubmission.privateTestResults
+              ),
               createdAt: studentSubmission.createdAt,
             }
           : null,

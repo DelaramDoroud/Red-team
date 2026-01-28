@@ -430,17 +430,45 @@ export default function MatchContainer({ challengeId, studentId }) {
     if (!matchData) return;
     if (hasLoadedFromStorage.current) return;
 
+    const draftImports =
+      typeof activeDraftEntry?.imports === 'string'
+        ? activeDraftEntry.imports
+        : '';
+    const draftStudentCode =
+      typeof activeDraftEntry?.studentCode === 'string'
+        ? activeDraftEntry.studentCode
+        : '';
+    const draftHasContent = Boolean(
+      draftImports.trim() || draftStudentCode.trim()
+    );
+    const hasCurrentStudentCode = Boolean(normalizeCode(studentCode));
+
     let nextImports = defaultImports;
     let nextStudentCode = '';
     if (activeDraftEntry) {
-      nextImports =
-        typeof activeDraftEntry.imports === 'string'
-          ? activeDraftEntry.imports
-          : defaultImports;
-      nextStudentCode =
-        typeof activeDraftEntry.studentCode === 'string'
-          ? activeDraftEntry.studentCode
-          : '';
+      nextImports = draftImports || defaultImports;
+      nextStudentCode = draftStudentCode;
+    }
+
+    if (hasCurrentStudentCode && !draftHasContent) {
+      if (savedLastSuccessSnapshot) {
+        lastSuccessRef.current = assembleCode(
+          savedLastSuccessSnapshot.imports || defaultImports,
+          fixedPrefix,
+          savedLastSuccessSnapshot.studentCode,
+          fixedSuffix
+        );
+      } else {
+        lastSuccessRef.current = null;
+      }
+
+      lastSavedSnapshotRef.current = {
+        imports,
+        studentCode,
+      };
+      setDraftSaveState('saved');
+      hasLoadedFromStorage.current = true;
+      return;
     }
 
     setImports(nextImports);
@@ -492,6 +520,8 @@ export default function MatchContainer({ challengeId, studentId }) {
     dispatch,
     storageKeyBase,
     challengeSignature,
+    imports,
+    studentCode,
   ]);
 
   useEffect(() => {
@@ -909,12 +939,8 @@ export default function MatchContainer({ challengeId, studentId }) {
       });
 
       if (submissionRes?.success) {
-        const {
-          publicSummary,
-          privateSummary,
-          publicTestResults,
-          privateTestResults,
-        } = submissionRes.data || {};
+        const { publicTestResults, privateTestResults } =
+          submissionRes.data || {};
 
         // Determine message based on test results
         let submissionMessage = MESSAGE_SUBMISSION_SUCCESS;
@@ -935,25 +961,6 @@ export default function MatchContainer({ challengeId, studentId }) {
           const allPrivatePassed = privateTestResults.every(
             (result) => result.passed === true
           );
-
-          if (!allPublicPassed) {
-            // Scenario A: Some or all public tests failed
-            submissionMessage = MESSAGE_SUBMISSION_PUBLIC_FAIL;
-          } else if (allPublicPassed && !allPrivatePassed) {
-            // Scenario B: All public pass, but some private fail
-            submissionMessage = MESSAGE_SUBMISSION_PRIVATE_FAIL;
-          }
-          // Scenario C: All public and private pass (default message)
-        } else if (publicSummary && privateSummary) {
-          // Fallback to summary if test results are not available
-          const allPublicPassed =
-            publicSummary.allPassed === true ||
-            (publicSummary.passed === publicSummary.total &&
-              publicSummary.total > 0);
-          const allPrivatePassed =
-            privateSummary.allPassed === true ||
-            (privateSummary.passed === privateSummary.total &&
-              privateSummary.total > 0);
 
           if (!allPublicPassed) {
             // Scenario A: Some or all public tests failed

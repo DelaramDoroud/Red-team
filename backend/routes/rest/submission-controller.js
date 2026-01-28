@@ -218,8 +218,6 @@ router.post('/submissions', async (req, res) => {
         },
         publicTestResults: publicExecutionResult.testResults,
         privateTestResults: privateExecutionResult.testResults,
-        publicSummary: publicExecutionResult.summary,
-        privateSummary: privateExecutionResult.summary,
         isCompiled: privateExecutionResult.isCompiled,
         isPassed: privateExecutionResult.isPassed,
       },
