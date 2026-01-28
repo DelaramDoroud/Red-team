@@ -190,7 +190,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     });
 
     if (participants.length === 0) {
-      console.log('No participants found for challenge:', challengeId);
+      // console.log('No participants found for challenge:', challengeId);
       await t.rollback();
       return res.status(400).json({
         success: false,
@@ -208,14 +208,18 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
           {
             model: Submission,
             as: 'submission',
+            required: true,
             include: [
               {
                 model: Match,
                 as: 'match',
+                required: true,
                 include: [
                   {
                     model: ChallengeMatchSetting,
                     as: 'challengeMatchSetting',
+                    required: true,
+                    // where: { challengeId },
                     include: [{ model: MatchSetting, as: 'matchSetting' }],
                   },
                 ],
@@ -248,11 +252,21 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
 
       for (const vote of incorrectVotes) {
         const assignment = assignmentById.get(vote.peerReviewAssignmentId);
+
+        // const ms =
+        //   assignment?.submission?.match?.challengeMatchSetting?.matchSetting;
+
+        // console.log(
+        //   'MatchSetting dataValues keys:',
+        //   Object.keys(ms?.dataValues || {})
+        // );
+
         const referenceSolution =
-          assignment?.submission?.match?.challengeMatchSetting?.matchSetting
-            ?.referenceSolution;
+          assignment.submission.match.challengeMatchSetting.matchSetting
+            .dataValues.referenceSo;
 
         if (!referenceSolution) {
+          console.log('No reference solution found for vote:', vote.id);
           continue;
         }
 
@@ -264,6 +278,10 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
           });
 
           if (referenceOutput === null || referenceOutput === undefined) {
+            console.log(
+              'Reference solution returned no output for vote:',
+              vote.id
+            );
             continue;
           }
 
@@ -272,6 +290,9 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
           );
           const normalizedReference =
             normalizeOutputForComparison(referenceOutput);
+
+          // console.log('normalized expectedOutput:', normalizedExpected);
+          // console.log('normalized referenceOutput: ', normalizedReference);
 
           const isExpectedOutputCorrect =
             normalizedExpected === normalizedReference;
@@ -286,7 +307,17 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             updatePayload.evaluationStatus = EvaluationStatus.INVALID_OUTPUT;
           }
 
-          await vote.update(updatePayload, { transaction: t });
+          await PeerReviewVote.update(updatePayload, {
+            where: { id: vote.id },
+            transaction: t,
+          });
+          // console.log('Updated vote row:', {
+          //   id: reloaded.id,
+          //   referenceOutput: reloaded.referenceOutput,
+          //   isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
+          //   isVoteCorrect: reloaded.isVoteCorrect,
+          //   evaluationStatus: reloaded.evaluationStatus,
+          // });
         } catch (error) {
           logger.error(
             'Finalize peer review: reference solution execution failed',
@@ -500,8 +531,6 @@ router.post('/peer-review/exit', async (req, res) => {
     return handleException(res, error);
   }
 });
-
-// import { runReferenceSolution } from '#root/services/reference-solution-evaluation.js';
 
 // router.post('/test-reference', async (req, res) => {
 //   try {

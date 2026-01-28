@@ -1,4 +1,4 @@
-import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { runCode } from '#root/services/code-runner.js';
 
 const JS_STDIN_REGEX =
   /process\.stdin|readFileSync\(0|fs\.readFileSync|require\(['"]fs['"]\)/;
@@ -98,20 +98,41 @@ function formatReferenceOutput(actualOutput) {
   }
 }
 
+function normalizeRunnerOutput(output) {
+  if (output === null || output === undefined) {
+    return null;
+  }
+
+  if (typeof output === 'string') {
+    const trimmed = output.trim();
+    if (!trimmed) return '';
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return output;
+}
+
 export function normalizeOutputForComparison(value) {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string') return value.trim();
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value));
+    } catch {
+      return value.trim();
+    }
   }
+
+  return JSON.stringify(value);
 }
 
 export async function runReferenceSolution({
   referenceSolution,
   testCaseInput,
-  expectedOutput,
 }) {
   const parsedInput = parseJsonInput(testCaseInput);
   if (parsedInput === null) {
@@ -127,23 +148,19 @@ export async function runReferenceSolution({
       ? buildJavascriptReferenceRunner(referenceSolution)
       : referenceSolution;
 
-  const executionResult = await executeCodeTests({
-    code,
-    language,
-    testCases: [
-      {
-        input: parsedInput,
-        output: expectedOutput,
-      },
-    ],
-  });
-
-  const testResult = executionResult?.testResults?.[0];
-  const referenceOutput = formatReferenceOutput(testResult?.actualOutput);
+  const inputPayload = JSON.stringify(parsedInput);
+  const runResult = await runCode(code, language, inputPayload);
+  const normalizedActual = normalizeRunnerOutput(runResult?.stdout);
+  const referenceOutput = formatReferenceOutput(normalizedActual);
 
   return {
     referenceOutput,
     language,
-    testResult,
+    testResult: {
+      exitCode: runResult?.exitCode ?? 0,
+      stdout: runResult?.stdout ?? '',
+      stderr: runResult?.stderr ?? '',
+      actualOutput: normalizedActual,
+    },
   };
 }
