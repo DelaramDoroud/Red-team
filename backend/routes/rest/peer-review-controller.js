@@ -13,6 +13,7 @@ import {
   ChallengeStatus,
   EvaluationStatus,
   VoteType,
+  SubmissionStatus,
 } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
@@ -251,16 +252,28 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
           vote.expectedOutput
       );
 
+      const correctVotes = existingVotes.filter(
+        (vote) => vote.vote === VoteType.CORRECT
+      );
+
+      for (const vote of correctVotes) {
+        const assignment = assignmentById.get(vote.peerReviewAssignmentId);
+        const submissionStatus = assignment?.submission?.status;
+
+        const isVoteCorrect =
+          submissionStatus === SubmissionStatus.PROBABLY_CORRECT;
+
+        await PeerReviewVote.update(
+          { isVoteCorrect: isVoteCorrect },
+          {
+            where: { id: vote.id },
+            transaction: t,
+          }
+        );
+      }
+
       for (const vote of incorrectVotes) {
         const assignment = assignmentById.get(vote.peerReviewAssignmentId);
-
-        // const ms =
-        //   assignment?.submission?.match?.challengeMatchSetting?.matchSetting;
-
-        // console.log(
-        //   'MatchSetting dataValues keys:',
-        //   Object.keys(ms?.dataValues || {})
-        // );
 
         const referenceSolution =
           assignment.submission.match.challengeMatchSetting.matchSetting
@@ -287,9 +300,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             );
             const normalizedReference =
               normalizeOutputForComparison(referenceOutput);
-
-            // console.log('normalized expectedOutput:', normalizedExpected);
-            // console.log('normalized referenceOutput: ', normalizedReference);
 
             const isExpectedOutputCorrect =
               normalizedExpected === normalizedReference;
