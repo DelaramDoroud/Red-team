@@ -20,6 +20,7 @@ import {
   runReferenceSolution,
   normalizeOutputForComparison,
 } from '#root/services/reference-solution-evaluation.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
 
 const router = Router();
 
@@ -159,13 +160,13 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
-    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
-      await t.commit();
-      return res.json({
-        success: true,
-        data: { finalized: true },
-      });
-    }
+    // if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
+    //   await t.commit();
+    //   return res.json({
+    //     success: true,
+    //     data: { finalized: true },
+    //   });
+    // }
 
     // RT-182: Ensure finaization only happens after timer expiration
     // const now = new Date();
@@ -219,7 +220,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
                     model: ChallengeMatchSetting,
                     as: 'challengeMatchSetting',
                     required: true,
-                    // where: { challengeId },
+                    where: { challengeId },
                     include: [{ model: MatchSetting, as: 'matchSetting' }],
                   },
                 ],
@@ -271,52 +272,115 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         }
 
         try {
+          const updatePayload = {
+            // keep as baseline; we'll add fields below
+          };
           const { referenceOutput } = await runReferenceSolution({
             referenceSolution,
             testCaseInput: vote.testCaseInput,
             expectedOutput: vote.expectedOutput,
           });
 
-          if (referenceOutput === null || referenceOutput === undefined) {
+          if (referenceOutput !== null && referenceOutput !== undefined) {
+            const normalizedExpected = normalizeOutputForComparison(
+              vote.expectedOutput
+            );
+            const normalizedReference =
+              normalizeOutputForComparison(referenceOutput);
+
+            // console.log('normalized expectedOutput:', normalizedExpected);
+            // console.log('normalized referenceOutput: ', normalizedReference);
+
+            const isExpectedOutputCorrect =
+              normalizedExpected === normalizedReference;
+
+            updatePayload.referenceOutput = referenceOutput;
+            updatePayload.isExpectedOutputCorrect = isExpectedOutputCorrect;
+
+            if (!isExpectedOutputCorrect) {
+              updatePayload.isVoteCorrect = false;
+              updatePayload.evaluationStatus = EvaluationStatus.INVALID_OUTPUT;
+            }
+          } else {
             console.log(
               'Reference solution returned no output for vote:',
               vote.id
             );
-            continue;
           }
 
-          const normalizedExpected = normalizeOutputForComparison(
-            vote.expectedOutput
-          );
-          const normalizedReference =
-            normalizeOutputForComparison(referenceOutput);
+          const submissionCode = assignment?.submission?.code;
+          if (submissionCode) {
+            let submissionResult;
+            try {
+              submissionResult = await executeCodeTests({
+                code: submissionCode,
+                language: 'cpp',
+                testCases: [
+                  {
+                    input: JSON.parse(vote.testCaseInput),
+                    output: vote.expectedOutput,
+                  },
+                ],
+              });
+            } catch (submissionError) {
+              updatePayload.evaluationStatus = EvaluationStatus.RUNTIME_ERROR;
+              updatePayload.actualOutput = null;
+              updatePayload.isBugProven = false;
+              await PeerReviewVote.update(updatePayload, {
+                where: { id: vote.id },
+                transaction: t,
+              });
+              continue;
+            }
 
-          // console.log('normalized expectedOutput:', normalizedExpected);
-          // console.log('normalized referenceOutput: ', normalizedReference);
+            const testResult = submissionResult?.testResults?.[0];
+            const actualOutput = testResult?.actualOutput;
+            const actualOutputStored =
+              normalizeOutputForComparison(actualOutput);
 
-          const isExpectedOutputCorrect =
-            normalizedExpected === normalizedReference;
+            updatePayload.actualOutput = actualOutputStored;
 
-          const updatePayload = {
-            referenceOutput,
-            isExpectedOutputCorrect,
-          };
+            if (!submissionResult?.isCompiled) {
+              updatePayload.evaluationStatus = EvaluationStatus.COMPILE_ERROR;
+              updatePayload.isBugProven = true;
+            } else if (testResult?.exitCode === 124) {
+              updatePayload.evaluationStatus = EvaluationStatus.TIMEOUT;
+              updatePayload.isBugProven = true;
+            } else if (testResult?.exitCode !== 0) {
+              updatePayload.evaluationStatus = EvaluationStatus.RUNTIME_ERROR;
+              updatePayload.isBugProven = true;
+            } else {
+              const normalizedActual =
+                normalizeOutputForComparison(actualOutput);
+              const normalizedReference =
+                normalizeOutputForComparison(referenceOutput);
+              const isDifferent =
+                normalizedActual !== null &&
+                normalizedReference !== null &&
+                normalizedActual !== normalizedReference;
 
-          if (!isExpectedOutputCorrect) {
-            updatePayload.isVoteCorrect = false;
-            updatePayload.evaluationStatus = EvaluationStatus.INVALID_OUTPUT;
+              updatePayload.isBugProven = Boolean(isDifferent);
+              updatePayload.evaluationStatus = isDifferent
+                ? EvaluationStatus.BUG_PROVEN
+                : EvaluationStatus.NO_BUG;
+            }
           }
 
           await PeerReviewVote.update(updatePayload, {
             where: { id: vote.id },
             transaction: t,
           });
+          // const reloaded = await PeerReviewVote.findByPk(vote.id, {
+          //   transaction: t,
+          // });
           // console.log('Updated vote row:', {
           //   id: reloaded.id,
           //   referenceOutput: reloaded.referenceOutput,
           //   isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
           //   isVoteCorrect: reloaded.isVoteCorrect,
           //   evaluationStatus: reloaded.evaluationStatus,
+          //   actualOutput: reloaded.actualOutput,
+          //   isBugProven: reloaded.isBugProven,
           // });
         } catch (error) {
           logger.error(
