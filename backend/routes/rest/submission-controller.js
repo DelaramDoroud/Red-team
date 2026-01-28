@@ -166,6 +166,10 @@ router.post('/submissions', async (req, res) => {
           status: submissionStatus,
           isAutomaticSubmission,
           isFinal: false,
+          publicTestResults: JSON.stringify(publicExecutionResult.testResults),
+          privateTestResults: JSON.stringify(
+            privateExecutionResult.testResults
+          ),
         },
         { transaction }
       );
@@ -178,6 +182,10 @@ router.post('/submissions', async (req, res) => {
           status: submissionStatus,
           isAutomaticSubmission,
           isFinal: false,
+          publicTestResults: JSON.stringify(publicExecutionResult.testResults),
+          privateTestResults: JSON.stringify(
+            privateExecutionResult.testResults
+          ),
         },
         { transaction }
       );
@@ -270,6 +278,8 @@ router.get('/submissions/last', async (req, res) => {
           status: submission.status,
           isAutomaticSubmission: submission.isAutomaticSubmission,
           isFinal: submission.isFinal,
+          publicTestResults: submission.publicTestResults,
+          privateTestResults: submission.privateTestResults,
         },
       },
     });
@@ -306,6 +316,8 @@ router.get('/submission/:id', async (req, res) => {
           code: submission.code,
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
+          publicTestResults: submission.publicTestResults,
+          privateTestResults: submission.privateTestResults,
         },
       },
     });
