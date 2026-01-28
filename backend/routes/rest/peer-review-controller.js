@@ -160,13 +160,13 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
-    // if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
-    //   await t.commit();
-    //   return res.json({
-    //     success: true,
-    //     data: { finalized: true },
-    //   });
-    // }
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
+      await t.commit();
+      return res.json({
+        success: true,
+        data: { finalized: true },
+      });
+    }
 
     // RT-182: Ensure finaization only happens after timer expiration
     // const now = new Date();
@@ -297,75 +297,78 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             updatePayload.referenceOutput = referenceOutput;
             updatePayload.isExpectedOutputCorrect = isExpectedOutputCorrect;
 
+            const submissionCode = assignment?.submission?.code;
+            if (submissionCode) {
+              let submissionResult;
+              try {
+                submissionResult = await executeCodeTests({
+                  code: submissionCode,
+                  language: 'cpp',
+                  testCases: [
+                    {
+                      input: JSON.parse(vote.testCaseInput),
+                      output: vote.expectedOutput,
+                    },
+                  ],
+                });
+              } catch (submissionError) {
+                updatePayload.actualOutput = null;
+                updatePayload.isBugProven = false;
+
+                if (updatePayload.isExpectedOutputCorrect === false) {
+                  updatePayload.evaluationStatus =
+                    EvaluationStatus.INVALID_OUTPUT;
+                } else {
+                  updatePayload.evaluationStatus =
+                    EvaluationStatus.RUNTIME_ERROR;
+                }
+                await PeerReviewVote.update(updatePayload, {
+                  where: { id: vote.id },
+                  transaction: t,
+                });
+                continue;
+              }
+
+              const testResult = submissionResult?.testResults?.[0];
+              const actualOutput = testResult?.actualOutput;
+              const actualOutputStored =
+                normalizeOutputForComparison(actualOutput);
+
+              updatePayload.actualOutput = actualOutputStored;
+
+              if (!submissionResult?.isCompiled) {
+                updatePayload.evaluationStatus = EvaluationStatus.COMPILE_ERROR;
+                updatePayload.isBugProven = true;
+              } else if (testResult?.exitCode === 124) {
+                updatePayload.evaluationStatus = EvaluationStatus.TIMEOUT;
+                updatePayload.isBugProven = true;
+              } else if (testResult?.exitCode !== 0) {
+                updatePayload.evaluationStatus = EvaluationStatus.RUNTIME_ERROR;
+                updatePayload.isBugProven = true;
+              } else {
+                const normalizedActual =
+                  normalizeOutputForComparison(actualOutput);
+                const normalizedReference =
+                  normalizeOutputForComparison(referenceOutput);
+                const isDifferent =
+                  normalizedActual !== null &&
+                  normalizedReference !== null &&
+                  normalizedActual !== normalizedReference;
+
+                updatePayload.isBugProven = Boolean(isDifferent);
+                updatePayload.evaluationStatus = isDifferent
+                  ? EvaluationStatus.BUG_PROVEN
+                  : EvaluationStatus.NO_BUG;
+              }
+              updatePayload.isVoteCorrect =
+                updatePayload.isBugProven &&
+                updatePayload.isExpectedOutputCorrect;
+            }
+
             if (!isExpectedOutputCorrect) {
-              updatePayload.isVoteCorrect = false;
               updatePayload.evaluationStatus = EvaluationStatus.INVALID_OUTPUT;
             }
-          } else {
-            console.log(
-              'Reference solution returned no output for vote:',
-              vote.id
-            );
           }
-
-          const submissionCode = assignment?.submission?.code;
-          if (submissionCode) {
-            let submissionResult;
-            try {
-              submissionResult = await executeCodeTests({
-                code: submissionCode,
-                language: 'cpp',
-                testCases: [
-                  {
-                    input: JSON.parse(vote.testCaseInput),
-                    output: vote.expectedOutput,
-                  },
-                ],
-              });
-            } catch (submissionError) {
-              updatePayload.evaluationStatus = EvaluationStatus.RUNTIME_ERROR;
-              updatePayload.actualOutput = null;
-              updatePayload.isBugProven = false;
-              await PeerReviewVote.update(updatePayload, {
-                where: { id: vote.id },
-                transaction: t,
-              });
-              continue;
-            }
-
-            const testResult = submissionResult?.testResults?.[0];
-            const actualOutput = testResult?.actualOutput;
-            const actualOutputStored =
-              normalizeOutputForComparison(actualOutput);
-
-            updatePayload.actualOutput = actualOutputStored;
-
-            if (!submissionResult?.isCompiled) {
-              updatePayload.evaluationStatus = EvaluationStatus.COMPILE_ERROR;
-              updatePayload.isBugProven = true;
-            } else if (testResult?.exitCode === 124) {
-              updatePayload.evaluationStatus = EvaluationStatus.TIMEOUT;
-              updatePayload.isBugProven = true;
-            } else if (testResult?.exitCode !== 0) {
-              updatePayload.evaluationStatus = EvaluationStatus.RUNTIME_ERROR;
-              updatePayload.isBugProven = true;
-            } else {
-              const normalizedActual =
-                normalizeOutputForComparison(actualOutput);
-              const normalizedReference =
-                normalizeOutputForComparison(referenceOutput);
-              const isDifferent =
-                normalizedActual !== null &&
-                normalizedReference !== null &&
-                normalizedActual !== normalizedReference;
-
-              updatePayload.isBugProven = Boolean(isDifferent);
-              updatePayload.evaluationStatus = isDifferent
-                ? EvaluationStatus.BUG_PROVEN
-                : EvaluationStatus.NO_BUG;
-            }
-          }
-
           await PeerReviewVote.update(updatePayload, {
             where: { id: vote.id },
             transaction: t,
