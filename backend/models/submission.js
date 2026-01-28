@@ -41,15 +41,13 @@ Submission.init(
       field: 'is_final',
       defaultValue: false,
     },
-    privateTestResults: {
-      type: DataTypes.JSONB,
+    publicTestResults: {
+      type: DataTypes.TEXT,
       allowNull: true,
-      field: 'private_test_results',
     },
-    privateSummary: {
-      type: DataTypes.JSONB,
+    privateTestResults: {
+      type: DataTypes.TEXT,
       allowNull: true,
-      field: 'private_summary',
     },
     createdAt: {
       type: DataTypes.DATE,

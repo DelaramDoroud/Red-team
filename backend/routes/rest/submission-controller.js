@@ -158,26 +158,34 @@ router.post('/submissions', async (req, res) => {
       lock: transaction.LOCK.UPDATE,
     });
 
-    const submissionPayload = {
-      code,
-      status: submissionStatus,
-      isAutomaticSubmission,
-      isFinal: false,
-      privateTestResults: privateExecutionResult.testResults,
-      privateSummary: privateExecutionResult.summary,
-    };
-
     let submission;
     if (existingSubmission) {
-      submission = await existingSubmission.update(submissionPayload, {
-        transaction,
-      });
+      submission = await existingSubmission.update(
+        {
+          code,
+          status: submissionStatus,
+          isAutomaticSubmission,
+          isFinal: false,
+          publicTestResults: JSON.stringify(publicExecutionResult.testResults),
+          privateTestResults: JSON.stringify(
+            privateExecutionResult.testResults
+          ),
+        },
+        { transaction }
+      );
     } else {
       submission = await Submission.create(
         {
           matchId,
           challengeParticipantId: match.challengeParticipantId,
-          ...submissionPayload,
+          code,
+          status: submissionStatus,
+          isAutomaticSubmission,
+          isFinal: false,
+          publicTestResults: JSON.stringify(publicExecutionResult.testResults),
+          privateTestResults: JSON.stringify(
+            privateExecutionResult.testResults
+          ),
         },
         { transaction }
       );
@@ -270,6 +278,8 @@ router.get('/submissions/last', async (req, res) => {
           status: submission.status,
           isAutomaticSubmission: submission.isAutomaticSubmission,
           isFinal: submission.isFinal,
+          publicTestResults: submission.publicTestResults,
+          privateTestResults: submission.privateTestResults,
         },
       },
     });
@@ -306,6 +316,8 @@ router.get('/submission/:id', async (req, res) => {
           code: submission.code,
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
+          publicTestResults: submission.publicTestResults,
+          privateTestResults: submission.privateTestResults,
         },
       },
     });

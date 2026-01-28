@@ -24,3 +24,12 @@ export const VoteType = {
   INCORRECT: 'incorrect',
   ABSTAIN: 'abstain',
 };
+
+export const EvaluationStatus = {
+  INVALID_OUTPUT: 'invalid_expected_output',
+  NO_BUG: 'no_bug',
+  BUG_PROVEN: 'bug_proven',
+  COMPILE_ERROR: 'compile_error',
+  RUNTIME_ERROR: 'runtime_error',
+  TIMEOUT: 'timeout',
+};
