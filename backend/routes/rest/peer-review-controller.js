@@ -393,18 +393,18 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             where: { id: vote.id },
             transaction: t,
           });
-          const reloaded = await PeerReviewVote.findByPk(vote.id, {
-            transaction: t,
-          });
-          console.log('Updated vote row:', {
-            id: reloaded.id,
-            referenceOutput: reloaded.referenceOutput,
-            isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
-            isVoteCorrect: reloaded.isVoteCorrect,
-            evaluationStatus: reloaded.evaluationStatus,
-            actualOutput: reloaded.actualOutput,
-            isBugProven: reloaded.isBugProven,
-          });
+          // const reloaded = await PeerReviewVote.findByPk(vote.id, {
+          //   transaction: t,
+          // });
+          // console.log('Updated vote row:', {
+          //   id: reloaded.id,
+          //   referenceOutput: reloaded.referenceOutput,
+          //   isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
+          //   isVoteCorrect: reloaded.isVoteCorrect,
+          //   evaluationStatus: reloaded.evaluationStatus,
+          //   actualOutput: reloaded.actualOutput,
+          //   isBugProven: reloaded.isBugProven,
+          // });
         } catch (error) {
           logger.error(
             'Finalize peer review: reference solution execution failed',
