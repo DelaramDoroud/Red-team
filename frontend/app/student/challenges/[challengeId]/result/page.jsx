@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
+import ToggleSwitch from '#components/common/ToggleSwitch';
 import {
   Card,
   CardContent,
@@ -79,6 +80,7 @@ export default function ChallengeResultPage() {
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
+  const [showReviewDetails, setShowReviewDetails] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -297,7 +299,7 @@ export default function ChallengeResultPage() {
     );
   }
 
-  const { challenge, matchSetting } = resultData;
+  const { challenge, matchSetting, scoreBreakdown } = resultData;
   const phaseTwoEndTimestamp = challenge?.endPhaseTwoDateTime
     ? new Date(challenge.endPhaseTwoDateTime).getTime()
     : null;
@@ -410,66 +412,114 @@ export default function ChallengeResultPage() {
 
       {isFullyEnded && (
         <Card>
-          <CardHeader>
-            <CardTitle>Peer review tests</CardTitle>
-            <CardDescription>
-              Tests submitted by classmates during peer review.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {!hasPeerReviewTests && (
-              <p className='text-sm text-muted-foreground'>
-                No peer review tests were submitted for your solution.
-              </p>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <div className='space-y-1'>
+              <CardTitle>Peer Review Results</CardTitle>
+              <CardDescription>
+                Overview of your performance in the peer review phase.
+              </CardDescription>
+            </div>
+            {scoreBreakdown && (
+              <ToggleSwitch
+                checked={showReviewDetails}
+                onChange={() => setShowReviewDetails((prev) => !prev)}
+                label='Show details'
+              />
             )}
-            {hasPeerReviewTests &&
-              peerReviewTests.map((review) => {
-                const reviewerName = review.reviewer?.username || 'Anonymous';
-                const tests = Array.isArray(review.tests) ? review.tests : [];
-                if (tests.length === 0) return null;
-                return (
-                  <div
-                    key={`review-${review.id}`}
-                    className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
-                  >
-                    <p className='text-sm font-semibold'>
-                      Reviewer: {reviewerName}
-                    </p>
-                    <div className='space-y-3'>
-                      {tests.map((test) => {
-                        const testKey = JSON.stringify({
-                          input: test.input,
-                          expectedOutput: test.expectedOutput,
-                          notes: test.notes,
-                        });
-                        return (
-                          <div
-                            key={testKey}
-                            className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
-                          >
-                            <p>
-                              <span className='font-semibold'>Input:</span>{' '}
-                              {renderValue(test.input)}
-                            </p>
-                            <p>
-                              <span className='font-semibold'>
-                                Expected output:
-                              </span>{' '}
-                              {renderValue(test.expectedOutput)}
-                            </p>
-                            {test.notes && (
-                              <p>
-                                <span className='font-semibold'>Notes:</span>{' '}
-                                {test.notes}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+          </CardHeader>
+          <CardContent className='space-y-6 pt-4'>
+            {scoreBreakdown && !showReviewDetails && (
+              <div className='grid gap-4 md:grid-cols-3'>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Total Score
                   </div>
-                );
-              })}
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.totalScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Implementation
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.implementationScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Code Review
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.codeReviewScore}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(showReviewDetails || !scoreBreakdown) && (
+              <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
+                <h3 className='text-sm font-semibold'>Received Tests</h3>
+                {!hasPeerReviewTests && (
+                  <p className='text-sm text-muted-foreground'>
+                    No peer review tests were submitted for your solution.
+                  </p>
+                )}
+                {hasPeerReviewTests &&
+                  peerReviewTests.map((review) => {
+                    const reviewerName =
+                      review.reviewer?.username || 'Anonymous';
+                    const tests = Array.isArray(review.tests)
+                      ? review.tests
+                      : [];
+                    if (tests.length === 0) return null;
+                    return (
+                      <div
+                        key={`review-${review.id}`}
+                        className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
+                      >
+                        <p className='text-sm font-semibold'>
+                          Reviewer: {reviewerName}
+                        </p>
+                        <div className='space-y-3'>
+                          {tests.map((test) => {
+                            const testKey = JSON.stringify({
+                              input: test.input,
+                              expectedOutput: test.expectedOutput,
+                              notes: test.notes,
+                            });
+                            return (
+                              <div
+                                key={testKey}
+                                className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
+                              >
+                                <p>
+                                  <span className='font-semibold'>Input:</span>{' '}
+                                  {renderValue(test.input)}
+                                </p>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Expected output:
+                                  </span>{' '}
+                                  {renderValue(test.expectedOutput)}
+                                </p>
+                                {test.notes && (
+                                  <p>
+                                    <span className='font-semibold'>
+                                      Notes:
+                                    </span>{' '}
+                                    {test.notes}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
