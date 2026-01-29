@@ -5,7 +5,16 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
 import Challenge from '#root/models/challenge.js';
-import { ChallengeStatus, VoteType } from '#root/models/enum/enums.js';
+import Submission from '#root/models/submission.js';
+import Match from '#root/models/match.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import MatchSetting from '#root/models/match-setting.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import {
+  ChallengeStatus,
+  VoteType,
+  SubmissionStatus,
+} from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 import * as submitVoteService from '#root/services/peer-review-submit-vote.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
@@ -55,17 +64,142 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
           as: 'vote',
           required: true,
         },
+        {
+          model: Submission,
+          as: 'submission',
+          include: [
+            {
+              model: Match,
+              as: 'match',
+              include: [
+                {
+                  model: ChallengeMatchSetting,
+                  as: 'challengeMatchSetting',
+                  include: [
+                    {
+                      model: MatchSetting,
+                      as: 'matchSetting',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
 
-    const votes = assignments.map((a) => {
-      return {
+    const votes = [];
+    for (const a of assignments) {
+      const voteRecord = a.vote;
+      const submission = a.submission;
+
+      let isVoteCorrect = voteRecord.isVoteCorrect;
+      let isExpectedOutputCorrect = voteRecord.isExpectedOutputCorrect;
+      let needsUpdate = false;
+
+      // Compute isVoteCorrect if missing
+      if (isVoteCorrect === null && submission && submission.status) {
+        const isSubmissionValid =
+          submission.status === SubmissionStatus.PROBABLY_CORRECT;
+
+        if (voteRecord.vote === VoteType.CORRECT) {
+          isVoteCorrect = isSubmissionValid;
+          needsUpdate = true;
+        } else if (voteRecord.vote === VoteType.INCORRECT) {
+          isVoteCorrect = !isSubmissionValid;
+          needsUpdate = true;
+        }
+        // For ABSTAIN, we leave it as null or handle as needed
+      }
+
+      // Compute isExpectedOutputCorrect if missing and vote is INCORRECT
+      if (
+        voteRecord.vote === VoteType.INCORRECT &&
+        isExpectedOutputCorrect === null &&
+        submission
+      ) {
+        let matchSetting =
+          submission.match?.challengeMatchSetting?.matchSetting;
+
+        if (matchSetting && !matchSetting.referenceSolution) {
+          // Workaround for potential truncation in deeply nested includes
+          matchSetting = await MatchSetting.findByPk(matchSetting.id);
+        }
+
+        if (
+          matchSetting?.referenceSolution &&
+          voteRecord.testCaseInput &&
+          voteRecord.expectedOutput
+        ) {
+          try {
+            let input = voteRecord.testCaseInput;
+            try {
+              input = JSON.parse(input);
+            } catch (e) {
+              // input is already string or invalid
+            }
+
+            let expected = voteRecord.expectedOutput;
+            try {
+              expected = JSON.parse(expected);
+            } catch (e) {
+              // expected is already string or invalid
+            }
+
+            // Execute reference solution with the provided input
+            const result = await executeCodeTests({
+              code: matchSetting.referenceSolution,
+              language: 'javascript', // Assuming JS based on seeds
+              testCases: [{ input, output: expected }],
+            });
+
+            // If passed, it means reference solution produced the expected output
+            isExpectedOutputCorrect = result.isPassed;
+
+            // Capture the actual output from the reference solution (what it should be)
+            if (result.testResults && result.testResults.length > 0) {
+              const runResult = result.testResults[0];
+              // Persist the reference output (as a string)
+              voteRecord.referenceOutput =
+                typeof runResult.actualOutput === 'string'
+                  ? runResult.actualOutput
+                  : JSON.stringify(runResult.actualOutput);
+            }
+
+            needsUpdate = true;
+          } catch (e) {
+            logger.error('Error computing expected output correctness', e);
+          }
+        }
+      }
+
+      if (needsUpdate) {
+        await voteRecord.update({
+          isVoteCorrect,
+          isExpectedOutputCorrect,
+          referenceOutput: voteRecord.referenceOutput,
+        });
+      }
+
+      let earnedCredit = false;
+      if (voteRecord.vote === VoteType.CORRECT) {
+        earnedCredit = !!isVoteCorrect;
+      } else if (voteRecord.vote === VoteType.INCORRECT) {
+        earnedCredit = !!isVoteCorrect && !!isExpectedOutputCorrect;
+      }
+
+      votes.push({
         submissionId: a.submissionId,
-        vote: a.vote.vote,
-        testCaseInput: a.vote.testCaseInput,
-        expectedOutput: a.vote.expectedOutput,
-      };
-    });
+        vote: voteRecord.vote,
+        testCaseInput: voteRecord.testCaseInput,
+        expectedOutput: voteRecord.expectedOutput,
+        referenceOutput: voteRecord.referenceOutput,
+        isVoteCorrect,
+        isExpectedOutputCorrect,
+        earnedCredit,
+      });
+    }
 
     return res.json({
       success: true,
