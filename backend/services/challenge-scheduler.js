@@ -74,14 +74,55 @@ const markPhaseTwoEnded = async (challengeId) => {
   }
 
   const result = await finalizePeerReviewChallenge({ challengeId });
+
   if (result.status === 'ok' && result.challenge) {
     broadcastEvent({
       event: 'challenge-updated',
       data: {
         challengeId: result.challenge.id,
         status: result.challenge.status,
+        scoringStatus: 'pending',
       },
     });
+
+    try {
+      await Challenge.update(
+        { scoringStatus: 'computing' },
+        { where: { id: challengeId } }
+      );
+
+      broadcastEvent({
+        event: 'challenge-updated',
+        data: {
+          challengeId: result.challenge.id,
+          status: result.challenge.status,
+          scoringStatus: 'computing',
+        },
+      });
+
+      // 3. ESEGUI IL CALCOLO DEI PUNTEGGI (Task RT-215 e RT-216)
+      // TODO: await calculateChallengeScores(challengeId);
+
+      await Challenge.update(
+        { scoringStatus: 'completed' },
+        { where: { id: challengeId } }
+      );
+
+      // Notifica finale (Frontend mostra Score Breakdown)
+      broadcastEvent({
+        event: 'challenge-updated',
+        data: {
+          challengeId: result.challenge.id,
+          status: result.challenge.status,
+          scoringStatus: 'completed',
+        },
+      });
+    } catch (error) {
+      console.error(
+        `Error computing scores for challenge ${challengeId}:`,
+        error
+      );
+    }
   }
 };
 
