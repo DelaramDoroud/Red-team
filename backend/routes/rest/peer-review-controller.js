@@ -22,8 +22,6 @@ import {
   normalizeOutputForComparison,
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
-// import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
-// import { broadcastEvent } from '#root/services/event-stream.js';
 
 const router = Router();
 
@@ -170,15 +168,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
-    // const result = await finalizePeerReviewChallenge({ challengeId });
-
-    // if (result.status === 'challenge_not_found') {
-    //   return res.status(404).json({
-    //     success: false,
-    //     error: 'Challenge not found',
-    //   });
-    // }
-
     // RT-182: Ensure finaization only happens after timer expiration
     // const now = new Date();
     // const peerReviewEndTime = new Date(
@@ -202,7 +191,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     });
 
     if (participants.length === 0) {
-      // console.log('No participants found for challenge:', challengeId);
       await t.rollback();
       return res.status(400).json({
         success: false,
@@ -295,9 +283,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         }
 
         try {
-          const updatePayload = {
-            // keep as baseline; we'll add fields below
-          };
+          const updatePayload = {};
           const { referenceOutput } = await runReferenceSolution({
             referenceSolution,
             testCaseInput: vote.testCaseInput,
@@ -393,18 +379,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             where: { id: vote.id },
             transaction: t,
           });
-          // const reloaded = await PeerReviewVote.findByPk(vote.id, {
-          //   transaction: t,
-          // });
-          // console.log('Updated vote row:', {
-          //   id: reloaded.id,
-          //   referenceOutput: reloaded.referenceOutput,
-          //   isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
-          //   isVoteCorrect: reloaded.isVoteCorrect,
-          //   evaluationStatus: reloaded.evaluationStatus,
-          //   actualOutput: reloaded.actualOutput,
-          //   isBugProven: reloaded.isBugProven,
-          // });
         } catch (error) {
           logger.error(
             'Finalize peer review: reference solution execution failed',
@@ -617,27 +591,5 @@ router.post('/peer-review/exit', async (req, res) => {
     return handleException(res, error);
   }
 });
-
-// router.post('/test-reference', async (req, res) => {
-//   try {
-//     const { referenceSolution, testCaseInput, expectedOutput } = req.body;
-
-//     const result = await runReferenceSolution({
-//       referenceSolution,
-//       testCaseInput,
-//       expectedOutput,
-//     });
-
-//     return res.json({
-//       success: true,
-//       result,
-//     });
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       error: err.message,
-//     });
-//   }
-// });
 
 export default router;
