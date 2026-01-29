@@ -8,7 +8,11 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import {
+  ChallengeStatus,
+  SubmissionStatus,
+  Scoring_Availability,
+} from '#root/models/enum/enums.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import {
@@ -2294,4 +2298,71 @@ router.get('/challenges/:challengeId', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.get('/challenges/:challengeId/scoring-status', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId, {
+      attributes: ['id', 'status', 'endPhaseTwoDateTime', 'scoringStatus'],
+    });
+
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    // Security check (opzionale, basato sulle tue policy)
+    if (
+      shouldHidePrivate(req) &&
+      challenge.status === ChallengeStatus.PRIVATE
+    ) {
+      return res
+        .status(403)
+        .json({ success: false, error: 'Challenge is private' });
+    }
+
+    const now = new Date();
+    const peerReviewEnd = challenge.endPhaseTwoDateTime
+      ? new Date(challenge.endPhaseTwoDateTime)
+      : null;
+
+    // --- STATE MACHINE LOGIC ---
+
+    // CASO 1: Peer Review non ancora finita
+    // Se la data di fine non esiste O la data attuale è precedente alla fine
+    if (!peerReviewEnd || now < peerReviewEnd) {
+      return res.json({
+        state: Scoring_Availability.PEER_REVIEW_NOT_ENDED,
+        message:
+          'Scoring is not available yet. Please wait until the peer review phase has ended.',
+        canAccessData: false,
+      });
+    }
+
+    if (challenge.scoringStatus !== 'completed') {
+      return res.json({
+        state: Scoring_Availability.SCORING_IN_PROGRESS,
+        message:
+          'Scoring is not available yet. Please wait until scoring is computed.',
+        canAccessData: false,
+      });
+    }
+
+    return res.json({
+      state: Scoring_Availability.READY,
+      message: null,
+      canAccessData: true,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
 export default router;
