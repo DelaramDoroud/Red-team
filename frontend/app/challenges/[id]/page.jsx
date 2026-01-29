@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
   Card,
@@ -11,11 +11,17 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
-import { ChallengeStatus } from '#js/constants';
+import AlertDialog from '#components/common/AlertDialog';
+import {
+  API_REST_BASE,
+  ChallengeStatus,
+  getChallengeStatusLabel,
+} from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { formatDateTime } from '#js/date';
+import { useAppSelector } from '#js/store/hooks';
 
 const statusTone = {
   [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/20',
@@ -48,6 +54,8 @@ const formatTimer = (seconds) => {
   return `${hours}:${mins}:${secs}`;
 };
 
+const COUNTDOWN_BUFFER_MS = 5000;
+
 const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
   if (explicitEndValue) {
     const explicitEnd = new Date(explicitEndValue).getTime();
@@ -56,7 +64,7 @@ const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
   if (!startValue || !durationMinutes) return null;
   const startMs = new Date(startValue).getTime();
   if (Number.isNaN(startMs)) return null;
-  return startMs + durationMinutes * 60 * 1000 + 3000;
+  return startMs + durationMinutes * 60 * 1000 + COUNTDOWN_BUFFER_MS;
 };
 
 const resolveEndDisplay = (explicitEndValue, computedEndMs) => {
@@ -69,11 +77,63 @@ const getBufferedStartMs = (value) => {
   if (!value) return null;
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return null;
-  return timestamp + 3000;
+  return timestamp + COUNTDOWN_BUFFER_MS;
+};
+
+const normalizeNameValue = (value) =>
+  typeof value === 'string' ? value.trim() : '';
+
+const titleizeValue = (value) => {
+  const normalized = normalizeNameValue(value);
+  if (!normalized) return '';
+  const base = normalized.split('@')[0];
+  const cleaned = base.replace(/[_\-.]+/g, ' ').trim();
+  if (!cleaned) return '';
+  return cleaned
+    .split(/\s+/)
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ''))
+    .join(' ');
+};
+
+const buildStudentName = (student, fallbackId) => {
+  const directFirst = normalizeNameValue(student?.firstName);
+  const directLast = normalizeNameValue(student?.lastName);
+  if (directFirst || directLast) {
+    return `${directFirst} ${directLast}`.trim();
+  }
+
+  const settings = student?.settings || {};
+  const settingsFirst = normalizeNameValue(
+    settings.firstName || settings.first_name || settings.givenName
+  );
+  const settingsLast = normalizeNameValue(
+    settings.lastName || settings.last_name || settings.surname
+  );
+  if (settingsFirst || settingsLast) {
+    return `${settingsFirst} ${settingsLast}`.trim();
+  }
+
+  const settingsFull = normalizeNameValue(
+    settings.fullName || settings.full_name || settings.name
+  );
+  if (settingsFull) return settingsFull;
+
+  const username = titleizeValue(student?.username);
+  if (username) return username;
+
+  const email = titleizeValue(student?.email);
+  if (email) return email;
+
+  if (Number.isInteger(fallbackId)) {
+    return `Student ${fallbackId}`;
+  }
+
+  return 'Student';
 };
 
 export default function ChallengeDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const {
     getChallengeMatches,
     assignChallenge,
@@ -82,13 +142,19 @@ export default function ChallengeDetailPage() {
     assignPeerReviews,
     updateExpectedReviews,
     startPeerReview,
+    unpublishChallenge,
   } = useChallenge();
   const challengeId = params?.id;
   const redirectOnError = useApiErrorRedirect();
+  const authUser = useAppSelector((state) => state.auth.user);
+  const isTeacher = authUser?.role === 'teacher';
 
   const [challenge, setChallenge] = useState(null);
   const [assignments, setAssignments] = useState([]);
+  const [participants, setParticipants] = useState([]);
   const [error, setError] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editPending, setEditPending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [assigningReviews, setAssigningReviews] = useState(false);
@@ -101,6 +167,11 @@ export default function ChallengeDetailPage() {
   const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
   const [phaseNow, setPhaseNow] = useState(Date.now());
+  const getChallengeParticipantsRef = useRef(getChallengeParticipants);
+
+  useEffect(() => {
+    getChallengeParticipantsRef.current = getChallengeParticipants;
+  }, [getChallengeParticipants]);
 
   const load = useCallback(async () => {
     if (!challengeId) return;
@@ -133,13 +204,16 @@ export default function ChallengeDetailPage() {
 
       if (participantsRes?.success && Array.isArray(participantsRes.data)) {
         setStudentCount(participantsRes.data.length);
+        setParticipants(participantsRes.data);
       } else {
         setStudentCount(0);
+        setParticipants([]);
       }
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to load matches'));
       setAssignments([]);
       setStudentCount(0);
+      setParticipants([]);
     } finally {
       setLoading(false);
     }
@@ -153,6 +227,46 @@ export default function ChallengeDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!challengeId || typeof EventSource === 'undefined') return undefined;
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+    const handleParticipantJoined = async (event) => {
+      let payload = null;
+      if (event?.data) {
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          payload = null;
+        }
+      }
+      const payloadId = Number(payload?.challengeId);
+      if (!payloadId || payloadId !== Number(challengeId)) return;
+      if (typeof payload?.count === 'number') {
+        setStudentCount(payload?.count);
+      }
+      try {
+        const res = await getChallengeParticipantsRef.current(payloadId);
+        if (res?.success && Array.isArray(res.data)) {
+          setStudentCount(res.data.length);
+          setParticipants(res.data);
+        }
+      } catch {
+        // Keep the last known list if refresh fails.
+      }
+    };
+
+    source.addEventListener(
+      'challenge-participant-joined',
+      handleParticipantJoined
+    );
+
+    return () => {
+      source.close();
+    };
+  }, [challengeId]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return undefined;
@@ -329,6 +443,41 @@ export default function ChallengeDetailPage() {
     }
   }, [challengeId, load, startPeerReview]);
 
+  const handleEditClick = () => {
+    if (!challengeId) return;
+    if (challenge?.status === ChallengeStatus.PUBLIC) {
+      setEditDialogOpen(true);
+      return;
+    }
+    router.push(`/challenges/${challengeId}/edit`);
+  };
+
+  const handleEditCancel = () => {
+    setEditDialogOpen(false);
+  };
+
+  const handleConfirmUnpublish = async () => {
+    if (!challengeId) return;
+    setEditPending(true);
+    setError(null);
+    try {
+      const result = await unpublishChallenge(challengeId);
+      if (!result?.success) {
+        setError(
+          getApiErrorMessage(result, 'Unable to unpublish this challenge.')
+        );
+        setEditPending(false);
+        return;
+      }
+      setEditDialogOpen(false);
+      router.push(`/challenges/${challengeId}/edit`);
+    } catch {
+      setError('Unable to unpublish this challenge.');
+    } finally {
+      setEditPending(false);
+    }
+  };
+
   const hasStudents = studentCount > 0;
   const hasMatches = assignments.some((group) => group.matches?.length);
   const canStartNow = useMemo(() => {
@@ -347,6 +496,19 @@ export default function ChallengeDetailPage() {
     challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && peerReviewReady;
   const showPeerReviewInProgress =
     challenge?.status === ChallengeStatus.STARTED_PHASE_TWO;
+  const isEditableStatus =
+    challenge?.status === ChallengeStatus.PRIVATE ||
+    challenge?.status === ChallengeStatus.PUBLIC;
+  const requiresUnpublish = challenge?.status === ChallengeStatus.PUBLIC;
+  const editDisabled =
+    !isTeacher || !isEditableStatus || loading || editPending;
+  const editTitle = (() => {
+    if (!isTeacher) return 'Only teachers can edit challenges.';
+    if (!isEditableStatus)
+      return 'Challenges can only be edited before they start.';
+    if (requiresUnpublish) return 'Unpublish this challenge to edit it.';
+    return 'Edit this challenge.';
+  })();
 
   const phaseStatus = challenge?.status;
   const isPhaseOneActive = phaseStatus === ChallengeStatus.STARTED_PHASE_ONE;
@@ -485,7 +647,7 @@ export default function ChallengeDetailPage() {
       <span
         className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ring-1 ${tone}`}
       >
-        {challenge?.status || '—'}
+        {getChallengeStatusLabel(challenge?.status) || '—'}
       </span>
     );
   }, [challenge?.status]);
@@ -545,6 +707,14 @@ export default function ChallengeDetailPage() {
       value: studentCount,
     },
   ];
+  const joinedStudents = participants.map((participant) => ({
+    id: participant.id,
+    name: buildStudentName(
+      participant.student,
+      participant.studentId ?? participant.id
+    ),
+  }));
+  const showParticipantList = !assignments.length && !error && isTeacher;
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6'>
@@ -575,6 +745,16 @@ export default function ChallengeDetailPage() {
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </Button>
+            {isTeacher ? (
+              <Button
+                variant='outline'
+                onClick={handleEditClick}
+                disabled={editDisabled}
+                title={editTitle}
+              >
+                {editPending ? 'Unpublishing...' : 'Edit'}
+              </Button>
+            ) : null}
             {challenge?.status === ChallengeStatus.PUBLIC ? (
               <Button
                 onClick={handleAssign}
@@ -641,10 +821,10 @@ export default function ChallengeDetailPage() {
         <Card className={`border ${phaseOneCardClass}`}>
           <CardHeader className='pb-2'>
             <CardTitle className='text-lg font-semibold text-foreground'>
-              Phase One
+              Coding phase
             </CardTitle>
             <CardDescription className='text-sm text-muted-foreground'>
-              Coding phase
+              Write and validate solutions
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -696,10 +876,10 @@ export default function ChallengeDetailPage() {
         <Card className={`border ${phaseTwoCardClass}`}>
           <CardHeader className='pb-2'>
             <CardTitle className='text-lg font-semibold text-foreground'>
-              Phase Two
+              Peer review
             </CardTitle>
             <CardDescription className='text-sm text-muted-foreground'>
-              Peer review phase
+              Review classmates&apos; submissions
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -811,6 +991,37 @@ export default function ChallengeDetailPage() {
         </Card>
       ) : null}
 
+      {showParticipantList ? (
+        <Card className='border border-border bg-card text-card-foreground shadow-sm'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-base font-semibold text-foreground'>
+              Joined students
+            </CardTitle>
+            <CardDescription className='text-xs text-muted-foreground'>
+              {joinedStudents.length} joined
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {joinedStudents.length === 0 ? (
+              <p className='text-sm text-muted-foreground'>
+                No students have joined yet.
+              </p>
+            ) : (
+              <ul className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+                {joinedStudents.map((student) => (
+                  <li
+                    key={student.id}
+                    className='rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-sm font-medium text-foreground'
+                  >
+                    {student.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className='space-y-4'>
         {assignments.map((group) => (
           <Card
@@ -885,6 +1096,19 @@ export default function ChallengeDetailPage() {
           </Card>
         ))}
       </div>
+      <AlertDialog
+        open={editDialogOpen}
+        title='Unpublish to edit'
+        description='This challenge will be set to private so you can edit it. Continue?'
+        confirmLabel='Unpublish & edit'
+        cancelLabel='Cancel'
+        confirmVariant='primary'
+        cancelVariant='outline'
+        confirmDisabled={editPending}
+        cancelDisabled={editPending}
+        onConfirm={handleConfirmUnpublish}
+        onCancel={handleEditCancel}
+      />
     </div>
   );
 }

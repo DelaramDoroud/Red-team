@@ -26,6 +26,11 @@ PeerReviewAssignment.init(
       allowNull: false,
       defaultValue: false,
     },
+    feedbackTests: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      field: 'feedback_tests',
+    },
   },
   {
     sequelize,

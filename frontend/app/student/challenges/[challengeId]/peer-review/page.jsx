@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 import { Button } from '#components/common/Button';
+import Timer from '#components/common/Timer';
+import SnakeGame from '#components/common/SnakeGame';
 import {
   Card,
   CardContent,
@@ -18,29 +20,44 @@ import useRoleGuard from '#js/useRoleGuard';
 import { ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
-import { useAppSelector } from '#js/store/hooks';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setPeerReviewExit } from '#js/store/slices/ui';
 import { validateIncorrectInput } from '#js/utils';
 import ExitConfirmationModal from './ExitConfirmationModal';
+import { useDuration } from '../(context)/DurationContext';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
 });
 
-const formatTimer = (seconds) => {
-  if (seconds == null) return '--:--:--';
-  const safeSeconds = Math.max(0, seconds);
-  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
-  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
-  const secs = String(safeSeconds % 60).padStart(2, '0');
-  return `${hours}:${mins}:${secs}`;
-};
+const COUNTDOWN_BUFFER_MS = 5000;
+const MESSAGE_PHASE1_NO_SUBMISSION_INVALID =
+  'You did not submit any code. We checked your draft, but it did not pass the public tests, so your submission is not valid.';
+const MESSAGE_PHASE1_NO_SUBMISSION_VALID =
+  'You did not submit any code. Your draft passed the public tests, so your submission is valid.';
+const MESSAGE_PHASE1_SUBMITTED = 'You submitted your code.';
+const MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER =
+  'You submitted your code. However, your latest version is better, so we kept this latest version automatically.';
+const MESSAGE_PEER_REVIEW_WAIT =
+  "Wait for the peer review phase to start so you can review your classmates' code.";
 
-const buildTimeLeft = (startValue, durationMinutes) => {
+const buildTimeLeft = (startValue, durationMinutes, endValue) => {
+  if (endValue) {
+    const endMs = new Date(endValue).getTime();
+    if (Number.isNaN(endMs)) return null;
+    return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+  }
   if (!startValue || !durationMinutes) return null;
   const startMs = new Date(startValue).getTime();
   if (Number.isNaN(startMs)) return null;
-  const endMs = startMs + durationMinutes * 60 * 1000;
+  const endMs = startMs + durationMinutes * 60 * 1000 + COUNTDOWN_BUFFER_MS;
   return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+};
+const createFeedbackTestId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `feedback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 const formatCodeWithNewlines = (code) => {
@@ -89,23 +106,52 @@ const formatCodeWithNewlines = (code) => {
   return result.join('\n');
 };
 
+const resolveCodingPhaseMessage = (summary) => {
+  if (!summary) return MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+  const hasManual = summary?.hasManualSubmission;
+  const hasAutomatic = summary?.hasAutomaticSubmission;
+  const automaticValid =
+    summary?.automaticStatus && summary.automaticStatus !== 'wrong';
+
+  if (!hasManual) {
+    return hasAutomatic && automaticValid
+      ? MESSAGE_PHASE1_NO_SUBMISSION_VALID
+      : MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+  }
+
+  return summary?.finalIsAutomatic
+    ? MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER
+    : MESSAGE_PHASE1_SUBMITTED;
+};
+
 export default function PeerReviewPage() {
   const params = useParams();
   const router = useRouter();
   const hasFinalizedRef = useRef(false);
-  const { user, isAuthorized } = useRoleGuard({ allowedRoles: ['student'] });
-  const studentId = user?.id;
+  const dispatch = useAppDispatch();
+  const durationContext = useDuration();
+  const durationStatus = durationContext?.status;
+  const authState = useAppSelector((state) => state.auth);
+  const authUser = authState?.user;
+  const authLoading = authState?.loading;
+  const isLoggedIn = authState?.isLoggedIn;
+  const { user: guardUser, isAuthorized } = useRoleGuard({
+    allowedRoles: ['student'],
+  });
+  const effectiveUser = authUser || guardUser;
+  const studentId = effectiveUser?.id;
+  const isStudentUser = effectiveUser?.role === 'student';
   const challengeId = params?.challengeId;
-
   const {
     getStudentPeerReviewAssignments,
     getPeerReviewSummary,
     submitPeerReviewVote,
     getStudentVotes,
+    savePeerReviewTests,
     finalizePeerReview,
     exitPeerReview,
+    getChallengeResults,
   } = useChallenge();
-
   const redirectOnError = useApiErrorRedirect();
 
   const [assignments, setAssignments] = useState([]);
@@ -114,17 +160,29 @@ export default function PeerReviewPage() {
 
   const [voteMap, setVoteMap] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
+  const [feedbackTestsByAssignment, setFeedbackTestsByAssignment] = useState(
+    {}
+  );
+  const [feedbackStateByAssignment, setFeedbackStateByAssignment] = useState(
+    {}
+  );
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(null);
   const [finalSummary, setFinalSummary] = useState(null);
+  const [submissionSummary, setSubmissionSummary] = useState(null);
+  const [finalization, setFinalization] = useState(null);
+  const [finalizationError, setFinalizationError] = useState(null);
+  const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const redirectTimeoutRef = useRef(null);
   const theme = useAppSelector((state) => state.ui.theme);
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
 
@@ -134,11 +192,37 @@ export default function PeerReviewPage() {
     timeLeft === 0 ||
     challengeInfo?.status !== ChallengeStatus.STARTED_PHASE_TWO;
 
+  const loadFinalization = useCallback(async () => {
+    if (!challengeId || !studentId) return;
+    const res = await getChallengeResults(challengeId, studentId);
+    if (res?.success === false) {
+      if (redirectOnError(res)) return;
+      setFinalizationError(
+        getApiErrorMessage(res, 'Unable to load submission summary.')
+      );
+      setFinalization(null);
+      setSubmissionSummary(null);
+      setIsFinalizationPending(false);
+      return;
+    }
+    const payload = res?.data || res;
+    const finalizationInfo = payload?.finalization || null;
+    const resultsReady = finalizationInfo?.resultsReady !== false;
+    setFinalization(finalizationInfo);
+    setSubmissionSummary(payload?.submissionSummary || null);
+    setIsFinalizationPending(!resultsReady);
+    setFinalizationError(null);
+  }, [challengeId, studentId, getChallengeResults, redirectOnError]);
+
   useEffect(() => {
-    if (!challengeId || !studentId || !isAuthorized) return undefined;
+    if (!challengeId || !studentId || !isStudentUser) return undefined;
     let cancelled = false;
 
     const loadData = async () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -187,6 +271,14 @@ export default function PeerReviewPage() {
         setVoteMap(initialVoteMap);
 
         const challengeStatus = assignmentsRes?.challenge?.status;
+        if (challengeStatus === ChallengeStatus.ENDED_PHASE_ONE) {
+          await loadFinalization();
+        } else {
+          setSubmissionSummary(null);
+          setFinalization(null);
+          setFinalizationError(null);
+          setIsFinalizationPending(false);
+        }
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
@@ -200,9 +292,17 @@ export default function PeerReviewPage() {
             nextAssignments.length > 0 &&
             challengeStatus === ChallengeStatus.STARTED_PHASE_TWO
           ) {
+            dispatch(
+              setPeerReviewExit({
+                userId: studentId,
+                challengeId: String(challengeId),
+                value: true,
+              })
+            );
             setHasExited(true);
             toast.success('Thanks for your participation.');
-            setTimeout(() => {
+            redirectTimeoutRef.current = setTimeout(() => {
+              redirectTimeoutRef.current = null;
               router.push(`/student/challenges/${challengeId}/result`);
             }, 1500);
           }
@@ -221,37 +321,73 @@ export default function PeerReviewPage() {
     loadData();
     return () => {
       cancelled = true;
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
     };
   }, [
     challengeId,
+    dispatch,
     studentId,
-    isAuthorized,
+    isStudentUser,
+    durationStatus,
     getStudentPeerReviewAssignments,
     getStudentVotes,
+    loadFinalization,
     redirectOnError,
     router,
   ]);
 
   useEffect(() => {
-    if (
-      !challengeInfo?.startPhaseTwoDateTime ||
-      !challengeInfo?.durationPeerReview
-    )
+    if (!isFinalizationPending) return undefined;
+    if (challengeInfo?.status !== ChallengeStatus.ENDED_PHASE_ONE)
       return undefined;
+    const timeoutId = setTimeout(() => {
+      loadFinalization();
+    }, 4000);
+    return () => clearTimeout(timeoutId);
+  }, [challengeInfo?.status, isFinalizationPending, loadFinalization]);
+
+  useEffect(() => {
+    if (assignments.length === 0) {
+      setFeedbackTestsByAssignment({});
+      setFeedbackStateByAssignment({});
+      return;
+    }
+    setFeedbackTestsByAssignment((prev) => {
+      const next = { ...prev };
+      assignments.forEach((assignment) => {
+        if (next[assignment.id]) return;
+        const rawTests = Array.isArray(assignment.feedbackTests)
+          ? assignment.feedbackTests
+          : [];
+        next[assignment.id] = rawTests.map((test) => ({
+          id: createFeedbackTestId(),
+          input: test.input ?? '',
+          expectedOutput: test.expectedOutput ?? '',
+          notes: test.notes ?? '',
+        }));
+      });
+      return next;
+    });
+  }, [assignments]);
+
+  const phaseTwoStart = challengeInfo?.startPhaseTwoDateTime;
+  const phaseTwoDuration = challengeInfo?.durationPeerReview;
+  const phaseTwoEnd = challengeInfo?.endPhaseTwoDateTime;
+
+  useEffect(() => {
+    if (!phaseTwoStart || !phaseTwoDuration) return undefined;
 
     const tick = () => {
-      setTimeLeft(
-        buildTimeLeft(
-          challengeInfo.startPhaseTwoDateTime,
-          challengeInfo.durationPeerReview
-        )
-      );
+      setTimeLeft(buildTimeLeft(phaseTwoStart, phaseTwoDuration, phaseTwoEnd));
     };
 
     tick();
     const intervalId = setInterval(tick, 1000);
     return () => clearInterval(intervalId);
-  }, [challengeInfo?.startPhaseTwoDateTime, challengeInfo?.durationPeerReview]);
+  }, [phaseTwoStart, phaseTwoDuration, phaseTwoEnd]);
 
   useEffect(() => {
     if (monacoRef.current) {
@@ -312,14 +448,26 @@ export default function PeerReviewPage() {
   const isPeerReviewActive =
     challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
     challengeInfo?.status === ChallengeStatus.ENDED_PHASE_TWO;
+  const isCodingPhaseComplete =
+    challengeInfo?.status === ChallengeStatus.ENDED_PHASE_ONE;
 
   const selectedAssignment = assignments[selectedIndex] || null;
+  const selectedAssignmentId = selectedAssignment?.id;
   const selectedSubmissionId = selectedAssignment?.submissionId;
 
   const currentVoteEntry = selectedSubmissionId
     ? voteMap[selectedSubmissionId]
     : null;
-  const currentVote = currentVoteEntry?.type || '';
+  const hasExplicitVote = Boolean(currentVoteEntry?.type);
+  const currentVote = hasExplicitVote ? currentVoteEntry.type : 'abstain';
+  const selectedFeedbackTests = selectedAssignmentId
+    ? feedbackTestsByAssignment[selectedAssignmentId] || []
+    : [];
+  const selectedFeedbackState = selectedAssignmentId
+    ? feedbackStateByAssignment[selectedAssignmentId] || {}
+    : {};
+  const canEditFeedback =
+    challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO;
 
   const completedCount = useMemo(
     () =>
@@ -365,8 +513,17 @@ export default function PeerReviewPage() {
   const handleCloseSummaryDialog = useCallback(() => {
     setShowSummaryDialog(false);
     setFinalSummary(null);
+    if (studentId && challengeId) {
+      dispatch(
+        setPeerReviewExit({
+          userId: studentId,
+          challengeId: String(challengeId),
+          value: true,
+        })
+      );
+    }
     router.push(`/student/challenges/${challengeId}/result`);
-  }, [router, challengeId]);
+  }, [router, challengeId, dispatch, studentId]);
 
   useEffect(() => {
     const t = showSummaryDialog
@@ -439,6 +596,144 @@ export default function PeerReviewPage() {
     }
   };
 
+  const updateFeedbackState = useCallback((assignmentId, updates) => {
+    if (!assignmentId) return;
+    setFeedbackStateByAssignment((prev) => ({
+      ...prev,
+      [assignmentId]: {
+        ...prev[assignmentId],
+        ...updates,
+      },
+    }));
+  }, []);
+
+  const addFeedbackTest = useCallback((assignmentId) => {
+    if (!assignmentId) return;
+    setFeedbackTestsByAssignment((prev) => {
+      const current = prev[assignmentId] || [];
+      const nextTests = [
+        ...current,
+        {
+          id: createFeedbackTestId(),
+          input: '',
+          expectedOutput: '',
+          notes: '',
+        },
+      ];
+      return { ...prev, [assignmentId]: nextTests };
+    });
+  }, []);
+
+  const updateFeedbackTest = useCallback(
+    (assignmentId, testId, field, value) => {
+      if (!assignmentId) return;
+      setFeedbackTestsByAssignment((prev) => {
+        const current = prev[assignmentId] || [];
+        const nextTests = current.map((testCase) => {
+          if (testCase.id !== testId) return testCase;
+          return { ...testCase, [field]: value };
+        });
+        return { ...prev, [assignmentId]: nextTests };
+      });
+    },
+    []
+  );
+
+  const removeFeedbackTest = useCallback((assignmentId, testId) => {
+    if (!assignmentId) return;
+    setFeedbackTestsByAssignment((prev) => {
+      const current = prev[assignmentId] || [];
+      const nextTests = current.filter((testCase) => testCase.id !== testId);
+      return { ...prev, [assignmentId]: nextTests };
+    });
+  }, []);
+
+  const buildFeedbackPayload = useCallback((tests) => {
+    const list = Array.isArray(tests) ? tests : [];
+    return list
+      .map((testCase) => {
+        const { input, expectedOutput, notes } = testCase;
+        const trimmedInput = typeof input === 'string' ? input.trim() : '';
+        if (!trimmedInput) return null;
+        const payload = { input: trimmedInput };
+        const trimmedExpected =
+          typeof expectedOutput === 'string' ? expectedOutput.trim() : '';
+        if (trimmedExpected) payload.expectedOutput = trimmedExpected;
+        const trimmedNotes = typeof notes === 'string' ? notes.trim() : '';
+        if (trimmedNotes) payload.notes = trimmedNotes;
+        return payload;
+      })
+      .filter(Boolean);
+  }, []);
+
+  const handleSaveFeedbackTests = useCallback(async () => {
+    if (!selectedAssignmentId || !studentId || !challengeId) return;
+    const tests = feedbackTestsByAssignment[selectedAssignmentId] || [];
+    const payload = buildFeedbackPayload(tests);
+    if (payload.length === 0) {
+      updateFeedbackState(selectedAssignmentId, {
+        error: 'Add at least one test input before saving.',
+        message: null,
+      });
+      return;
+    }
+
+    updateFeedbackState(selectedAssignmentId, {
+      saving: true,
+      error: null,
+      message: null,
+    });
+
+    try {
+      const res = await savePeerReviewTests({
+        challengeId,
+        assignmentId: selectedAssignmentId,
+        studentId,
+        tests: payload,
+      });
+      if (!res?.success) {
+        updateFeedbackState(selectedAssignmentId, {
+          error: getApiErrorMessage(res, 'Unable to save peer review tests.'),
+          saving: false,
+        });
+        return;
+      }
+
+      const savedTests = Array.isArray(res?.data?.feedbackTests)
+        ? res.data.feedbackTests
+        : payload;
+      setFeedbackTestsByAssignment((prev) => ({
+        ...prev,
+        [selectedAssignmentId]: savedTests.map((testCase) => ({
+          id: createFeedbackTestId(),
+          input: testCase.input ?? '',
+          expectedOutput: testCase.expectedOutput ?? '',
+          notes: testCase.notes ?? '',
+        })),
+      }));
+
+      updateFeedbackState(selectedAssignmentId, {
+        saving: false,
+        error: null,
+        message: 'Peer review tests saved.',
+      });
+    } catch (_err) {
+      updateFeedbackState(selectedAssignmentId, {
+        saving: false,
+        error: 'Unable to save peer review tests.',
+        message: null,
+      });
+    }
+  }, [
+    buildFeedbackPayload,
+    challengeId,
+    feedbackTestsByAssignment,
+    savePeerReviewTests,
+    selectedAssignmentId,
+    studentId,
+    updateFeedbackState,
+  ]);
+
   const saveCurrentVotes = async () => {
     if (!challengeId || !studentId || hasExited || isExiting) {
       return false;
@@ -502,9 +797,20 @@ export default function PeerReviewPage() {
         return;
       }
 
+      dispatch(
+        setPeerReviewExit({
+          userId: studentId,
+          challengeId: String(challengeId),
+          value: true,
+        })
+      );
       setHasExited(true);
       toast.success('Thanks for your participation.');
-      setTimeout(() => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+      redirectTimeoutRef.current = setTimeout(() => {
+        redirectTimeoutRef.current = null;
         router.push(`/student/challenges/${challengeId}/result`);
       }, 1500);
     } catch (err) {
@@ -604,9 +910,85 @@ export default function PeerReviewPage() {
     }
   };
 
-  if (!isAuthorized || !studentId) return null;
+  if (authLoading && !studentId) {
+    return (
+      <div className='max-w-3xl mx-auto px-4 py-8'>
+        <Card>
+          <CardContent className='py-8 text-sm text-muted-foreground'>
+            Loading your profile...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if ((!isLoggedIn && !isAuthorized) || !studentId || !isStudentUser)
+    return null;
 
   if (!loading && !isPeerReviewActive) {
+    const progressText =
+      typeof finalization?.totalMatches === 'number' &&
+      typeof finalization?.finalSubmissionCount === 'number'
+        ? `${finalization.finalSubmissionCount} / ${finalization.totalMatches}`
+        : null;
+    const pendingText =
+      typeof finalization?.pendingFinalCount === 'number'
+        ? `${finalization.pendingFinalCount}`
+        : null;
+    const codingPhaseMessage = isCodingPhaseComplete
+      ? resolveCodingPhaseMessage(submissionSummary)
+      : null;
+
+    if (isCodingPhaseComplete) {
+      return (
+        <div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
+          <Card>
+            <CardHeader>
+              <CardTitle>Coding phase complete</CardTitle>
+              <CardDescription>
+                Wait for your teacher to start the peer review phase.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-2 text-sm text-muted-foreground'>
+              <p>{codingPhaseMessage}</p>
+              <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
+            </CardContent>
+          </Card>
+
+          {isFinalizationPending && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preparing submissions</CardTitle>
+                  <CardDescription>
+                    We are finalizing submissions before peer review begins.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-2 text-sm text-muted-foreground'>
+                  {progressText && (
+                    <p>
+                      Finalized submissions:{' '}
+                      <span className='font-semibold'>{progressText}</span>
+                    </p>
+                  )}
+                  {pendingText && (
+                    <p>
+                      Pending calculations:{' '}
+                      <span className='font-semibold'>{pendingText}</span>
+                    </p>
+                  )}
+                  {finalizationError && (
+                    <p className='text-amber-700'>{finalizationError}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <SnakeGame />
+            </>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className='max-w-3xl mx-auto px-4 py-8 space-y-4'>
         <Card>
@@ -634,7 +1016,7 @@ export default function PeerReviewPage() {
       <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-            Peer Review Phase
+            Peer review
           </p>
           <h1 className='text-3xl font-bold text-foreground'>
             Review solutions and submit your assessment
@@ -642,7 +1024,12 @@ export default function PeerReviewPage() {
         </div>
         <div className='inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary'>
           <span className='h-2 w-2 rounded-full bg-primary' />
-          {formatTimer(timeLeft)}
+          <Timer
+            duration={challengeInfo?.durationPeerReview}
+            challengeId={`${challengeId}-peer-review`}
+            startTime={challengeInfo?.startPhaseTwoDateTime}
+            label='Time left'
+          />
         </div>
       </div>
 
@@ -820,6 +1207,8 @@ export default function PeerReviewPage() {
                   if (option === 'correct') label = 'Correct';
                   if (option === 'incorrect') label = 'Incorrect';
                   const isSelected = currentVote === option;
+                  const isDefaultAbstain =
+                    option === 'abstain' && !hasExplicitVote;
                   return (
                     <div key={option} className='space-y-2'>
                       <label
@@ -836,6 +1225,11 @@ export default function PeerReviewPage() {
                           value={option}
                           checked={isSelected}
                           onChange={() => handleVoteChange(option)}
+                          onClick={
+                            isDefaultAbstain
+                              ? () => handleVoteChange('abstain')
+                              : undefined
+                          }
                           disabled={isVotingDisabled}
                           className='h-4 w-4 accent-primary cursor-pointer'
                         />
@@ -910,6 +1304,160 @@ export default function PeerReviewPage() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-4'>
+                <div className='flex flex-wrap items-start justify-between gap-3'>
+                  <div>
+                    <p className='text-sm font-semibold text-foreground'>
+                      Peer review tests
+                    </p>
+                    <p className='text-xs text-muted-foreground'>
+                      Share inputs that reveal bugs or confirm correctness.
+                    </p>
+                  </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => addFeedbackTest(selectedAssignmentId)}
+                    disabled={!canEditFeedback || !selectedAssignmentId}
+                  >
+                    Add test
+                  </Button>
+                </div>
+
+                {selectedFeedbackTests.length === 0 && (
+                  <p className='text-xs text-muted-foreground'>
+                    No feedback tests added yet.
+                  </p>
+                )}
+
+                {selectedFeedbackTests.map((testCase) => {
+                  const { id, input, expectedOutput, notes } = testCase;
+                  const inputId = `feedback-input-${id}`;
+                  const expectedId = `feedback-expected-${id}`;
+                  const notesId = `feedback-notes-${id}`;
+                  return (
+                    <div
+                      key={id}
+                      className='rounded-lg border border-border bg-card p-3 space-y-3'
+                    >
+                      <div className='grid gap-3 md:grid-cols-2'>
+                        <div className='space-y-1'>
+                          <label
+                            htmlFor={inputId}
+                            className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+                          >
+                            Input
+                          </label>
+                          <textarea
+                            id={inputId}
+                            className='w-full min-h-[70px] rounded-md border bg-background px-3 py-2 text-xs'
+                            value={input}
+                            onChange={(event) =>
+                              updateFeedbackTest(
+                                selectedAssignmentId,
+                                id,
+                                'input',
+                                event.target.value
+                              )
+                            }
+                            placeholder='Input to test'
+                            disabled={!canEditFeedback}
+                          />
+                        </div>
+                        <div className='space-y-1'>
+                          <label
+                            htmlFor={expectedId}
+                            className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+                          >
+                            Expected output
+                          </label>
+                          <textarea
+                            id={expectedId}
+                            className='w-full min-h-[70px] rounded-md border bg-background px-3 py-2 text-xs'
+                            value={expectedOutput}
+                            onChange={(event) =>
+                              updateFeedbackTest(
+                                selectedAssignmentId,
+                                id,
+                                'expectedOutput',
+                                event.target.value
+                              )
+                            }
+                            placeholder='Expected output (optional)'
+                            disabled={!canEditFeedback}
+                          />
+                        </div>
+                      </div>
+                      <div className='space-y-1'>
+                        <label
+                          htmlFor={notesId}
+                          className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+                        >
+                          Notes
+                        </label>
+                        <textarea
+                          id={notesId}
+                          className='w-full min-h-[60px] rounded-md border bg-background px-3 py-2 text-xs'
+                          value={notes}
+                          onChange={(event) =>
+                            updateFeedbackTest(
+                              selectedAssignmentId,
+                              id,
+                              'notes',
+                              event.target.value
+                            )
+                          }
+                          placeholder='Explain what this test checks (optional)'
+                          disabled={!canEditFeedback}
+                        />
+                      </div>
+                      <div className='flex justify-end'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() =>
+                            removeFeedbackTest(selectedAssignmentId, id)
+                          }
+                          disabled={!canEditFeedback}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className='flex flex-wrap items-center gap-3 text-xs'>
+                  <Button
+                    type='button'
+                    onClick={handleSaveFeedbackTests}
+                    disabled={
+                      !canEditFeedback ||
+                      !selectedAssignmentId ||
+                      selectedFeedbackState.saving
+                    }
+                  >
+                    {selectedFeedbackState.saving ? 'Saving...' : 'Save tests'}
+                  </Button>
+                  {!canEditFeedback && (
+                    <span className='text-muted-foreground'>
+                      Peer review has ended. Tests are read-only.
+                    </span>
+                  )}
+                  {selectedFeedbackState.error && (
+                    <span className='text-red-600'>
+                      {selectedFeedbackState.error}
+                    </span>
+                  )}
+                  {selectedFeedbackState.message && (
+                    <span className='text-emerald-600'>
+                      {selectedFeedbackState.message}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className='flex items-center justify-between text-xs text-muted-foreground'>

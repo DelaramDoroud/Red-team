@@ -22,6 +22,8 @@ import {
   normalizeOutputForComparison,
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
+// import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+// import { broadcastEvent } from '#root/services/event-stream.js';
 
 const router = Router();
 
@@ -139,7 +141,6 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
 });
 router.post('/peer-review/finalize-challenge', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
-
   try {
     const { challengeId } = req.body;
 
@@ -168,6 +169,15 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         data: { finalized: true },
       });
     }
+
+    // const result = await finalizePeerReviewChallenge({ challengeId });
+
+    // if (result.status === 'challenge_not_found') {
+    //   return res.status(404).json({
+    //     success: false,
+    //     error: 'Challenge not found',
+    //   });
+    // }
 
     // RT-182: Ensure finaization only happens after timer expiration
     // const now = new Date();
@@ -383,18 +393,18 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
             where: { id: vote.id },
             transaction: t,
           });
-          // const reloaded = await PeerReviewVote.findByPk(vote.id, {
-          //   transaction: t,
-          // });
-          // console.log('Updated vote row:', {
-          //   id: reloaded.id,
-          //   referenceOutput: reloaded.referenceOutput,
-          //   isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
-          //   isVoteCorrect: reloaded.isVoteCorrect,
-          //   evaluationStatus: reloaded.evaluationStatus,
-          //   actualOutput: reloaded.actualOutput,
-          //   isBugProven: reloaded.isBugProven,
-          // });
+          const reloaded = await PeerReviewVote.findByPk(vote.id, {
+            transaction: t,
+          });
+          console.log('Updated vote row:', {
+            id: reloaded.id,
+            referenceOutput: reloaded.referenceOutput,
+            isExpectedOutputCorrect: reloaded.isExpectedOutputCorrect,
+            isVoteCorrect: reloaded.isVoteCorrect,
+            evaluationStatus: reloaded.evaluationStatus,
+            actualOutput: reloaded.actualOutput,
+            isBugProven: reloaded.isBugProven,
+          });
         } catch (error) {
           logger.error(
             'Finalize peer review: reference solution execution failed',
@@ -438,7 +448,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       data: { finalized: true },
     });
   } catch (error) {
-    await t.rollback();
     return handleException(res, error);
   }
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import ChallengeDetailPage from '../app/challenges/[id]/page';
 
 const mockGetChallengeMatches = vi.fn();
@@ -9,6 +10,7 @@ const mockStartChallenge = vi.fn();
 const mockAssignPeerReviews = vi.fn();
 const mockUpdateExpectedReviews = vi.fn();
 const mockStartPeerReview = vi.fn();
+const mockUnpublishChallenge = vi.fn();
 const mockDispatch = vi.fn(() => Promise.resolve());
 
 vi.mock('#js/useChallenge', () => ({
@@ -21,6 +23,7 @@ vi.mock('#js/useChallenge', () => ({
     assignPeerReviews: mockAssignPeerReviews,
     updateExpectedReviews: mockUpdateExpectedReviews,
     startPeerReview: mockStartPeerReview,
+    unpublishChallenge: mockUnpublishChallenge,
   }),
 }));
 
@@ -84,6 +87,7 @@ describe('ChallengeDetailPage', () => {
     mockAssignPeerReviews.mockResolvedValue({ success: true, results: [] });
     mockUpdateExpectedReviews.mockResolvedValue({ success: true });
     mockStartPeerReview.mockResolvedValue({ success: true });
+    mockUnpublishChallenge.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -217,5 +221,46 @@ describe('ChallengeDetailPage', () => {
     await waitFor(() =>
       expect(mockStartPeerReview).toHaveBeenCalledWith('123')
     );
+  });
+
+  it('unpublishes then redirects to edit when Edit is confirmed', async () => {
+    const user = userEvent.setup();
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
+
+    const editButton = screen.getByRole('button', { name: /edit/i });
+    await user.click(editButton);
+
+    const confirmButton = await screen.findByRole('button', {
+      name: /unpublish & edit/i,
+    });
+    await user.click(confirmButton);
+
+    await waitFor(() =>
+      expect(mockUnpublishChallenge).toHaveBeenCalledWith('123')
+    );
+    expect(mockRouter.push).toHaveBeenCalledWith('/challenges/123/edit');
+  });
+
+  it('shows joined student names when no matches are assigned', async () => {
+    mockGetChallengeParticipants.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, studentId: 11, student: { username: 'mario.rossi' } },
+        { id: 2, studentId: 12, student: { email: 'luca.bianchi@mail.com' } },
+      ],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    expect(
+      await screen.findByText(
+        /No matches have been assigned yet for this challenge/i
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Joined students/i)).toBeInTheDocument();
+    expect(screen.getByText('Mario Rossi')).toBeInTheDocument();
+    expect(screen.getByText('Luca Bianchi')).toBeInTheDocument();
   });
 });

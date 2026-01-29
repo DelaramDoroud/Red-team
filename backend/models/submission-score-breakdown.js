@@ -1,0 +1,73 @@
+import { Model, DataTypes } from 'sequelize';
+import sequelize from '#root/services/sequelize.js';
+
+class SubmissionScoreBreakdown extends Model {}
+
+SubmissionScoreBreakdown.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    submissionId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'submission_id',
+    },
+    codeReviewScore: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      field: 'code_review_score',
+    },
+    implementationScore: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      field: 'implementation_score',
+    },
+    totalScore: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      field: 'total_score',
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      field: 'created_at',
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      field: 'updated_at',
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    sequelize,
+    modelName: 'SubmissionScoreBreakdown',
+    tableName: 'submission_score_breakdown',
+    schema: 'public',
+    underscored: true,
+    timestamps: true,
+
+    indexes: [
+      {
+        unique: true,
+        fields: ['submission_id'],
+        name: 'uq_submission_score_breakdown_submission_id',
+      },
+    ],
+  }
+);
+
+SubmissionScoreBreakdown.initializeRelations = (models) => {
+  SubmissionScoreBreakdown.belongsTo(models.Submission, {
+    as: 'submission',
+    foreignKey: 'submissionId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+};
+
+export default SubmissionScoreBreakdown;

@@ -95,7 +95,7 @@ export default async function startPeerReview({ challengeId }) {
 
   const startedAt = new Date();
   const endPhaseTwoDateTime = new Date(
-    startedAt.getTime() + (challenge.durationPeerReview || 0) * 60 * 1000 + 3000
+    startedAt.getTime() + (challenge.durationPeerReview || 0) * 60 * 1000 + 5000
   );
   await challenge.update({
     status: ChallengeStatus.STARTED_PHASE_TWO,

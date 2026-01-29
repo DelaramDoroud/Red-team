@@ -1,8 +1,10 @@
 import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
+import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 
 const phaseOneTimers = new Map();
+const phaseTwoTimers = new Map();
 
 const clearPhaseOneTimer = (challengeId) => {
   const timer = phaseOneTimers.get(challengeId);
@@ -17,7 +19,17 @@ const computePhaseOneEndMs = (challenge) => {
   }
   const startMs = new Date(challenge.startPhaseOneDateTime).getTime();
   if (Number.isNaN(startMs)) return null;
-  return startMs + Number(challenge.duration || 0) * 60 * 1000 + 3000;
+  return startMs + Number(challenge.duration || 0) * 60 * 1000 + 5000;
+};
+
+const computePhaseTwoEndMs = (challenge) => {
+  if (challenge.endPhaseTwoDateTime) {
+    const explicit = new Date(challenge.endPhaseTwoDateTime).getTime();
+    return Number.isNaN(explicit) ? null : explicit;
+  }
+  const startMs = new Date(challenge.startPhaseTwoDateTime).getTime();
+  if (Number.isNaN(startMs)) return null;
+  return startMs + Number(challenge.durationPeerReview || 0) * 60 * 1000 + 5000;
 };
 
 const markPhaseOneEnded = async (challengeId) => {
@@ -48,6 +60,31 @@ const markPhaseOneEnded = async (challengeId) => {
   }
 };
 
+const clearPhaseTwoTimer = (challengeId) => {
+  const timer = phaseTwoTimers.get(challengeId);
+  if (timer) clearTimeout(timer);
+  phaseTwoTimers.delete(challengeId);
+};
+
+const markPhaseTwoEnded = async (challengeId) => {
+  clearPhaseTwoTimer(challengeId);
+  const challenge = await Challenge.findByPk(challengeId);
+  if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+    return;
+  }
+
+  const result = await finalizePeerReviewChallenge({ challengeId });
+  if (result.status === 'ok' && result.challenge) {
+    broadcastEvent({
+      event: 'challenge-updated',
+      data: {
+        challengeId: result.challenge.id,
+        status: result.challenge.status,
+      },
+    });
+  }
+};
+
 export const schedulePhaseOneEndForChallenge = async (challenge) => {
   if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_ONE)
     return;
@@ -69,6 +106,28 @@ export const schedulePhaseOneEndForChallenge = async (challenge) => {
   phaseOneTimers.set(challenge.id, timer);
 };
 
+export const schedulePhaseTwoEndForChallenge = async (challenge) => {
+  if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+    return;
+  }
+
+  const endMs = computePhaseTwoEndMs(challenge);
+  if (!endMs) return;
+
+  const delay = Math.max(0, endMs - Date.now());
+  clearPhaseTwoTimer(challenge.id);
+
+  if (delay === 0) {
+    await markPhaseTwoEnded(challenge.id);
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    markPhaseTwoEnded(challenge.id);
+  }, delay);
+  phaseTwoTimers.set(challenge.id, timer);
+};
+
 export const scheduleActivePhaseOneChallenges = async () => {
   const activeChallenges = await Challenge.findAll({
     where: { status: ChallengeStatus.STARTED_PHASE_ONE },
@@ -76,6 +135,17 @@ export const scheduleActivePhaseOneChallenges = async () => {
   await Promise.all(
     activeChallenges.map((challenge) =>
       schedulePhaseOneEndForChallenge(challenge)
+    )
+  );
+};
+
+export const scheduleActivePhaseTwoChallenges = async () => {
+  const activeChallenges = await Challenge.findAll({
+    where: { status: ChallengeStatus.STARTED_PHASE_TWO },
+  });
+  await Promise.all(
+    activeChallenges.map((challenge) =>
+      schedulePhaseTwoEndForChallenge(challenge)
     )
   );
 };

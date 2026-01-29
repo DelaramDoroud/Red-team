@@ -221,7 +221,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
     expect(codeBlock.tagName.toLowerCase()).toBe('pre');
   });
 
-  it('has Abstain NOT selected by default', async () => {
+  it('has Abstain selected by default', async () => {
     mockGetStudentPeerReviewAssignments.mockResolvedValue({
       success: true,
       assignments: assignmentsMock,
@@ -234,7 +234,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       name: /abstain/i,
     });
 
-    expect(abstainRadio).not.toBeChecked();
+    expect(abstainRadio).toBeChecked();
   });
 
   it('shows progress bar at 0% initially', async () => {

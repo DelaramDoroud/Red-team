@@ -3,75 +3,94 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useChallenge from '#js/useChallenge';
 import { API_REST_BASE, ChallengeStatus } from '#js/constants';
+import useJsonSchema from '#js/useJsonSchema';
 import ChallengeCard from '#components/challenge/ChallengeCard';
 import Spinner from '#components/common/Spinner';
-import Pagination from '#components/common/Pagination';
 import { Button } from '#components/common/Button';
 import Timer from '#components/common/Timer';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setChallengeCountdown } from '#js/store/slices/ui';
 import styles from './list.module.css';
 
-const formatTimer = (seconds) => {
-  if (seconds == null) return '—';
-  const safeSeconds = Math.max(0, seconds);
-  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
-  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
-  const secs = String(safeSeconds % 60).padStart(2, '0');
-  return `${hours}:${mins}:${secs}`;
+const COUNTDOWN_DURATION = 5;
+const isPrivateStatus = (status) =>
+  status === ChallengeStatus.PRIVATE || status === 'draft';
+const isActiveStatus = (status) =>
+  status === ChallengeStatus.STARTED_PHASE_ONE ||
+  status === ChallengeStatus.ENDED_PHASE_ONE ||
+  status === ChallengeStatus.STARTED_PHASE_TWO;
+const isUpcomingStatus = (status) =>
+  status === ChallengeStatus.PUBLIC || status === ChallengeStatus.ASSIGNED;
+const isEndedStatus = (status) => status === ChallengeStatus.ENDED_PHASE_TWO;
+const parseNumericValue = (value) => {
+  if (value === '' || value === null || value === undefined) return value;
+  if (typeof value === 'number') return value;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
 };
-
-const getPhaseEndMs = (startValue, durationMinutes, explicitEndValue) => {
-  if (explicitEndValue) {
-    const explicitEnd = new Date(explicitEndValue).getTime();
-    return Number.isNaN(explicitEnd) ? null : explicitEnd;
+const getMatchSettingIds = (challenge) => {
+  if (Array.isArray(challenge?.matchSettingIds)) {
+    return challenge.matchSettingIds.filter((id) => Number.isInteger(id));
   }
-  if (!startValue || !durationMinutes) return null;
-  const startMs = new Date(startValue).getTime();
-  if (Number.isNaN(startMs)) return null;
-  return startMs + durationMinutes * 60 * 1000 + 3000;
+  if (Array.isArray(challenge?.matchSettings)) {
+    return challenge.matchSettings
+      .map((setting) => setting?.id)
+      .filter((id) => Number.isInteger(id));
+  }
+  return [];
 };
+const buildPublishPayload = (challenge) => ({
+  id: challenge?.id,
+  title: challenge?.title,
+  duration: parseNumericValue(challenge?.duration),
+  startDatetime: challenge?.startDatetime,
+  endDatetime: challenge?.endDatetime,
+  durationPeerReview: parseNumericValue(challenge?.durationPeerReview),
+  allowedNumberOfReview: parseNumericValue(challenge?.allowedNumberOfReview),
+  matchSettingIds: getMatchSettingIds(challenge),
+  status: ChallengeStatus.PUBLIC,
+});
 
-const getBufferedStartMs = (value) => {
-  if (!value) return null;
-  const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return null;
-  return timestamp + 3000;
-};
-
-export default function ChallengeList() {
+export default function ChallengeList({ scope = 'main' }) {
   const {
     loading,
     getChallenges,
     getChallengeParticipants,
+    publishChallenge,
     assignChallenge,
     startChallenge,
     assignPeerReviews,
     startPeerReview,
   } = useChallenge();
 
+  const { validate } = useJsonSchema();
   const [challenges, setChallenges] = useState([]);
   const [participantsMap, setParticipantsMap] = useState({});
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
-  const [countdowns, setCountdowns] = useState({});
   const [reviewErrors, setReviewErrors] = useState({});
   const [assignNotice, setAssignNotice] = useState(null);
-  const [phaseNow, setPhaseNow] = useState(Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setPhaseNow(Date.now());
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
-  const totalPages = Math.ceil(challenges.length / pageSize);
+  const [publishEligibility, setPublishEligibility] = useState({});
+  const [publishValidationError, setPublishValidationError] = useState(null);
+  const [publishValidationLoading, setPublishValidationLoading] =
+    useState(false);
+  const isPrivateView = scope === 'private';
+  const dispatch = useAppDispatch();
+  const userId = useAppSelector((state) => state.auth?.user?.id);
+  const countdowns = useAppSelector((state) => {
+    if (!userId) return {};
+    return state.ui.challengeCountdowns?.[userId] || {};
+  });
+  const countdownsRef = useRef(countdowns);
 
   const getChallengeParticipantsRef = useRef(getChallengeParticipants);
   useEffect(() => {
     getChallengeParticipantsRef.current = getChallengeParticipants;
   }, [getChallengeParticipants]);
+
+  useEffect(() => {
+    countdownsRef.current = countdowns;
+  }, [countdowns]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -110,22 +129,16 @@ export default function ChallengeList() {
         return;
       }
 
-      let found = false;
-      setChallenges((prev) => {
-        found = prev.some((challenge) => challenge.id === payload.challengeId);
-        if (!found) return prev;
-        return prev.map((challenge) => {
+      setChallenges((prev) =>
+        prev.map((challenge) => {
           if (challenge.id !== payload.challengeId) return challenge;
           return {
             ...challenge,
             status: payload.status ?? challenge.status,
           };
-        });
-      });
-
-      if (!found) {
-        load();
-      }
+        })
+      );
+      load();
     };
 
     const handleParticipantJoined = async (event) => {
@@ -139,7 +152,7 @@ export default function ChallengeList() {
       }
       if (!payload?.challengeId) return;
 
-      if (typeof payload.count === 'number') {
+      if (typeof payload?.count === 'number') {
         setParticipantsMap((prev) => ({
           ...prev,
           [payload.challengeId]: payload.count,
@@ -149,7 +162,7 @@ export default function ChallengeList() {
 
       try {
         const res = await getChallengeParticipantsRef.current(
-          payload.challengeId
+          payload?.challengeId
         );
         const count =
           res?.success && Array.isArray(res.data) ? res.data.length : 0;
@@ -176,18 +189,124 @@ export default function ChallengeList() {
     };
   }, [load]);
 
-  const currentItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return challenges.slice(startIndex, endIndex);
-  }, [challenges, currentPage]);
+  const privateChallenges = useMemo(
+    () =>
+      challenges.filter((challenge) => isPrivateStatus(challenge.status ?? '')),
+    [challenges]
+  );
+  const nonPrivateChallenges = useMemo(
+    () =>
+      challenges.filter(
+        (challenge) => !isPrivateStatus(challenge.status ?? '')
+      ),
+    [challenges]
+  );
+  const activeChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isActiveStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const upcomingChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isUpcomingStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const endedChallenges = useMemo(
+    () =>
+      nonPrivateChallenges.filter((challenge) =>
+        isEndedStatus(challenge.status ?? '')
+      ),
+    [nonPrivateChallenges]
+  );
+  const visibleChallenges = useMemo(() => {
+    if (isPrivateView) return privateChallenges;
+    return [...activeChallenges, ...upcomingChallenges, ...endedChallenges];
+  }, [
+    activeChallenges,
+    endedChallenges,
+    isPrivateView,
+    privateChallenges,
+    upcomingChallenges,
+  ]);
 
   useEffect(() => {
-    if (!currentItems.length) return;
+    let isActive = true;
+    if (!isPrivateView) {
+      setPublishEligibility({});
+      setPublishValidationError(null);
+      setPublishValidationLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+    if (!privateChallenges.length) {
+      setPublishEligibility({});
+      setPublishValidationError(null);
+      setPublishValidationLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+    const validateForPublish = async () => {
+      setPublishValidationLoading(true);
+      setPublishValidationError(null);
+      try {
+        const results = await Promise.all(
+          privateChallenges.map(async (challenge) => {
+            const payload = buildPublishPayload(challenge);
+            const outcome = await validate({
+              itemTypeData: { type: 'challenge-public' },
+              data: payload,
+              kind: 'public',
+            });
+            return {
+              id: challenge.id,
+              valid: outcome.valid,
+              errors: outcome.errors,
+            };
+          })
+        );
+
+        if (!isActive) return;
+        const nextEligibility = {};
+        results.forEach((result) => {
+          if (!result?.id) return;
+          nextEligibility[result.id] = {
+            valid: result.valid,
+            errors: result.errors,
+          };
+        });
+        setPublishEligibility(nextEligibility);
+      } catch (validationError) {
+        if (!isActive) return;
+        setPublishEligibility({});
+        setPublishValidationError(
+          validationError?.message ||
+            'Unable to validate challenges for publishing.'
+        );
+      } finally {
+        if (isActive) {
+          setPublishValidationLoading(false);
+        }
+      }
+    };
+
+    validateForPublish();
+    return () => {
+      isActive = false;
+    };
+  }, [isPrivateView, privateChallenges, validate]);
+
+  useEffect(() => {
+    if (!visibleChallenges.length) return;
     const fetchParticipantsForPage = async () => {
       const newCounts = {};
       await Promise.all(
-        currentItems.map(async (challenge) => {
+        visibleChallenges.map(async (challenge) => {
           try {
             const res = await getChallengeParticipantsRef.current(challenge.id);
             newCounts[challenge.id] =
@@ -200,7 +319,7 @@ export default function ChallengeList() {
       setParticipantsMap((prev) => ({ ...prev, ...newCounts }));
     };
     fetchParticipantsForPage();
-  }, [currentItems]);
+  }, [visibleChallenges]);
 
   const setPendingAction = (id, key, value) => {
     setPending((prev) => ({
@@ -383,40 +502,153 @@ export default function ChallengeList() {
     }
   };
 
-  // Countdown with persistence
+  const handlePublish = async (challenge) => {
+    if (!challenge?.id) return;
+    setAssignNotice(null);
+    setError(null);
+    setPendingAction(challenge.id, 'publish', true);
+    try {
+      const res = await publishChallenge(challenge.id);
+      if (res?.success) {
+        setAssignNotice({
+          tone: 'success',
+          text: 'Challenge published successfully.',
+        });
+        setChallenges((prev) =>
+          prev.map((item) =>
+            item.id === challenge.id
+              ? { ...item, status: ChallengeStatus.PUBLIC }
+              : item
+          )
+        );
+        return;
+      }
+      setError(
+        res?.error?.message || res?.message || 'Unable to publish challenge'
+      );
+    } catch {
+      setError('Unable to publish challenge');
+    } finally {
+      setPendingAction(challenge.id, 'publish', false);
+    }
+  };
+
+  const renderTimeLeft = (challenge) => {
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
+      return (
+        <Timer
+          duration={challenge.duration}
+          challengeId={challenge.id}
+          startTime={challenge.startPhaseOneDateTime || challenge.startDatetime}
+          label='Time left'
+        />
+      );
+    }
+    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO) {
+      return (
+        <Timer
+          duration={challenge.durationPeerReview}
+          challengeId={`${challenge.id}-peer-review`}
+          startTime={challenge.startPhaseTwoDateTime}
+          label='Time left'
+        />
+      );
+    }
+    return null;
+  };
+
+  // Countdown with persistence (Redux)
   useEffect(() => {
+    if (!userId) return undefined;
     const timers = {};
-    currentItems.forEach((challenge) => {
+    visibleChallenges.forEach((challenge) => {
       if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-        const storageKey = `challenge-countdown-${challenge.id}`;
-        let countdownValue = parseInt(localStorage.getItem(storageKey), 10);
+        const storedValue = countdownsRef.current?.[challenge.id];
+        const initialValue =
+          typeof storedValue === 'number' ? storedValue : COUNTDOWN_DURATION;
 
-        if (!countdownValue || countdownValue <= 0) countdownValue = 3;
+        if (storedValue == null) {
+          dispatch(
+            setChallengeCountdown({
+              userId,
+              challengeId: challenge.id,
+              value: initialValue,
+            })
+          );
+        }
 
-        if (countdowns[challenge.id] == null)
-          setCountdowns((prev) => ({
-            ...prev,
-            [challenge.id]: countdownValue,
-          }));
+        if (initialValue <= 0) return;
 
         timers[challenge.id] = setInterval(() => {
-          setCountdowns((prev) => {
-            const current = prev[challenge.id];
-            if (current <= 1) {
-              clearInterval(timers[challenge.id]);
-              localStorage.setItem(storageKey, 0);
-              return { ...prev, [challenge.id]: 0 };
-            }
-            localStorage.setItem(storageKey, current - 1);
-            return { ...prev, [challenge.id]: current - 1 };
-          });
+          const currentValue = countdownsRef.current?.[challenge.id];
+          if (typeof currentValue !== 'number') return;
+          if (currentValue <= 1) {
+            clearInterval(timers[challenge.id]);
+            dispatch(
+              setChallengeCountdown({
+                userId,
+                challengeId: challenge.id,
+                value: 0,
+              })
+            );
+            return;
+          }
+          dispatch(
+            setChallengeCountdown({
+              userId,
+              challengeId: challenge.id,
+              value: currentValue - 1,
+            })
+          );
         }, 1000);
       }
     });
     return () => Object.values(timers).forEach(clearInterval);
-  }, [currentItems, countdowns]);
+  }, [dispatch, userId, visibleChallenges]);
 
   const renderActions = (challenge, studentCount) => {
+    if (isPrivateView) {
+      const eligibility = publishEligibility[challenge.id];
+      const isPublishing = pending[challenge.id]?.publish;
+      const isValid = Boolean(eligibility?.valid);
+      const isChecking = publishValidationLoading && !eligibility;
+      let label = 'Publish';
+      if (isPublishing) {
+        label = 'Publishing...';
+      } else if (isChecking) {
+        label = 'Checking...';
+      }
+      let title = 'Publish this challenge';
+      if (publishValidationError) {
+        title = publishValidationError;
+      } else if (!isValid) {
+        if (eligibility?.errors?.length) {
+          title = `Complete required fields: ${eligibility.errors.join(' | ')}`;
+        } else {
+          title = 'Complete required fields before publishing.';
+        }
+      }
+
+      return (
+        <Button
+          size='sm'
+          onClick={(event) => {
+            event.preventDefault();
+            handlePublish(challenge);
+          }}
+          disabled={
+            isPublishing ||
+            !isValid ||
+            Boolean(publishValidationError) ||
+            isChecking
+          }
+          title={title}
+        >
+          {label}
+        </Button>
+      );
+    }
+
     const hasStudents = studentCount > 0;
     const now = new Date();
     const canStartNow =
@@ -464,7 +696,7 @@ export default function ChallengeList() {
     }
 
     if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
-      return <Timer duration={challenge.duration} challengeId={challenge.id} />;
+      return null;
     }
 
     if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE) {
@@ -509,6 +741,25 @@ export default function ChallengeList() {
     return styles.noticeError;
   };
 
+  const renderChallengeCards = (items) => (
+    <div className={styles.grid}>
+      {items.map((challenge) => {
+        const studentCount = participantsMap[challenge.id] || 0;
+        return (
+          <ChallengeCard
+            key={challenge.id ?? challenge.title}
+            challenge={{ ...challenge, participants: studentCount }}
+            href={`/challenges/${challenge.id}`}
+            actions={renderActions(challenge, studentCount)}
+            extraInfo={renderTimeLeft(challenge)}
+            onAllowedNumberChange={handleAllowedNumberChange}
+            allowedNumberError={reviewErrors[challenge.id]}
+          />
+        );
+      })}
+    </div>
+  );
+
   if (loading && !challenges.length && !error) {
     return (
       <div className={styles.center}>
@@ -517,13 +768,63 @@ export default function ChallengeList() {
     );
   }
 
+  if (isPrivateView) {
+    return (
+      <section className={styles.section}>
+        <div className={styles.header}>
+          <h2>Private challenges</h2>
+          <div className={styles.headerActions}>
+            <Button variant='outline' onClick={load} title='Refresh challenges'>
+              Refresh
+            </Button>
+          </div>
+        </div>
+        {error && <p className={styles.error}>{error}</p>}
+        {publishValidationError && (
+          <p className={styles.error}>{publishValidationError}</p>
+        )}
+        {assignNotice && (
+          <p
+            className={`${styles.notice} ${getNoticeClassName(
+              assignNotice.tone
+            )}`}
+          >
+            {assignNotice.text}
+          </p>
+        )}
+        {!error && !loading && !challenges.length && (
+          <p className={styles.empty}>
+            No challenges yet. Try creating one from the backend.
+          </p>
+        )}
+        <div className={styles.group}>
+          <div className={styles.groupHeader}>
+            <h3 className={styles.groupTitle}>Private challenges</h3>
+            <span className={styles.groupHint}>
+              {privateChallenges.length
+                ? 'Not visible to students'
+                : 'None yet'}
+            </span>
+          </div>
+          {privateChallenges.length ? (
+            renderChallengeCards(privateChallenges)
+          ) : (
+            <p className={styles.empty}>No private challenges yet.</p>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={styles.section}>
       <div className={styles.header}>
         <h2>Challenges</h2>
-        <Button variant='outline' onClick={load} title='Refresh challenges'>
-          Refresh
-        </Button>
+        <div className={styles.headerActions}>
+          <Button variant='outline' onClick={load} title='Refresh challenges'>
+            Refresh
+          </Button>
+        </div>
       </div>
       {error && <p className={styles.error}>{error}</p>}
       {assignNotice && (
@@ -533,107 +834,50 @@ export default function ChallengeList() {
           {assignNotice.text}
         </p>
       )}
-      {!error && !challenges.length && !loading && (
+      {!error && !loading && !challenges.length && (
         <p className={styles.empty}>
           No challenges yet. Try creating one from the backend.
         </p>
       )}
-      <div className={styles.grid}>
-        {currentItems.map((challenge) => {
-          const studentCount = participantsMap[challenge.id] || 0;
-          const phaseOneStart =
-            challenge.startPhaseOneDateTime || challenge.startDatetime;
-          const phaseOneEndMs = getPhaseEndMs(
-            phaseOneStart,
-            challenge.duration,
-            challenge.endPhaseOneDateTime
-          );
-          const phaseOneTimeLeft =
-            challenge.status === ChallengeStatus.STARTED_PHASE_ONE &&
-            phaseOneEndMs
-              ? Math.max(0, Math.floor((phaseOneEndMs - phaseNow) / 1000))
-              : null;
-          const phaseOneCountdownSeconds = (() => {
-            if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE)
-              return null;
-            const bufferedStart = getBufferedStartMs(phaseOneStart);
-            if (!bufferedStart) return null;
-            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
-          })();
-
-          const phaseTwoStart = challenge.startPhaseTwoDateTime;
-          const phaseTwoEndMs = getPhaseEndMs(
-            phaseTwoStart,
-            challenge.durationPeerReview,
-            challenge.endPhaseTwoDateTime
-          );
-          const phaseTwoTimeLeft =
-            challenge.status === ChallengeStatus.STARTED_PHASE_TWO &&
-            phaseTwoEndMs
-              ? Math.max(0, Math.floor((phaseTwoEndMs - phaseNow) / 1000))
-              : null;
-          const phaseTwoCountdownSeconds = (() => {
-            if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO)
-              return null;
-            const bufferedStart = getBufferedStartMs(phaseTwoStart);
-            if (!bufferedStart) return null;
-            return Math.max(0, Math.ceil((bufferedStart - phaseNow) / 1000));
-          })();
-
-          const phaseOneActive =
-            challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
-          const phaseTwoActive =
-            challenge.status === ChallengeStatus.STARTED_PHASE_TWO;
-          const extraInfo =
-            phaseOneActive || phaseTwoActive ? (
-              <div className={styles.extraInfo}>
-                {phaseOneActive && (
-                  <div className={styles.extraInfoRow}>
-                    <span className={styles.extraInfoLabel}>
-                      Challenge in progress
-                    </span>
-                    <span>
-                      {phaseOneCountdownSeconds > 0
-                        ? `Starting in ${phaseOneCountdownSeconds}s`
-                        : `Time left ${formatTimer(phaseOneTimeLeft)}`}
-                    </span>
-                  </div>
-                )}
-                {phaseTwoActive && (
-                  <div className={styles.extraInfoRow}>
-                    <span className={styles.extraInfoLabel}>
-                      Challenge in progress
-                    </span>
-                    <span>
-                      {phaseTwoCountdownSeconds > 0
-                        ? `Starting in ${phaseTwoCountdownSeconds}s`
-                        : `Time left ${formatTimer(phaseTwoTimeLeft)}`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : null;
-
-          return (
-            <ChallengeCard
-              key={challenge.id ?? challenge.title}
-              challenge={{ ...challenge, participants: studentCount }}
-              href={`/challenges/${challenge.id}`}
-              actions={renderActions(challenge, studentCount)}
-              onAllowedNumberChange={handleAllowedNumberChange}
-              allowedNumberError={reviewErrors[challenge.id]}
-              extraInfo={extraInfo}
-            />
-          );
-        })}
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Active</h3>
+          <span className={styles.groupHint}>
+            {activeChallenges.length ? 'In progress' : 'None running'}
+          </span>
+        </div>
+        {activeChallenges.length ? (
+          renderChallengeCards(activeChallenges)
+        ) : (
+          <p className={styles.empty}>No active challenges right now.</p>
+        )}
       </div>
-      {challenges.length > pageSize && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Upcoming</h3>
+          <span className={styles.groupHint}>
+            {upcomingChallenges.length ? 'Scheduled' : 'None scheduled'}
+          </span>
+        </div>
+        {upcomingChallenges.length ? (
+          renderChallengeCards(upcomingChallenges)
+        ) : (
+          <p className={styles.empty}>No upcoming challenges.</p>
+        )}
+      </div>
+      <div className={styles.group}>
+        <div className={styles.groupHeader}>
+          <h3 className={styles.groupTitle}>Ended</h3>
+          <span className={styles.groupHint}>
+            {endedChallenges.length ? 'Completed' : 'No history yet'}
+          </span>
+        </div>
+        {endedChallenges.length ? (
+          renderChallengeCards(endedChallenges)
+        ) : (
+          <p className={styles.empty}>No ended challenges yet.</p>
+        )}
+      </div>
     </section>
   );
 }

@@ -5,7 +5,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import addErrors from 'ajv-errors';
 import useFetchData from '#js/useFetchData';
-import { API_URL } from '#js/constants';
+import { API_REST_BASE } from '#js/constants';
 
 const ajv = new Ajv({
   allErrors: true,
@@ -71,7 +71,7 @@ export default function useJsonSchema() {
       loadPromises[id] = (async () => {
         let fn = ajv.getSchema(id);
         if (!fn) {
-          const schema = await fetchData(`${API_URL}/schemas/${id}`);
+          const schema = await fetchData(`${API_REST_BASE}/schemas/${id}`);
           if (schema instanceof Error) {
             throw schema;
           }
@@ -98,7 +98,7 @@ export default function useJsonSchema() {
       if (schemaId === 'accomplishment')
         schemaId = `${itemTypeData.type}_${itemTypeData.key}`;
 
-      await loadSchema('sharedDefinitions');
+      await loadSchema('shared-definitions');
       const validateFn = await loadSchema(schemaId);
 
       const toValidate = { ...data, kind };

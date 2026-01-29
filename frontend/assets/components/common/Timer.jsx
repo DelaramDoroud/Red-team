@@ -4,10 +4,25 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { setChallengeStartTime } from '#js/store/slices/ui';
 
-export default function Timer({ duration, challengeId, onFinish }) {
-  const COUNTDOWN_DURATION = 3;
+const resolveTimestamp = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+export default function Timer({
+  duration,
+  challengeId,
+  startTime,
+  onFinish,
+  label = 'Timer:',
+}) {
+  const COUNTDOWN_DURATION = 5;
   const dispatch = useAppDispatch();
-  const userId = useAppSelector((state) => state.auth.user?.id);
+  const userId = useAppSelector((state) => state.auth?.user?.id);
 
   const storedStartTime = useAppSelector((state) => {
     if (!userId) return null;
@@ -19,6 +34,7 @@ export default function Timer({ duration, challengeId, onFinish }) {
   const countdownIntervalRef = useRef(null);
   const mainIntervalRef = useRef(null);
   const countdownRemainingRef = useRef(null);
+  const fallbackStartTimeRef = useRef(null);
 
   const [countdownRemaining, setCountdownRemaining] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
@@ -29,17 +45,35 @@ export default function Timer({ duration, challengeId, onFinish }) {
   }, [countdownRemaining]);
 
   useEffect(() => {
-    if (!userId) return undefined;
+    const explicitStartTime = resolveTimestamp(startTime);
+    let baseStartTime = explicitStartTime ?? storedStartTime;
 
-    let startTime = storedStartTime;
+    if (!userId) {
+      baseStartTime = explicitStartTime ?? fallbackStartTimeRef.current;
+    }
 
-    if (!startTime) {
-      startTime = Date.now() + COUNTDOWN_DURATION * 1000;
-      dispatch(setChallengeStartTime({ userId, challengeId, startTime }));
+    if (!baseStartTime) {
+      baseStartTime = Date.now();
+    }
+
+    if (!userId) {
+      fallbackStartTimeRef.current = baseStartTime;
+    } else if (
+      !storedStartTime ||
+      (explicitStartTime && storedStartTime !== explicitStartTime)
+    ) {
+      dispatch(
+        setChallengeStartTime({
+          userId,
+          challengeId,
+          startTime: baseStartTime,
+        })
+      );
     }
 
     const now = Date.now();
-    const countdownSec = Math.ceil((startTime - now) / 1000);
+    const effectiveStartTime = baseStartTime + COUNTDOWN_DURATION * 1000;
+    const countdownSec = Math.ceil((effectiveStartTime - now) / 1000);
 
     if (countdownSec > 0) {
       setCountdownRemaining(countdownSec);
@@ -50,10 +84,10 @@ export default function Timer({ duration, challengeId, onFinish }) {
     }
 
     if (duration && duration > 0) {
-      endTimeRef.current = startTime + duration * 60 * 1000;
+      endTimeRef.current = effectiveStartTime + duration * 60 * 1000;
     }
     return undefined;
-  }, [userId, challengeId, storedStartTime, dispatch, duration]);
+  }, [userId, challengeId, storedStartTime, dispatch, duration, startTime]);
 
   useEffect(() => {
     if (!showCountdown || countdownRemainingRef.current <= 0) return undefined;
@@ -95,7 +129,7 @@ export default function Timer({ duration, challengeId, onFinish }) {
     mainIntervalRef.current = setInterval(tick, 1000);
 
     return () => clearInterval(mainIntervalRef.current);
-  }, [onFinish]);
+  }, [challengeId, duration, onFinish, startTime, storedStartTime, userId]);
 
   const formatTime = (seconds) => {
     if (seconds === null) return '--:--:--';
@@ -108,7 +142,7 @@ export default function Timer({ duration, challengeId, onFinish }) {
   return (
     <>
       {showCountdown && countdownRemaining > 0 && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md'>
           <div className='bg-card rounded-2xl px-10 py-8 text-center shadow-xl border border-border'>
             <p className='text-sm text-muted-foreground mb-2'>Get ready…</p>
             <p className='text-6xl font-bold mb-4'>{countdownRemaining}</p>
@@ -121,7 +155,7 @@ export default function Timer({ duration, challengeId, onFinish }) {
 
       {timeLeft !== null && (
         <div data-testid='timer-value' className='font-mono tabular-nums'>
-          Timer: {formatTime(timeLeft)}
+          {label} {formatTime(timeLeft)}
         </div>
       )}
     </>

@@ -10,38 +10,48 @@ import {
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
 
-import { API_REST_BASE, ChallengeStatus } from '#js/constants';
+import {
+  API_REST_BASE,
+  ChallengeStatus,
+  getChallengeStatusLabel,
+} from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
+import { useAppSelector } from '#js/store/hooks';
 import { DurationProvider } from './(context)/DurationContext';
 
-// shared layout for both /match and /result
+// shared layout for match, peer review, and results
 export default function ChallengeLayout({ children }) {
   const params = useParams();
   const challengeId = params?.challengeId;
-  const {
-    getChallengeForJoinedStudent,
-    getStudentPeerReviewAssignments,
-    getStudentVotes,
-  } = useChallenge();
+  const { getChallengeForJoinedStudent } = useChallenge();
   const router = useRouter();
   const pathname = usePathname();
   const redirectOnError = useApiErrorRedirect();
   const [challengeData, setchallengeData] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const {
-    user,
-    isAuthorized,
-    loading: authLoading,
-  } = useRoleGuard({
+  const authState = useAppSelector((state) => state.auth);
+  const authUser = authState?.user;
+  const authLoading = authState?.loading;
+  const isLoggedIn = authState?.isLoggedIn;
+  const peerReviewExitMap = useAppSelector((state) => state.ui.peerReviewExits);
+  const { user: guardUser, isAuthorized } = useRoleGuard({
     allowedRoles: ['student'],
   });
-  const studentId = user?.id;
+  const effectiveUser = authUser || guardUser;
+  const studentId = effectiveUser?.id;
+  const isStudentUser = effectiveUser?.role === 'student';
+  const peerReviewExitKey = challengeId ? String(challengeId) : null;
+  const hasExitedPeerReview = Boolean(
+    studentId &&
+    peerReviewExitKey &&
+    peerReviewExitMap?.[studentId]?.[peerReviewExitKey]
+  );
 
   useEffect(() => {
-    if (!challengeId || !studentId || !isAuthorized) return () => {};
+    if (!challengeId || !studentId || !isStudentUser) return () => {};
 
     let cancelled = false;
 
@@ -57,53 +67,43 @@ export default function ChallengeLayout({ children }) {
             const status = res.data?.status;
             const isPeerReviewRoute = pathname?.includes('/peer-review');
             const isResultRoute = pathname?.includes('/result');
-            const shouldBeInPeerReview =
-              status === ChallengeStatus.STARTED_PHASE_TWO ||
-              status === ChallengeStatus.ENDED_PHASE_TWO;
-
-            if (isResultRoute) return;
-
-            if (isPeerReviewRoute && shouldBeInPeerReview) {
-              try {
-                const [assignmentsRes, votesRes] = await Promise.all([
-                  getStudentPeerReviewAssignments(challengeId, studentId),
-                  getStudentVotes(challengeId),
-                ]);
-
-                if (
-                  assignmentsRes?.success &&
-                  votesRes?.success &&
-                  Array.isArray(assignmentsRes.assignments) &&
-                  Array.isArray(votesRes.votes)
-                ) {
-                  const { assignments } = assignmentsRes;
-                  const { votes } = votesRes;
-                  const voteMap = new Map(
-                    votes.map((v) => [v.submissionId, v])
-                  );
-
-                  const allAssignmentsHaveVotes = assignments.every(
-                    (assignment) => voteMap.has(assignment.submissionId)
-                  );
-
-                  if (
-                    allAssignmentsHaveVotes &&
-                    assignments.length > 0 &&
-                    status === ChallengeStatus.STARTED_PHASE_TWO
-                  ) {
-                    router.push(`/student/challenges/${challengeId}/result`);
-                    return;
-                  }
-                }
-              } catch (err) {
-                // If check fails, allow normal flow
-              }
+            const isMatchRoute = pathname?.includes('/match');
+            const isPeerReviewActive =
+              status === ChallengeStatus.STARTED_PHASE_TWO;
+            const isEndedPhaseTwo = status === ChallengeStatus.ENDED_PHASE_TWO;
+            const isEndedPhaseOne = status === ChallengeStatus.ENDED_PHASE_ONE;
+            let expectedSegment = 'match';
+            if (isEndedPhaseTwo) {
+              expectedSegment = 'result';
+            } else if (isEndedPhaseOne) {
+              expectedSegment = 'peer-review';
+            } else if (isPeerReviewActive) {
+              expectedSegment = hasExitedPeerReview ? 'result' : 'peer-review';
+            }
+            if (
+              expectedSegment === 'result' &&
+              !isEndedPhaseTwo &&
+              !hasExitedPeerReview
+            ) {
+              expectedSegment = 'peer-review';
             }
 
-            if (shouldBeInPeerReview && !isPeerReviewRoute) {
-              router.push(`/student/challenges/${challengeId}/peer-review`);
-            } else if (!shouldBeInPeerReview && isPeerReviewRoute) {
-              router.push(`/student/challenges/${challengeId}/match`);
+            let shouldRedirect = false;
+            if (expectedSegment === 'result' && !isResultRoute) {
+              shouldRedirect = true;
+            } else if (
+              expectedSegment === 'peer-review' &&
+              !isPeerReviewRoute
+            ) {
+              shouldRedirect = true;
+            } else if (expectedSegment === 'match' && !isMatchRoute) {
+              shouldRedirect = true;
+            }
+
+            if (shouldRedirect) {
+              router.push(
+                `/student/challenges/${challengeId}/${expectedSegment}`
+              );
             }
           } else {
             if (redirectOnError(res)) return;
@@ -158,9 +158,8 @@ export default function ChallengeLayout({ children }) {
     challengeId,
     studentId,
     getChallengeForJoinedStudent,
-    getStudentPeerReviewAssignments,
-    getStudentVotes,
-    isAuthorized,
+    isStudentUser,
+    hasExitedPeerReview,
     pathname,
     redirectOnError,
     router,
@@ -183,16 +182,21 @@ export default function ChallengeLayout({ children }) {
         return '';
 
       default:
-        return status || 'Unknown';
+        return getChallengeStatusLabel(status);
     }
   };
+  const titleText = loading ? 'Loading challenge...' : title || 'Unknown';
+  const phaseText = loading ? '' : phaseLabel();
+  const showAuthLoading = authLoading && !effectiveUser;
+  const canRenderChildren = isStudentUser && (isAuthorized || isLoggedIn);
+
   return (
     <div className='max-w-7xl mx-auto px-3 py-2 space-y-2 sm:px-4'>
       <Card>
         <CardHeader>
           <CardTitle>
-            {loading ? 'Loading challenge...' : title || 'Unknown'}-{' '}
-            <span>{phaseLabel()}</span>
+            {titleText}
+            {phaseText ? ` - ${phaseText}` : ''}
           </CardTitle>
         </CardHeader>
 
@@ -203,8 +207,15 @@ export default function ChallengeLayout({ children }) {
             </p>
           </CardContent>
         )}
+        {showAuthLoading && (
+          <CardContent>
+            <p className='text-sm text-muted-foreground'>
+              Loading your profile...
+            </p>
+          </CardContent>
+        )}
       </Card>
-      {isAuthorized && !authLoading && (
+      {canRenderChildren && (
         <DurationProvider
           value={{
             duration: Number(duration) || 0,

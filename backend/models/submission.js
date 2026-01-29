@@ -41,6 +41,14 @@ Submission.init(
       field: 'is_final',
       defaultValue: false,
     },
+    publicTestResults: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    privateTestResults: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -52,14 +60,6 @@ Submission.init(
       allowNull: false,
       field: 'updated_at',
       defaultValue: DataTypes.NOW,
-    },
-    publicTestResults: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    privateTestResults: {
-      type: DataTypes.TEXT,
-      allowNull: true,
     },
   },
   {

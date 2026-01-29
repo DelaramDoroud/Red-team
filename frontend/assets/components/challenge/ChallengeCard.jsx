@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { formatDateTime } from '#js/date';
+import { getChallengeStatusLabel } from '#js/constants';
 import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({
@@ -59,7 +60,7 @@ export default function ChallengeCard({
         <h2 className={styles.title}>{title}</h2>
         {status && (
           <span className={`${styles.status} ${styles[`status-${status}`]}`}>
-            {status}
+            {getChallengeStatusLabel(status)}
           </span>
         )}
       </header>

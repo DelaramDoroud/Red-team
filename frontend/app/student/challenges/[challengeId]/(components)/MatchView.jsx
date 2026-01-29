@@ -21,7 +21,7 @@ import Tooltip from '#components/common/Tooltip';
 import Spinner from '#components/common/Spinner';
 
 import { useState, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import Timer from '#components/common/Timer';
 import CppEditor from './CppEditor';
 import { useDuration } from '../(context)/DurationContext';
@@ -31,6 +31,7 @@ export default function MatchView({
   error,
   message,
   challengeId,
+  isWaitingForStart,
   matchData,
   imports,
   onImportsChange,
@@ -59,19 +60,20 @@ export default function MatchView({
   onClean,
   onRestore,
   hasRestorableCode,
+  draftSaveState,
+  customTests,
+  customTestResults,
+  customRunResult,
+  isCustomRunning,
+  customRunOrder,
+  onCustomTestAdd,
+  onCustomTestChange,
+  onCustomTestRemove,
+  onRunCustomTests,
 }) {
   const { duration, startPhaseOneDateTime, startDatetime } = useDuration();
 
-  const getBufferedStart = (value) => {
-    if (!value) return null;
-    const timestamp = new Date(value).getTime();
-    if (Number.isNaN(timestamp)) return null;
-    return timestamp + 3000;
-  };
-  const phaseOneTimerStart = (() => {
-    const base = startPhaseOneDateTime || startDatetime;
-    return getBufferedStart(base);
-  })();
+  const phaseOneTimerStart = startPhaseOneDateTime || startDatetime;
 
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -83,6 +85,15 @@ export default function MatchView({
     if (runResult?.type === 'success')
       return 'text-green-700 dark:text-green-400';
     if (runResult?.type === 'info') return 'text-blue-700 dark:text-blue-400';
+    return 'text-foreground';
+  })();
+  const customResultClass = (() => {
+    if (customRunResult?.type === 'error')
+      return 'text-red-700 dark:text-red-400';
+    if (customRunResult?.type === 'success')
+      return 'text-green-700 dark:text-green-400';
+    if (customRunResult?.type === 'info')
+      return 'text-blue-700 dark:text-blue-400';
     return 'text-foreground';
   })();
   const isBusy = isRunning || isSubmitting || isSubmittingFinal;
@@ -110,6 +121,65 @@ export default function MatchView({
     ? 'View your submitted code'
     : 'Clear the results to try again';
   const actionButtonSize = 'sm';
+
+  const saveIndicator = (() => {
+    if (!draftSaveState) return null;
+    if (draftSaveState === 'saving') {
+      return (
+        <div className='flex items-center gap-2 text-xs font-semibold text-amber-600'>
+          <span
+            className='h-3 w-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin'
+            aria-hidden='true'
+          />
+          <span>Saving</span>
+        </div>
+      );
+    }
+    if (draftSaveState === 'saved') {
+      return (
+        <div className='flex items-center gap-2 text-xs font-semibold text-emerald-600'>
+          <CheckCircle2 className='h-4 w-4' aria-hidden='true' />
+          <span>Saved</span>
+        </div>
+      );
+    }
+    return null;
+  })();
+
+  const customResultMap = new Map();
+  if (Array.isArray(customRunOrder)) {
+    customRunOrder.forEach((id, index) => {
+      const result = customTestResults?.[index];
+      if (result) customResultMap.set(id, result);
+    });
+  }
+
+  const normalizeMultilineValue = (value) =>
+    typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
+
+  const formatDisplayValue = (value) => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'string') return normalizeMultilineValue(value);
+    try {
+      return normalizeMultilineValue(JSON.stringify(value));
+    } catch {
+      return normalizeMultilineValue(String(value));
+    }
+  };
+
+  const renderDisplayValue = (value) => (
+    <span className='whitespace-pre-wrap'>{formatDisplayValue(value)}</span>
+  );
+
+  const formatCustomOutput = (value) => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
 
   const handleTimerEnd = async () => {
     if (hasTimerFinished.current) return;
@@ -147,6 +217,28 @@ export default function MatchView({
     );
   }
 
+  if (isWaitingForStart) {
+    return (
+      <div className='max-w-2xl mx-auto py-10'>
+        <Card>
+          <CardHeader>
+            <CardTitle>Challenge lobby</CardTitle>
+            <CardDescription>
+              You joined successfully. Please wait for your teacher to start the
+              coding phase.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className='text-sm text-muted-foreground'>
+              Keep this page open. A 5-second countdown will start as soon as
+              the challenge begins.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (error && !matchData) {
     return (
       <div className='max-w-2xl mx-auto py-10'>
@@ -173,7 +265,7 @@ export default function MatchView({
       <div className='max-w-2xl mx-auto py-10'>
         <Card>
           <CardContent>
-            <p className='text-sm'>
+            <p className='text-sm pt-4'>
               Something went wrong while loading this match.
             </p>
           </CardContent>
@@ -183,9 +275,14 @@ export default function MatchView({
   }
 
   if (finished) {
-    const displayMessage = submissionError
-      ? `${submissionError} Thanks for your participation`
-      : 'Thanks for your participation';
+    let displayMessage = message || submissionError;
+    if (!displayMessage) {
+      displayMessage = 'The coding phase has ended.';
+    }
+
+    const finalNotice =
+      peerReviewPendingMessage ||
+      "Wait for the peer review phase to start so you can review your classmates' code.";
 
     return (
       <div
@@ -194,7 +291,9 @@ export default function MatchView({
       >
         <Card>
           <CardHeader>
-            <CardTitle>Phase One Complete</CardTitle>
+            <CardTitle>
+              Coding phase finished. Wait for peer review to start.
+            </CardTitle>
             <CardDescription data-testid='message'>
               {displayMessage}
             </CardDescription>
@@ -205,11 +304,9 @@ export default function MatchView({
                 {peerReviewNotice}
               </p>
             ) : null}
-            {peerReviewPendingMessage ? (
-              <p className='text-sm font-medium text-slate-600 mb-4'>
-                {peerReviewPendingMessage}
-              </p>
-            ) : null}
+            <p className='text-sm font-medium text-slate-600 mb-4'>
+              {finalNotice}
+            </p>
             <h3 className='font-semibold mb-2'>Your submitted code:</h3>
             <pre className='bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm'>
               {finalCode || ''}
@@ -221,14 +318,20 @@ export default function MatchView({
   }
 
   if (isChallengeFinished) {
+    const finalNotice =
+      peerReviewPendingMessage ||
+      "Wait for the peer review phase to start so you can review your classmates' code.";
+
     return (
       <div className='max-w-2xl mx-auto py-10'>
         <Card>
           <CardHeader>
-            <CardTitle>Phase One Complete</CardTitle>
+            <CardTitle>
+              Coding phase finished. Wait for peer review to start.
+            </CardTitle>
             <CardDescription>
               {message ||
-                'Challenge is over. You can no longer submit your solution.'}
+                'The coding phase has ended. Your submission has been finalized.'}
             </CardDescription>
           </CardHeader>
           {peerReviewNotice ? (
@@ -238,13 +341,9 @@ export default function MatchView({
               </p>
             </CardContent>
           ) : null}
-          {peerReviewPendingMessage ? (
-            <CardContent>
-              <p className='text-sm font-medium text-slate-600'>
-                {peerReviewPendingMessage}
-              </p>
-            </CardContent>
-          ) : null}
+          <CardContent>
+            <p className='text-sm font-medium text-slate-600'>{finalNotice}</p>
+          </CardContent>
         </Card>
       </div>
     );
@@ -320,16 +419,18 @@ export default function MatchView({
 
                         return (
                           <TableRow key={key}>
-                            <TableCell>{JSON.stringify(test.input)}</TableCell>
+                            <TableCell>
+                              {renderDisplayValue(test.input)}
+                            </TableCell>
 
-                            <TableCell>{JSON.stringify(test.output)}</TableCell>
+                            <TableCell>
+                              {renderDisplayValue(test.output)}
+                            </TableCell>
 
                             <TableCell className={outputClass}>
                               {isCompiled === true &&
                               result?.actualOutput !== undefined ? (
-                                <pre className='whitespace-pre-wrap'>
-                                  {JSON.stringify(result.actualOutput)}
-                                </pre>
+                                renderDisplayValue(result.actualOutput)
                               ) : (
                                 <span className='text-muted-foreground italic'>
                                   —
@@ -349,14 +450,145 @@ export default function MatchView({
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Custom tests</CardTitle>
+              <CardDescription>
+                Add inputs to see how your code behaves beyond public tests.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              {customTests?.length ? (
+                <div className='space-y-3'>
+                  {customTests.map((testCase) => {
+                    const { id, input, expectedOutput } = testCase;
+                    const inputId = `custom-input-${id}`;
+                    const expectedId = `custom-expected-${id}`;
+                    const result = customResultMap.get(id);
+                    const actualOutput = result?.actualOutput;
+                    const outputLabel = result
+                      ? formatCustomOutput(actualOutput)
+                      : '—';
+                    return (
+                      <div
+                        key={id}
+                        className='rounded-lg border border-border bg-muted/40 p-3 space-y-3'
+                      >
+                        <div className='grid gap-3 md:grid-cols-2'>
+                          <div className='space-y-1'>
+                            <label
+                              htmlFor={inputId}
+                              className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+                            >
+                              Input
+                            </label>
+                            <textarea
+                              id={inputId}
+                              className='w-full min-h-[72px] rounded-md border bg-background px-3 py-2 text-xs'
+                              value={input}
+                              onChange={(event) =>
+                                onCustomTestChange(
+                                  id,
+                                  'input',
+                                  event.target.value
+                                )
+                              }
+                              placeholder='Enter custom input'
+                              disabled={editorDisabled}
+                            />
+                          </div>
+                          <div className='space-y-1'>
+                            <label
+                              htmlFor={expectedId}
+                              className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+                            >
+                              Expected output (optional)
+                            </label>
+                            <textarea
+                              id={expectedId}
+                              className='w-full min-h-[72px] rounded-md border bg-background px-3 py-2 text-xs'
+                              value={expectedOutput}
+                              onChange={(event) =>
+                                onCustomTestChange(
+                                  id,
+                                  'expectedOutput',
+                                  event.target.value
+                                )
+                              }
+                              placeholder='Enter expected output'
+                              disabled={editorDisabled}
+                            />
+                          </div>
+                        </div>
+                        <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
+                          <span>Actual output: {outputLabel}</span>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => onCustomTestRemove(id)}
+                            disabled={editorDisabled}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className='text-xs text-muted-foreground'>
+                  Add a custom test to try extra inputs.
+                </p>
+              )}
+
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size={actionButtonSize}
+                  onClick={onCustomTestAdd}
+                  disabled={editorDisabled}
+                >
+                  Add custom test
+                </Button>
+                <Button
+                  type='button'
+                  variant='secondary'
+                  size={actionButtonSize}
+                  onClick={onRunCustomTests}
+                  disabled={editorDisabled || isCustomRunning}
+                >
+                  {isCustomRunning ? 'Running...' : 'Run custom tests'}
+                </Button>
+              </div>
+
+              <div
+                className={`min-h-[64px] rounded-md border bg-muted px-3 py-2 text-xs ${customResultClass}`}
+              >
+                {customRunResult?.message ||
+                  'Run your custom tests to see outputs.'}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className='space-y-6 w-full lg:w-2/3'>
           {/* editor + controls + result panel */}
           <Card>
             <CardHeader>
-              <CardTitle>Code editor</CardTitle>
-              <CardDescription>Language: C++</CardDescription>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+                <div className='space-y-1'>
+                  <CardTitle>Code editor</CardTitle>
+                  <CardDescription>Language: C++</CardDescription>
+                </div>
+                {saveIndicator ? (
+                  <div role='status' aria-live='polite'>
+                    {saveIndicator}
+                  </div>
+                ) : null}
+              </div>
             </CardHeader>
 
             <CardContent className='space-y-4'>

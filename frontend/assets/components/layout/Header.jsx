@@ -83,6 +83,7 @@ export default function Header() {
       return [
         { href: '/', label: 'Dashboard' },
         { href: '/challenges', label: 'Challenges' },
+        { href: '/match-settings', label: 'Match Settings' },
         { href: '/new-challenge', label: 'New Challenge' },
       ];
     }

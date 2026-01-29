@@ -5,6 +5,8 @@ const initialState = {
   theme: null,
   challengeDrafts: {},
   challengeTimers: {},
+  challengeCountdowns: {},
+  peerReviewExits: {},
 };
 
 const getDraftEntry = (userDrafts, key) =>
@@ -41,6 +43,17 @@ const removeUserKey = (map, userId, key) => {
   return {
     ...map,
     [userId]: next,
+  };
+};
+
+const upsertUserValue = (map, userId, key, value) => {
+  const userMap = map[userId] || {};
+  return {
+    ...map,
+    [userId]: {
+      ...userMap,
+      [key]: value,
+    },
   };
 };
 
@@ -176,16 +189,70 @@ const uiSlice = createSlice({
         ),
       };
     },
+    setChallengeCountdown: (state, action) => {
+      const { userId, challengeId, value } = action.payload || {};
+      if (!userId || !challengeId || typeof value !== 'number') return state;
+      return {
+        ...state,
+        challengeCountdowns: upsertUserValue(
+          state.challengeCountdowns,
+          userId,
+          challengeId,
+          value
+        ),
+      };
+    },
+    clearChallengeCountdown: (state, action) => {
+      const { userId, challengeId } = action.payload || {};
+      if (!userId || !challengeId) return state;
+      return {
+        ...state,
+        challengeCountdowns: removeUserKey(
+          state.challengeCountdowns,
+          userId,
+          challengeId
+        ),
+      };
+    },
+    setPeerReviewExit: (state, action) => {
+      const { userId, challengeId, value } = action.payload || {};
+      if (!userId || !challengeId || typeof value !== 'boolean') return state;
+      return {
+        ...state,
+        peerReviewExits: upsertUserValue(
+          state.peerReviewExits || {},
+          userId,
+          challengeId,
+          value
+        ),
+      };
+    },
+    clearPeerReviewExit: (state, action) => {
+      const { userId, challengeId } = action.payload || {};
+      if (!userId || !challengeId) return state;
+      return {
+        ...state,
+        peerReviewExits: removeUserKey(
+          state.peerReviewExits || {},
+          userId,
+          challengeId
+        ),
+      };
+    },
   },
   extraReducers: (builder) => {
     builder
       .addCase(logoutUser.fulfilled, (state) => ({
         ...state,
         challengeDrafts: {},
+        challengeCountdowns: {},
+        peerReviewExits: {},
       }))
       .addCase(clearUser, (state) => ({
         ...state,
         challengeDrafts: {},
+        challengeCountdowns: {},
+        peerReviewExits: {},
       }));
   },
 });
@@ -199,6 +266,10 @@ export const {
   clearChallengeDraft,
   setChallengeStartTime,
   clearChallengeTimer,
+  setChallengeCountdown,
+  clearChallengeCountdown,
+  setPeerReviewExit,
+  clearPeerReviewExit,
 } = uiSlice.actions;
 
 export const uiReducer = uiSlice.reducer;

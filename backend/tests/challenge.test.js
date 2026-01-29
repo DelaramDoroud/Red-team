@@ -14,19 +14,27 @@ let app;
 let sequelize;
 let Challenge;
 let MatchSetting;
+let ChallengeParticipant;
+let User;
 let readyMatchSettingIds = [];
 let createdChallengeIds = [];
+let createdUserIds = [];
 
 beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   const sequelizeModule = await import('#root/services/sequelize.js');
   const challengeModule = await import('#root/models/challenge.js');
   const matchSettingModule = await import('#root/models/match-setting.js');
+  const challengeParticipantModule =
+    await import('#root/models/challenge-participant.js');
+  const userModule = await import('#root/models/user.js');
 
   app = appModule.default;
   sequelize = sequelizeModule.default;
   Challenge = challengeModule.default;
   MatchSetting = matchSettingModule.default;
+  ChallengeParticipant = challengeParticipantModule.default;
+  User = userModule.default;
 
   const existingSettings = await MatchSetting.findAll();
 
@@ -50,6 +58,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   createdChallengeIds = [];
+  createdUserIds = [];
   vi.clearAllMocks();
 });
 
@@ -62,6 +71,16 @@ afterEach(async () => {
       });
     } catch (error) {
       console.error('Error cleaning up challenges:', error);
+    }
+  }
+  if (createdUserIds.length > 0) {
+    try {
+      await User.destroy({
+        where: { id: createdUserIds },
+        force: true,
+      });
+    } catch (error) {
+      console.error('Error cleaning up users:', error);
     }
   }
 });
@@ -276,7 +295,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
     expect(res.body.error.missingIds).not.toContain(readyMatchSettingIds[0]);
   });
 
-  it('should NOT create a challenge if it overlaps with an existing one', async () => {
+  it('should NOT create a public challenge if it overlaps with an existing one', async () => {
     // 1. Create a challenge
     const c = await Challenge.create({
       title: 'Existing Challenge',
@@ -297,7 +316,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       endDatetime: '2025-12-01T13:00:00Z',
       durationPeerReview: 60,
       allowedNumberOfReview: 2,
-      status: 'private',
+      status: 'public',
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
@@ -306,6 +325,37 @@ describe('Challenge API - POST /api/rest/challenges', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toMatch(/overlaps/i);
+  });
+
+  it('allows overlapping private challenges', async () => {
+    const existing = await Challenge.create({
+      title: 'Private Overlap Anchor',
+      duration: 60,
+      startDatetime: '2025-12-03T10:00:00Z',
+      endDatetime: '2025-12-03T12:00:00Z',
+      durationPeerReview: 60,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(existing.id);
+
+    const payload = {
+      title: 'Private Overlap Challenge',
+      duration: 90,
+      startDatetime: '2025-12-03T11:00:00Z',
+      endDatetime: '2025-12-03T12:30:00Z',
+      durationPeerReview: 60,
+      allowedNumberOfReview: 2,
+      status: 'private',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app).post('/api/rest/challenges').send(payload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('private');
+    createdChallengeIds.push(res.body.challenge.id);
   });
 
   it('should create a challenge as private when overlap is allowed', async () => {
@@ -357,5 +407,413 @@ describe('Challenge API - POST /api/rest/challenges', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toMatch(/time window/i);
+  });
+});
+
+describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
+  it('updates a private challenge', async () => {
+    const startTime = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Editable Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const newStart = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
+    const newEnd = new Date(newStart.getTime() + 4 * 60 * 60 * 1000);
+    const payload = {
+      title: 'Updated Challenge',
+      duration: 90,
+      startDatetime: newStart.toISOString(),
+      endDatetime: newEnd.toISOString(),
+      durationPeerReview: 45,
+      allowedNumberOfReview: 3,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${challenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.title).toBe(payload.title);
+    expect(res.body.challenge.status).toBe(payload.status);
+  });
+
+  it('allows publishing with overlap against private challenges only', async () => {
+    const startTime = new Date(Date.now() + 140 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const privateChallenge = await Challenge.create({
+      title: 'Private Overlap Parent',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(privateChallenge.id);
+
+    const overlappingStart = new Date(startTime.getTime() + 30 * 60 * 1000);
+    const overlappingEnd = new Date(endTime.getTime() + 30 * 60 * 1000);
+    const editableChallenge = await Challenge.create({
+      title: 'Private Overlap Candidate',
+      duration: 60,
+      startDatetime: overlappingStart,
+      endDatetime: overlappingEnd,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(editableChallenge.id);
+
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await privateChallenge.addMatchSettings(settings);
+    await editableChallenge.addMatchSettings(settings);
+
+    const payload = {
+      title: 'Private Overlap Candidate',
+      duration: 60,
+      startDatetime: overlappingStart.toISOString(),
+      endDatetime: overlappingEnd.toISOString(),
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${editableChallenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('public');
+  });
+
+  it('rejects publishing when overlapping a public challenge', async () => {
+    const startTime = new Date(Date.now() + 160 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const publicChallenge = await Challenge.create({
+      title: 'Public Overlap Parent',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+    });
+    createdChallengeIds.push(publicChallenge.id);
+
+    const overlappingStart = new Date(startTime.getTime() + 30 * 60 * 1000);
+    const overlappingEnd = new Date(endTime.getTime() + 30 * 60 * 1000);
+    const privateChallenge = await Challenge.create({
+      title: 'Public Overlap Candidate',
+      duration: 60,
+      startDatetime: overlappingStart,
+      endDatetime: overlappingEnd,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(privateChallenge.id);
+
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await publicChallenge.addMatchSettings(settings);
+    await privateChallenge.addMatchSettings(settings);
+
+    const payload = {
+      title: 'Public Overlap Candidate',
+      duration: 60,
+      startDatetime: overlappingStart.toISOString(),
+      endDatetime: overlappingEnd.toISOString(),
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${privateChallenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('challenge_overlap');
+  });
+
+  it('updates a public challenge before it starts', async () => {
+    const startTime = new Date(Date.now() + 96 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Published Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const payload = {
+      title: 'Attempted Update',
+      duration: 60,
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${challenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe(payload.status);
+  });
+
+  it('rejects updates when the challenge has already started', async () => {
+    const startTime = new Date(Date.now() + 96 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Started Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'started_phase_one',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const payload = {
+      title: 'Attempted Update',
+      duration: 60,
+      startDatetime: startTime.toISOString(),
+      endDatetime: endTime.toISOString(),
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+      matchSettingIds: readyMatchSettingIds.slice(0, 1),
+    };
+
+    const res = await request(app)
+      .patch(`/api/rest/challenges/${challenge.id}`)
+      .send(payload);
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe('Challenge API - POST /api/rest/challenges/:id/unpublish', () => {
+  it('unpublishes a public challenge', async () => {
+    const startTime = new Date(Date.now() + 120 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Public Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const timestamp = Date.now();
+    const student = await User.create({
+      username: `student-unpublish-${timestamp}`,
+      email: `student-unpublish-${timestamp}@codymatch.test`,
+      password: 'password123',
+      role: 'student',
+      settings: {},
+    });
+    createdUserIds.push(student.id);
+
+    await ChallengeParticipant.create({
+      challengeId: challenge.id,
+      studentId: student.id,
+    });
+
+    const res = await request(app).post(
+      `/api/rest/challenges/${challenge.id}/unpublish`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('private');
+
+    const remainingParticipants = await ChallengeParticipant.count({
+      where: { challengeId: challenge.id },
+    });
+    expect(remainingParticipants).toBe(0);
+  });
+});
+
+describe('Challenge API - POST /api/rest/challenges/:id/publish', () => {
+  it('publishes a private challenge', async () => {
+    const startTime = new Date(Date.now() + 120 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Private Challenge',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await challenge.addMatchSettings(settings);
+
+    const res = await request(app).post(
+      `/api/rest/challenges/${challenge.id}/publish`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('public');
+  });
+
+  it('rejects publish when no match settings are attached', async () => {
+    const startTime = new Date(Date.now() + 120 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Private Challenge without settings',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
+
+    const res = await request(app).post(
+      `/api/rest/challenges/${challenge.id}/publish`
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('publishes even when overlapping only private challenges', async () => {
+    const startTime = new Date(Date.now() + 180 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const privateChallenge = await Challenge.create({
+      title: 'Private Overlap Existing',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(privateChallenge.id);
+
+    const overlappingStart = new Date(startTime.getTime() + 30 * 60 * 1000);
+    const overlappingEnd = new Date(endTime.getTime() + 30 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Private Overlap Publish',
+      duration: 60,
+      startDatetime: overlappingStart,
+      endDatetime: overlappingEnd,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
+
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await privateChallenge.addMatchSettings(settings);
+    await challenge.addMatchSettings(settings);
+
+    const res = await request(app).post(
+      `/api/rest/challenges/${challenge.id}/publish`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.challenge.status).toBe('public');
+  });
+
+  it('rejects publish when overlapping a public challenge', async () => {
+    const startTime = new Date(Date.now() + 200 * 60 * 60 * 1000);
+    const endTime = new Date(startTime.getTime() + 3 * 60 * 60 * 1000);
+    const publicChallenge = await Challenge.create({
+      title: 'Public Overlap Existing',
+      duration: 60,
+      startDatetime: startTime,
+      endDatetime: endTime,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'public',
+    });
+    createdChallengeIds.push(publicChallenge.id);
+
+    const overlappingStart = new Date(startTime.getTime() + 30 * 60 * 1000);
+    const overlappingEnd = new Date(endTime.getTime() + 30 * 60 * 1000);
+    const challenge = await Challenge.create({
+      title: 'Public Overlap Publish Candidate',
+      duration: 60,
+      startDatetime: overlappingStart,
+      endDatetime: overlappingEnd,
+      durationPeerReview: 30,
+      allowedNumberOfReview: 2,
+      status: 'private',
+    });
+    createdChallengeIds.push(challenge.id);
+
+    const settings = await MatchSetting.findAll({
+      where: { id: readyMatchSettingIds.slice(0, 1) },
+    });
+    await publicChallenge.addMatchSettings(settings);
+    await challenge.addMatchSettings(settings);
+
+    const res = await request(app).post(
+      `/api/rest/challenges/${challenge.id}/publish`
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('challenge_overlap');
   });
 });

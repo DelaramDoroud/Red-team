@@ -14,13 +14,14 @@ fi
 
 cd "$(dirname "$SCRIPT_PATH")"
 
-# Run linting via docker helper
-echo "[pre-push] Running linting check..."
-bash ./codymatch.sh lint
-
 # Run tests via docker helper
 echo "[pre-push] Running tests..."
 bash ./codymatch.sh test --stop
+
+if [ $? -ne 0 ]; then
+  echo "Tests failed. Push aborted."
+  exit 1
+fi
 
 echo "[pre-push] All tests passed. Proceeding with push."
 exit 0

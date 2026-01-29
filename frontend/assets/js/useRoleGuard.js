@@ -17,10 +17,10 @@ export default function useRoleGuard({
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (fetchedRef.current || loading || user) return;
+    if (fetchedRef.current || loading) return;
     fetchedRef.current = true;
     dispatch(fetchUserInfo());
-  }, [dispatch, user, loading]);
+  }, [dispatch, loading]);
 
   useEffect(() => {
     if (loading) return;

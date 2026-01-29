@@ -11,166 +11,26 @@ import AlertDialog from '#components/common/AlertDialog';
 import * as Constants from '#js/constants';
 import useRoleGuard from '#js/useRoleGuard';
 import { formatDateTime } from '#js/date';
+import {
+  parsePositiveInt,
+  isValidYearValue,
+  resolvePickerValue,
+  isDateTimeInputWithinLimits,
+  DATE_TIME_PATTERN,
+  normalizeDateTimeInput,
+  resolveDateTimeInputValue,
+  buildMinimumEndDate,
+  formatDateTimeLocal,
+  updateEndDateTime,
+  buildDefaultDateTimes,
+} from '#js/challenge-form-utils';
 import styles from './page.module.css';
 
-const parsePositiveInt = (value) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-
-const isValidYearValue = (value) => {
-  if (typeof value !== 'string') return false;
-  return /^20\d{2}-/.test(value);
-};
-
-const resolvePickerValue = (value) => {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return value;
-};
-
-const DATE_TIME_PATTERN =
-  '^\\d{1,2}:\\d{2}\\s*(AM|PM),\\s*\\d{2}/\\d{2}/\\d{4}$';
-
-const isPreferredDateTimeFormat = (value) => {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  return new RegExp(DATE_TIME_PATTERN, 'i').test(trimmed);
-};
-
-const normalizeDateTimeInput = (value) => {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (!trimmed) return value;
-
-  const timeFirstMatch = trimmed.match(
-    /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])\s*,\s*(\d{1,2})\/(\d{1,2})\/(\d{4,})$/
-  );
-  if (timeFirstMatch) {
-    const [, hourRaw, minuteRaw, meridianRaw, dayRaw, monthRaw, yearRaw] =
-      timeFirstMatch;
-    const year = yearRaw.slice(0, 4);
-    const month = Number.parseInt(monthRaw, 10);
-    const day = Number.parseInt(dayRaw, 10);
-
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      let hour = hourRaw ? Number.parseInt(hourRaw, 10) : 0;
-      const minute = minuteRaw ? Number.parseInt(minuteRaw, 10) : 0;
-      const meridian = meridianRaw?.toUpperCase();
-      if (meridian === 'PM' && hour < 12) hour += 12;
-      if (meridian === 'AM' && hour === 12) hour = 0;
-      const pad = (num) => String(num).padStart(2, '0');
-      return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
-    }
-  }
-
-  const slashMatch = trimmed.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4,})(?:,\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/
-  );
-  if (slashMatch) {
-    const [, part1, part2, yearRaw, hourRaw, minuteRaw, meridianRaw] =
-      slashMatch;
-    const year = yearRaw.slice(0, 4);
-    let month = Number.parseInt(part1, 10);
-    let day = Number.parseInt(part2, 10);
-
-    if (month > 12 && day <= 12) {
-      const swap = day;
-      day = month;
-      month = swap;
-    }
-
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      let hour = hourRaw ? Number.parseInt(hourRaw, 10) : 0;
-      const minute = minuteRaw ? Number.parseInt(minuteRaw, 10) : 0;
-      const meridian = meridianRaw?.toUpperCase();
-      if (meridian === 'PM' && hour < 12) hour += 12;
-      if (meridian === 'AM' && hour === 12) hour = 0;
-      const pad = (num) => String(num).padStart(2, '0');
-      return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
-    }
-  }
-
-  const yearMatch = trimmed.match(/^(\d{4,})(.*)$/);
-  if (yearMatch && yearMatch[1].length > 4) {
-    return `${yearMatch[1].slice(0, 4)}${yearMatch[2] || ''}`;
-  }
-
-  return value;
-};
-
-const resolveDateTimeInputValue = (rawValue) => {
-  const normalized = normalizeDateTimeInput(rawValue);
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) {
-    return { normalized, inputValue: rawValue };
-  }
-  const inputValue = isPreferredDateTimeFormat(rawValue)
-    ? rawValue
-    : formatDateTime(normalized);
-  return { normalized, inputValue };
-};
-
-const buildMinimumEndDate = (draft) => {
-  const { startDatetime, duration, durationPeerReview } = draft;
-  const durationVal = parsePositiveInt(duration);
-  const durationPeerReviewVal = parsePositiveInt(durationPeerReview);
-  if (
-    !startDatetime ||
-    durationVal === null ||
-    durationPeerReviewVal === null
-  ) {
-    return null;
-  }
-  const start = new Date(startDatetime);
-  if (Number.isNaN(start.getTime())) return null;
-
-  const durationMs = (durationVal || 0) * 60 * 1000;
-  const durationPeerReviewMs = (durationPeerReviewVal || 0) * 60 * 1000;
-  return new Date(start.getTime() + durationMs + durationPeerReviewMs);
-};
-
-const formatDateTimeLocal = (dateValue) => {
-  const year = dateValue.getFullYear();
-  const month = String(dateValue.getMonth() + 1).padStart(2, '0');
-  const day = String(dateValue.getDate()).padStart(2, '0');
-  const hours = String(dateValue.getHours()).padStart(2, '0');
-  const minutes = String(dateValue.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
-const updateEndDateTime = (draft) => {
-  const minEndDate = buildMinimumEndDate(draft);
-  if (!minEndDate) return null;
-  const normalizedEnd = formatDateTimeLocal(minEndDate);
-  return {
-    endDatetime: normalizedEnd,
-    endDatetimeInput: formatDateTime(normalizedEnd),
-  };
-};
-
-const buildDefaultDateTimes = () => {
-  const now = new Date();
-  now.setSeconds(0, 0);
-  const endDate = new Date(now.getTime() + 30 * 60 * 1000);
-  const startIso = formatDateTimeLocal(now);
-  const endIso = formatDateTimeLocal(endDate);
-  return {
-    startDatetime: startIso,
-    startDatetimeInput: formatDateTime(startIso),
-    endDatetime: endIso,
-    endDatetimeInput: formatDateTime(endIso),
-  };
-};
-
 export default function NewChallengePage() {
-  const defaultDateTimes = buildDefaultDateTimes();
+  const defaultDateTimes = buildDefaultDateTimes({
+    durationMinutes: 30,
+    peerReviewMinutes: 30,
+  });
   const { isAuthorized } = useRoleGuard({
     allowedRoles: ['teacher', 'admin'],
   });
@@ -220,6 +80,9 @@ export default function NewChallengePage() {
     let nextChallenge = { ...challenge };
 
     if (name === 'startDatetime' || name === 'endDatetime') {
+      if (!isDateTimeInputWithinLimits(value)) {
+        return;
+      }
       const { normalized, inputValue } = resolveDateTimeInputValue(value);
       nextChallenge = {
         ...nextChallenge,
@@ -291,34 +154,76 @@ export default function NewChallengePage() {
     return dt.toISOString();
   };
 
+  const buildReadableError = ({ message, code }) => {
+    if (code === 'challenge_overlap') {
+      return {
+        message:
+          'This challenge overlaps another scheduled challenge. Choose a different time or keep it private.',
+        code,
+      };
+    }
+    if (!message) {
+      return { message: 'An unknown error occurred', code: null };
+    }
+    return { message, code: code || null };
+  };
+
+  const readErrorPayload = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const errorCode = payload?.error?.code || payload?.code || null;
+    if (payload?.error?.errors?.length > 0) {
+      return { message: payload.error.errors[0].message, code: errorCode };
+    }
+    if (payload?.errors?.length > 0) {
+      return { message: payload.errors[0].message, code: errorCode };
+    }
+    if (typeof payload?.message === 'string') {
+      return { message: payload.message, code: errorCode };
+    }
+    if (typeof payload?.error?.message === 'string') {
+      return { message: payload.error.message, code: errorCode };
+    }
+    return { message: null, code: errorCode };
+  };
+
   const parseCreateError = (result) => {
     const fallback = { message: 'An unknown error occurred', code: null };
-    if (!result?.message) return fallback;
-    if (typeof result.message !== 'string') {
-      return fallback;
-    }
-    if (!result.message.startsWith(Constants.NETWORK_RESPONSE_NOT_OK)) {
-      return { message: result.message, code: null };
-    }
-    const rawMessage = result.message.slice(
-      Constants.NETWORK_RESPONSE_NOT_OK.length
-    );
-    try {
-      const jsonError = JSON.parse(rawMessage);
-      const errorCode = jsonError?.error?.code || null;
-      if (jsonError?.error?.errors?.length > 0) {
-        return { message: jsonError.error.errors[0].message, code: errorCode };
+    if (!result) return fallback;
+
+    if (typeof result.message === 'string') {
+      if (!result.message.startsWith(Constants.NETWORK_RESPONSE_NOT_OK)) {
+        return buildReadableError({ message: result.message, code: null });
       }
-      if (jsonError?.message) {
-        return { message: jsonError.message, code: errorCode };
+      const rawMessage = result.message.slice(
+        Constants.NETWORK_RESPONSE_NOT_OK.length
+      );
+      try {
+        const jsonError = JSON.parse(rawMessage);
+        return buildReadableError(readErrorPayload(jsonError) || fallback);
+      } catch {
+        return fallback;
       }
-      if (jsonError?.error?.message) {
-        return { message: jsonError.error.message, code: errorCode };
-      }
-      return fallback;
-    } catch {
-      return { message: fallback.message, code: null };
     }
+
+    const payloads = [];
+    if (result.details && typeof result.details === 'object') {
+      payloads.push(result.details);
+    }
+    if (result.error && typeof result.error === 'object') {
+      payloads.push({ error: result.error });
+    }
+    if (result.message && typeof result.message === 'object') {
+      payloads.push({ error: result.message });
+    }
+
+    const parsed = payloads
+      .map((payload) => readErrorPayload(payload))
+      .find((entry) => entry?.message || entry?.code);
+    if (parsed) {
+      return buildReadableError(parsed);
+    }
+
+    return fallback;
   };
 
   useEffect(() => {
@@ -639,7 +544,7 @@ export default function NewChallengePage() {
           <div className={styles.row}>
             <div className={styles.field}>
               <label htmlFor='duration'>
-                Duration (min)
+                Coding Phase Duration (min)
                 <input
                   id='duration'
                   type='number'
@@ -654,7 +559,7 @@ export default function NewChallengePage() {
             </div>
             <div className={styles.field}>
               <label htmlFor='durationPeerReview'>
-                Duration Peer Review (min)
+                Duration Peer Review Duration (min)
                 <input
                   id='durationPeerReview'
                   type='number'
