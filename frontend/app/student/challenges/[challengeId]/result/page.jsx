@@ -19,7 +19,8 @@ import {
   TableRow,
 } from '#components/common/Table';
 import useChallenge from '#js/useChallenge';
-import { useAppSelector } from '#js/store/hooks';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setSolutionFeedbackVisibility } from '#js/store/slices/ui';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
@@ -44,6 +45,16 @@ const renderValue = (value) => (
   <span className='whitespace-pre-wrap'>{formatValue(value)}</span>
 );
 
+const getTestFailureDetails = (result) => {
+  if (!result || result.passed) return null;
+  if (result.error) return result.error;
+  if (result.stderr) return result.stderr;
+  if (typeof result.exitCode === 'number' && result.exitCode !== 0) {
+    return `Execution failed with exit code ${result.exitCode}.`;
+  }
+  return 'Output did not match the expected result.';
+};
+
 const buildTestKey = (result) => {
   if (Number.isInteger(result?.testIndex)) return `private-${result.testIndex}`;
   return JSON.stringify({
@@ -56,6 +67,7 @@ const buildTestKey = (result) => {
 export default function ChallengeResultPage() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const durationContext = useDuration();
   const challengeStatus = durationContext?.status;
   const hasChallengeStatus =
@@ -68,8 +80,17 @@ export default function ChallengeResultPage() {
     loading: authLoading,
     isLoggedIn,
   } = useAppSelector((state) => state.auth);
+  const solutionFeedbackVisibility = useAppSelector(
+    (state) => state.ui.solutionFeedbackVisibility
+  );
   const studentId = user?.id;
   const challengeId = params?.challengeId;
+  const solutionFeedbackKey = challengeId ? String(challengeId) : null;
+  const isSolutionFeedbackOpen = Boolean(
+    studentId &&
+    solutionFeedbackKey &&
+    solutionFeedbackVisibility?.[studentId]?.[solutionFeedbackKey]
+  );
   const { getChallengeResults } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
@@ -306,6 +327,9 @@ export default function ChallengeResultPage() {
   const isFullyEnded =
     challenge?.status === ChallengeStatus.ENDED_PHASE_TWO && hasPhaseTwoEnded;
   const studentSubmission = resultData?.studentSubmission || null;
+  const publicResults = Array.isArray(studentSubmission?.publicTestResults)
+    ? studentSubmission.publicTestResults
+    : [];
   const privateResults = Array.isArray(studentSubmission?.privateTestResults)
     ? studentSubmission.privateTestResults
     : [];
@@ -320,6 +344,20 @@ export default function ChallengeResultPage() {
   const hasPeerReviewTests = peerReviewTests.some(
     (review) => Array.isArray(review.tests) && review.tests.length > 0
   );
+  const feedbackSectionId = solutionFeedbackKey
+    ? `solution-feedback-${solutionFeedbackKey}`
+    : 'solution-feedback';
+
+  const handleToggleSolutionFeedback = () => {
+    if (!studentId || !solutionFeedbackKey) return;
+    dispatch(
+      setSolutionFeedbackVisibility({
+        userId: studentId,
+        challengeId: solutionFeedbackKey,
+        value: !isSolutionFeedbackOpen,
+      })
+    );
+  };
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -342,68 +380,154 @@ export default function ChallengeResultPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
-          {!studentSubmission && (
-            <p className='text-sm text-muted-foreground'>
-              You did not submit a solution for this challenge.
-            </p>
-          )}
+          <Button
+            variant='outline'
+            onClick={handleToggleSolutionFeedback}
+            aria-expanded={isSolutionFeedbackOpen}
+            aria-controls={feedbackSectionId}
+          >
+            {isSolutionFeedbackOpen
+              ? 'Hide Your Solution & Feedback'
+              : 'View Your Solution & Feedback'}
+          </Button>
 
-          {studentSubmission && (
-            <>
-              <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                  Submitted at {formatDateTime(studentSubmission.createdAt)}
+          {isSolutionFeedbackOpen && (
+            <div id={feedbackSectionId} className='space-y-4'>
+              {!studentSubmission && (
+                <p className='text-sm text-muted-foreground'>
+                  You did not submit a solution for this challenge.
                 </p>
-                <pre className='max-h-[320px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-sm'>
-                  {studentSubmission.code || ''}
-                </pre>
-              </div>
+              )}
 
-              <div>
-                <p className='text-sm font-semibold'>Private test results</p>
-                {privateResults.length === 0 ? (
-                  <p className='text-xs text-muted-foreground mt-2'>
-                    No private test results available.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Expected output</TableHead>
-                        <TableHead>Your output</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {privateResults.map((result, index) => {
-                        const displayIndex = Number.isInteger(result.testIndex)
-                          ? result.testIndex + 1
-                          : index + 1;
-                        const statusLabel = result.passed ? 'Passed' : 'Failed';
-                        const statusClass = result.passed
-                          ? 'text-emerald-600'
-                          : 'text-red-600';
-                        return (
-                          <TableRow key={buildTestKey(result)}>
-                            <TableCell>Test {displayIndex}</TableCell>
-                            <TableCell>
-                              {renderValue(result.expectedOutput)}
-                            </TableCell>
-                            <TableCell>
-                              {renderValue(result.actualOutput)}
-                            </TableCell>
-                            <TableCell className={statusClass}>
-                              {statusLabel}
-                            </TableCell>
+              {studentSubmission && (
+                <>
+                  <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'>
+                    <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                      Submitted at {formatDateTime(studentSubmission.createdAt)}
+                    </p>
+                    <pre className='w-full overflow-auto rounded-lg border border-border bg-background p-4 text-sm whitespace-pre-wrap'>
+                      {normalizeMultilineValue(studentSubmission.code || '')}
+                    </pre>
+                  </div>
+
+                  <div>
+                    <p className='text-sm font-semibold'>Public test results</p>
+                    {publicResults.length === 0 ? (
+                      <p className='text-xs text-muted-foreground mt-2'>
+                        No public test results available.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Test</TableHead>
+                            <TableHead>Expected output</TableHead>
+                            <TableHead>Your output</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Feedback</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            </>
+                        </TableHeader>
+                        <TableBody>
+                          {publicResults.map((result, index) => {
+                            const displayIndex = Number.isInteger(
+                              result.testIndex
+                            )
+                              ? result.testIndex + 1
+                              : index + 1;
+                            const statusLabel = result.passed
+                              ? 'Passed'
+                              : 'Failed';
+                            const statusClass = result.passed
+                              ? 'text-emerald-600'
+                              : 'text-red-600';
+                            const failureDetails =
+                              getTestFailureDetails(result);
+                            return (
+                              <TableRow key={buildTestKey(result)}>
+                                <TableCell>Test {displayIndex}</TableCell>
+                                <TableCell>
+                                  {renderValue(result.expectedOutput)}
+                                </TableCell>
+                                <TableCell>
+                                  {renderValue(result.actualOutput)}
+                                </TableCell>
+                                <TableCell className={statusClass}>
+                                  {statusLabel}
+                                </TableCell>
+                                <TableCell>
+                                  {failureDetails
+                                    ? renderValue(failureDetails)
+                                    : '—'}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className='text-sm font-semibold'>
+                      Private test results
+                    </p>
+                    {privateResults.length === 0 ? (
+                      <p className='text-xs text-muted-foreground mt-2'>
+                        No private test results available.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Test</TableHead>
+                            <TableHead>Expected output</TableHead>
+                            <TableHead>Your output</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Feedback</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {privateResults.map((result, index) => {
+                            const displayIndex = Number.isInteger(
+                              result.testIndex
+                            )
+                              ? result.testIndex + 1
+                              : index + 1;
+                            const statusLabel = result.passed
+                              ? 'Passed'
+                              : 'Failed';
+                            const statusClass = result.passed
+                              ? 'text-emerald-600'
+                              : 'text-red-600';
+                            const failureDetails =
+                              getTestFailureDetails(result);
+                            return (
+                              <TableRow key={buildTestKey(result)}>
+                                <TableCell>Test {displayIndex}</TableCell>
+                                <TableCell>
+                                  {renderValue(result.expectedOutput)}
+                                </TableCell>
+                                <TableCell>
+                                  {renderValue(result.actualOutput)}
+                                </TableCell>
+                                <TableCell className={statusClass}>
+                                  {statusLabel}
+                                </TableCell>
+                                <TableCell>
+                                  {failureDetails
+                                    ? renderValue(failureDetails)
+                                    : '—'}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
