@@ -11,20 +11,15 @@ import { VoteType } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 
 /**
- * RT-215: Calcola il Code Review Score per tutti i partecipanti di una challenge.
- *
- * Fasi del processo:
- * 1. Reference Check: Valida i test case forniti nei voti "INCORRECT" contro la soluzione del docente.
- * 2. Truth Inference: Determina se ogni sottomissione è corretta o bacata (Teacher Tests + Valid Peer Tests).
- * 3. Reviewer Grading: Calcola il punteggio (0-50) per ogni revisore basandosi sulla formula RT-9.
+ * CALCOLO COMPLETO (RT-215 + RT-216)
+ * Calcola Code Review Score e Implementation Score per tutti i partecipanti.
  */
 export async function calculateChallengeScores(challengeId) {
-  logger.info(`Starting score calculation for Challenge ${challengeId}`);
+  logger.info(`Starting FULL score calculation for Challenge ${challengeId}`);
 
   // ---------------------------------------------------------
   // 1. DATA FETCHING
   // ---------------------------------------------------------
-
   const challenge = await Challenge.findByPk(challengeId, {
     include: [
       {
@@ -37,7 +32,7 @@ export async function calculateChallengeScores(challengeId) {
 
   if (!challenge) throw new Error(`Challenge ${challengeId} not found`);
 
-  // Mappa MatchSettingID -> Oggetto MatchSetting (per accedere a reference_solution)
+  // Mappa MatchSettingID -> Oggetto MatchSetting (per reference_solution)
   const matchSettingsMap = new Map();
   challenge.challengeMatchSettings.forEach((cms) => {
     if (cms.matchSetting) {
@@ -45,7 +40,7 @@ export async function calculateChallengeScores(challengeId) {
     }
   });
 
-  // Recupera tutte le Submission FINALI della challenge
+  // Recupera tutte le Submission FINALI (include i dati del Match)
   const submissions = await Submission.findAll({
     where: { isFinal: true },
     include: [
@@ -67,21 +62,13 @@ export async function calculateChallengeScores(challengeId) {
       submissionId: { [Op.in]: submissions.map((s) => s.id) },
     },
     include: [
-      {
-        model: PeerReviewVote,
-        as: 'vote',
-        required: false, // Includi anche se non c'è ancora il voto (caso limite)
-      },
-      {
-        model: Submission,
-        as: 'submission',
-      },
+      { model: PeerReviewVote, as: 'vote', required: false },
+      { model: Submission, as: 'submission' },
     ],
   });
 
   // ---------------------------------------------------------
   // FASE A: VALIDAZIONE TEST CASE (Reference Check)
-  // I test case nei voti "INCORRECT" sono validi? (producono l'output atteso sulla soluzione docente?)
   // ---------------------------------------------------------
 
   const incorrectVotesWithTests = assignments
@@ -90,7 +77,6 @@ export async function calculateChallengeScores(challengeId) {
       (vote) => vote && vote.vote === VoteType.INCORRECT && vote.testCaseInput
     );
 
-  // Raggruppa per MatchSetting per ottimizzare le compilazioni (batch execution)
   const votesByMatchSetting = new Map();
 
   for (const vote of incorrectVotesWithTests) {
@@ -99,7 +85,19 @@ export async function calculateChallengeScores(challengeId) {
     );
     if (!assignment) continue;
 
-    const cmsId = assignment.submission?.match?.challengeMatchSettingId;
+    // FIX: Usiamo l'array 'submissions' scaricato all'inizio
+    const fullSubmission = submissions.find(
+      (s) => s.id === assignment.submissionId
+    );
+
+    if (!fullSubmission || !fullSubmission.match) {
+      logger.warn(
+        `Could not find submission or match info for assignment ${assignment.id}`
+      );
+      continue;
+    }
+
+    const cmsId = fullSubmission.match.challengeMatchSettingId;
     const matchSetting = matchSettingsMap.get(cmsId);
 
     if (matchSetting) {
@@ -113,8 +111,12 @@ export async function calculateChallengeScores(challengeId) {
     }
   }
 
+  logger.info(
+    `Votes to validate grouped by MatchSetting: ${votesByMatchSetting.size}`
+  );
+
+  // Eseguiamo i test contro la Reference Solution
   for (const { setting, votes } of votesByMatchSetting.values()) {
-    // [RT-215] Usa referenceSolution dallo schema DB
     const referenceCode = setting.referenceSolution;
 
     if (!referenceCode) {
@@ -124,30 +126,39 @@ export async function calculateChallengeScores(challengeId) {
       continue;
     }
 
-    // Prepara i test case. Nota: passiamo input e ci aspettiamo output nullo per catturare quello reale.
     const testCases = votes.map((v) => ({
       input: v.testCaseInput,
-      expectedOutput: v.expectedOutput, // Passiamo l'expected per info, ma executeCodeTests ricalcola
+      expectedOutput: v.expectedOutput,
     }));
 
-    // Esegui contro la soluzione del docente
     const execResult = await executeCodeTests({
       code: referenceCode,
-      language: 'cpp', // Assunto default, o prendere da setting.language
+      language: 'cpp',
       testCases: testCases,
-      userId: null, // System execution
+      userId: null,
     });
 
     if (execResult.isCompiled) {
       await Promise.all(
         votes.map(async (vote, index) => {
           const result = execResult.testResults[index];
-          const producedOutput = (result.actualOutput || '').trim();
-          const expectedOutput = (vote.expectedOutput || '').trim();
+
+          // --- FIX SICUREZZA TRIM ---
+          let producedOutput = result.actualOutput;
+          if (typeof producedOutput !== 'string') {
+            producedOutput = JSON.stringify(producedOutput);
+          }
+          producedOutput = (producedOutput || '').trim();
+
+          let expectedOutput = vote.expectedOutput;
+          if (typeof expectedOutput !== 'string') {
+            expectedOutput = JSON.stringify(expectedOutput);
+          }
+          expectedOutput = (expectedOutput || '').trim();
+          // --------------------------
 
           const isOutputCorrect = producedOutput === expectedOutput;
 
-          // [RT-215] Persistenza risultati intermedi su PeerReviewVote
           await vote.update({
             referenceOutput: producedOutput,
             isExpectedOutputCorrect: isOutputCorrect,
@@ -163,47 +174,59 @@ export async function calculateChallengeScores(challengeId) {
 
   // ---------------------------------------------------------
   // FASE B: DETERMINA LA VERITÀ (Ground Truth)
-  // Una submission è corretta sse passa i Teacher Tests E nessun Valid Peer Test la rompe.
   // ---------------------------------------------------------
-
-  const submissionTruthMap = new Map(); // submissionId -> boolean (isUltimatelyCorrect)
+  const submissionTruthMap = new Map();
+  const implementationStatsMap = new Map();
 
   for (const submission of submissions) {
-    // 1. Check Teacher Tests (da privateTestResults)
-    let passedTeacherTests = false;
+    // --- 1. Teacher Tests ---
+    let passedTeacherTests = 0;
+    let totalTeacherTests = 0;
+    const cmsId = submission.match?.challengeMatchSettingId;
+    const matchSetting = matchSettingsMap.get(cmsId);
+
+    let teacherResults = [];
     try {
-      const results =
+      teacherResults =
         typeof submission.privateTestResults === 'string'
           ? JSON.parse(submission.privateTestResults)
-          : submission.privateTestResults;
-
-      // Logica: se esiste l'array e tutti i test sono passati
-      if (Array.isArray(results) && results.length > 0) {
-        passedTeacherTests = results.every((r) => r.passed);
-      }
+          : submission.privateTestResults || [];
     } catch (e) {
-      passedTeacherTests = false;
+      teacherResults = [];
     }
 
-    // 2. Check Valid Peer Tests (Killer Tests)
+    if (Array.isArray(teacherResults)) {
+      totalTeacherTests = teacherResults.length;
+      passedTeacherTests = teacherResults.filter((r) => r.passed).length;
+    }
+
+    if (totalTeacherTests === 0 && matchSetting?.privateTests) {
+      const tests = Array.isArray(matchSetting.privateTests)
+        ? matchSetting.privateTests
+        : [];
+      totalTeacherTests = tests.length;
+    }
+
+    const isTeacherPassed =
+      totalTeacherTests > 0 && passedTeacherTests === totalTeacherTests;
+
+    // --- 2. Valid Peer Tests (Killer Tests) ---
     const relevantAssignments = assignments.filter(
       (a) => a.submissionId === submission.id
     );
-
-    // Prendiamo solo i voti INCORRECT che hanno superato la FASE A (test case valido)
     const killerVotes = relevantAssignments
       .map((a) => a.vote)
       .filter(
         (v) => v && v.vote === VoteType.INCORRECT && v.isExpectedOutputCorrect
       );
 
-    let failedPeerTest = false;
+    let failedPeerTestCount = 0;
+    let totalValidPeerTests = killerVotes.length;
 
     if (killerVotes.length > 0) {
-      // Eseguiamo il codice dello studente contro questi test "killer"
       const testCases = killerVotes.map((v) => ({
         input: v.testCaseInput,
-        expectedOutput: v.expectedOutput, // Questo è l'output "giusto" validato dal docente
+        expectedOutput: v.expectedOutput,
       }));
 
       const execResult = await executeCodeTests({
@@ -214,41 +237,49 @@ export async function calculateChallengeScores(challengeId) {
       });
 
       if (execResult.isCompiled) {
+        // FIX: Usare 'killerVotes', NON 'votes' (che non esiste qui)
         await Promise.all(
           killerVotes.map(async (vote, index) => {
             const result = execResult.testResults[index];
             const passed = result.passed; // true se output studente == expectedOutput
 
-            // Se passed == false, lo studente ha fallito un test valido -> BUG PROVATO
-            const bugProven = !passed;
-            if (bugProven) failedPeerTest = true;
+            // --- FIX SICUREZZA SALVATAGGIO ---
+            let actualOutputToSave = result.actualOutput;
+            if (typeof actualOutputToSave !== 'string') {
+              actualOutputToSave = JSON.stringify(actualOutputToSave);
+            }
+            // ---------------------------------
+
+            if (!passed) failedPeerTestCount++;
 
             await vote.update({
-              actualOutput: result.actualOutput,
-              isBugProven: bugProven,
-              isVoteCorrect: bugProven, // Il voto "Incorrect" è giusto solo se il bug è reale
+              actualOutput: actualOutputToSave,
+              isBugProven: !passed,
+              isVoteCorrect: !passed,
             });
           })
         );
       }
     }
 
-    // Definizione finale di correttezza
-    const isUltimatelyCorrect = passedTeacherTests && !failedPeerTest;
+    // Salva stats per RT-216
+    implementationStatsMap.set(submission.id, {
+      passedTeacher: passedTeacherTests,
+      totalTeacher: totalTeacherTests,
+      failedPeer: failedPeerTestCount,
+      totalPeer: totalValidPeerTests,
+    });
+
+    const isUltimatelyCorrect = isTeacherPassed && failedPeerTestCount === 0;
     submissionTruthMap.set(submission.id, isUltimatelyCorrect);
   }
 
-  // ---------------------------------------------------------
-  // FASE B-2: Aggiorna isVoteCorrect per gli ENDORSEMENT
-  // Se ho votato CORRECT, ho ragione solo se la submission è davvero corretta.
-  // ---------------------------------------------------------
+  // Aggiorna Endorsements (RT-215 Fase B-2)
   const endorsementVotes = assignments
     .map((a) => a.vote)
     .filter((v) => v && v.vote === VoteType.CORRECT);
-
   await Promise.all(
     endorsementVotes.map(async (vote) => {
-      // Trova l'assignment padre per risalire alla submission
       const assignment = assignments.find(
         (a) => a.id === vote.peerReviewAssignmentId
       );
@@ -256,21 +287,16 @@ export async function calculateChallengeScores(challengeId) {
         const isSubmissionCorrect = submissionTruthMap.get(
           assignment.submissionId
         );
-        await vote.update({
-          isVoteCorrect: isSubmissionCorrect, // True se ho detto "Giusto" ed era giusto
-        });
+        await vote.update({ isVoteCorrect: isSubmissionCorrect });
       }
     })
   );
 
   // ---------------------------------------------------------
-  // FASE C: CALCOLO PUNTEGGI (Formula RT-9)
-  // Score = 50 * ((2E + 1C - 0.5W) / (2Itotal + 1Ctotal))
+  // FASE C: CALCOLO SCORE
   // ---------------------------------------------------------
-
   const results = [];
 
-  // Raggruppa per Reviewer
   const reviewerAssignmentsMap = new Map();
   assignments.forEach((a) => {
     if (!reviewerAssignmentsMap.has(a.reviewerId)) {
@@ -280,14 +306,12 @@ export async function calculateChallengeScores(challengeId) {
   });
 
   for (const [reviewerId, revAssignments] of reviewerAssignmentsMap) {
-    let E = 0; // Correct Error Spotting (Weight 2)
-    let C = 0; // Correct Endorsement (Weight 1)
-    let W = 0; // Incorrect Vote (Weight -0.5)
-    let I_total = 0; // Totale submissioni scorrette nel set assegnato
-    let C_total = 0; // Totale submissioni corrette nel set assegnato
+    let E = 0,
+      C = 0,
+      W = 0,
+      I_total = 0,
+      C_total = 0;
 
-    // Recuperiamo il submissionId del revisore stesso per popolare submission_score_breakdown dopo
-    // (Assumiamo che il revisore sia anche uno studente che ha sottomesso)
     const reviewerSubmission = submissions.find(
       (s) => s.challengeParticipantId === reviewerId
     );
@@ -296,57 +320,58 @@ export async function calculateChallengeScores(challengeId) {
       const isSubmissionCorrect = submissionTruthMap.get(
         assignment.submissionId
       );
-
-      // Calcolo denominatori (Il "potenziale" del set assegnato)
       if (isSubmissionCorrect) C_total++;
       else I_total++;
 
       const vote = assignment.vote;
-
-      // Astensioni: contano nei totali (I_total/C_total) ma non danno punti (W=0)
       if (!vote || vote.vote === VoteType.ABSTAIN) continue;
 
       if (vote.vote === VoteType.CORRECT) {
-        if (vote.isVoteCorrect) {
-          // Già calcolato in Fase B-2 (isSubmissionCorrect === true)
-          C++;
-        } else {
-          W++;
-        }
+        vote.isVoteCorrect ? C++ : W++;
       } else if (vote.vote === VoteType.INCORRECT) {
-        // E (Error Spotting) richiede:
-        // 1. Test case valido (isExpectedOutputCorrect)
-        // 2. Bug dimostrato (isVoteCorrect/isBugProven)
-        if (vote.isExpectedOutputCorrect && vote.isVoteCorrect) {
-          E++;
-        } else {
-          W++;
-        }
+        vote.isExpectedOutputCorrect && vote.isVoteCorrect ? E++ : W++;
       }
     }
 
-    // Calcolo finale formula
     const numerator = 2 * E + 1 * C - 0.5 * W;
     const denominator = 2 * I_total + 1 * C_total;
+    let rawReviewScore = denominator > 0 ? 50 * (numerator / denominator) : 0;
+    const finalReviewScore = Math.max(0, Math.min(50, rawReviewScore));
 
-    let rawScore = 0;
-    if (denominator > 0) {
-      rawScore = 50 * (numerator / denominator);
+    // CALCOLO IMPLEMENTATION SCORE (RT-216)
+    let implementationScore = 0;
+
+    if (reviewerSubmission) {
+      const stats = implementationStatsMap.get(reviewerSubmission.id);
+      if (stats) {
+        let baseScore = 0;
+        if (stats.totalTeacher > 0) {
+          baseScore = (stats.passedTeacher / stats.totalTeacher) * 50;
+        }
+
+        let penalty = 0;
+        if (stats.totalPeer > 0) {
+          const rawPenalty = (stats.failedPeer / stats.totalPeer) * 50;
+          const maxPenalty = 50 / 3;
+          penalty = Math.min(maxPenalty, rawPenalty);
+        }
+
+        implementationScore = baseScore - penalty;
+        implementationScore = Math.max(0, implementationScore);
+      }
     }
-
-    // Clamp tra 0 e 50
-    const finalScore = Math.max(0, Math.min(50, rawScore));
 
     results.push({
       participantId: reviewerId,
-      submissionId: reviewerSubmission ? reviewerSubmission.id : null, // Utile per il salvataggio
-      codeReviewScore: parseFloat(finalScore.toFixed(2)), // Arrotondamento a 2 decimali
-      stats: { E, C, W, I_total, C_total }, // Utile per debug o UI
+      submissionId: reviewerSubmission ? reviewerSubmission.id : null,
+      codeReviewScore: parseFloat(finalReviewScore.toFixed(2)),
+      implementationScore: parseFloat(implementationScore.toFixed(2)),
+      stats: { E, C, W, I_total, C_total },
     });
   }
 
   logger.info(
-    `Calculated scores for ${results.length} reviewers in Challenge ${challengeId}`
+    `Calculated scores for ${results.length} participants in Challenge ${challengeId}`
   );
   return results;
 }

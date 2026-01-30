@@ -32,6 +32,8 @@ import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
 import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
+import { calculateChallengeScores } from '#root/services/scoring-service.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 
 const router = Router();
 
@@ -2359,5 +2361,51 @@ router.get('/challenges/:challengeId/scoring-status', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.post(
+  '/challenges/:challengeId/test-scoring-manual',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      console.log(`Manual trigger scoring for challenge ${challengeId}...`);
+
+      // 1. Lancia il calcolo (RT-215 Logic)
+      const scores = await calculateChallengeScores(challengeId);
+
+      // 2. Simula il salvataggio (lo stesso codice dello scheduler)
+      if (scores && scores.length > 0) {
+        await Promise.all(
+          scores.map(async (scoreItem) => {
+            if (scoreItem.submissionId) {
+              const [breakdown, created] =
+                await SubmissionScoreBreakdown.findOrCreate({
+                  where: { submissionId: scoreItem.submissionId },
+                  defaults: {
+                    codeReviewScore: scoreItem.codeReviewScore,
+                    implementationScore: 0,
+                    totalScore: 0,
+                  },
+                });
+              if (!created) {
+                await breakdown.update({
+                  codeReviewScore: scoreItem.codeReviewScore,
+                });
+              }
+            }
+          })
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: 'Calculation executed',
+        results: scores,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
 
 export default router;
