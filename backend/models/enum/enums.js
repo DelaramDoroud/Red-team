@@ -33,3 +33,22 @@ export const EvaluationStatus = {
   RUNTIME_ERROR: 'runtime_error',
   TIMEOUT: 'timeout',
 };
+
+export const BadgeCategory = {
+  CHALLENGE_MILESTONE: 'challenge_milestone',
+  REVIEW_MILESTONE: 'review_milestone',
+  REVIEW_QUALITY: 'review_quality',
+};
+
+export const BadgeLevel = {
+  BRONZE: 'bronze',
+  SILVER: 'silver',
+  GOLD: 'gold',
+};
+
+export const BadgeMetric = {
+  CHALLENGES_COMPLETED: 'challenges_completed',
+  REVIEWS_COMPLETED: 'reviews_completed',
+  CORRECT_REVIEWS: 'correct_reviews',
+  ERRORS_FOUND: 'errors_found',
+};

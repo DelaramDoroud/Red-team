@@ -55,26 +55,26 @@ export async function down({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
 
   try {
-    await queryInterface.removeColumn('submission', 'reference_output', {
+    await queryInterface.removeColumn('peer_review_vote', 'reference_output', {
       transaction,
     });
-    await queryInterface.removeColumn('submission', 'actual_output', {
+    await queryInterface.removeColumn('peer_review_vote', 'actual_output', {
       transaction,
     });
     await queryInterface.removeColumn(
-      'submission',
+      'peer_review_vote',
       'is_expected_output_correct',
       {
         transaction,
       }
     );
-    await queryInterface.removeColumn('submission', 'is_bug_proven', {
+    await queryInterface.removeColumn('peer_review_vote', 'is_bug_proven', {
       transaction,
     });
-    await queryInterface.removeColumn('submission', 'is_vote_correct', {
+    await queryInterface.removeColumn('peer_review_vote', 'is_vote_correct', {
       transaction,
     });
-    await queryInterface.removeColumn('submission', 'evaluation_status', {
+    await queryInterface.removeColumn('peer_review_vote', 'evaluation_status', {
       transaction,
     });
     await transaction.commit();
