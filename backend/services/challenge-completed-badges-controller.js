@@ -12,6 +12,12 @@ import {
   BadgeMetric,
 } from '#root/models/enum/enums.js';
 
+/**
+ * Counts the number of challenges completed by a student.
+ * A challenge is considered completed if:
+ * - There is a final submission with status PROBABLY_CORRECT
+ * - At least one peer review vote exists (ABSTAIN is allowed)
+ */
 export async function countCompletedChallenges(studentId) {
   const participations = await ChallengeParticipant.findAll({
     where: { studentId },
@@ -55,16 +61,22 @@ export async function countCompletedChallenges(studentId) {
   });
   if (!votes.length) return 0;
 
+  // Only participants with submissions that passed all checks are considered completed
   const completedParticipantIds = new Set(
     submissions.map((s) => s.challengeParticipantId)
   );
-
   return completedParticipantIds.size;
 }
 
+/**
+ * Awards milestone badges to a student if thresholds are reached.
+ * Each milestone badge can be awarded only once.
+ * Returns a flag and the list of badges awarded in this call.
+ */
 export async function awardBadgeIfEligible(studentId) {
   const completedChallenges = await countCompletedChallenges(studentId);
 
+  // Fetch all milestone badges that match the completed count
   const milestoneBadges = await Badge.findAll({
     where: {
       category: BadgeCategory.CHALLENGE_MILESTONE,
@@ -77,16 +89,18 @@ export async function awardBadgeIfEligible(studentId) {
   const awarded = [];
 
   for (const badge of milestoneBadges) {
+    // Assign the badge only if the student hasn't earned it yet
     const [, created] = await StudentBadge.findOrCreate({
       where: { studentId, badgeId: badge.id },
       defaults: { earnedAt: new Date() },
     });
-    if (created) awarded.push(badge.name);
+
+    if (created) awarded.push(badge.name); // store newly unlocked badges
   }
 
   return {
-    badgeUnlocked: awarded.length > 0,
-    unlockedBadges: awarded,
-    completedChallenges,
+    badgeUnlocked: awarded.length > 0, // UI trigger flag
+    unlockedBadges: awarded, // names of badges just awarded
+    completedChallenges, // total completed challenges for reference
   };
 }
