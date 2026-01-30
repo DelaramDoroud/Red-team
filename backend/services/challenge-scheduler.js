@@ -3,7 +3,7 @@ import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 
 const phaseOneTimers = new Map();
 const phaseTwoTimers = new Map();
@@ -76,9 +76,11 @@ const markPhaseTwoEnded = async (challengeId) => {
     return;
   }
 
+  // 1. Finalizza Peer Review
   const result = await finalizePeerReviewChallenge({ challengeId });
 
   if (result.status === 'ok' && result.challenge) {
+    // Notifica "Pending"
     broadcastEvent({
       event: 'challenge-updated',
       data: {
@@ -89,6 +91,7 @@ const markPhaseTwoEnded = async (challengeId) => {
     });
 
     try {
+      // 2. Imposta stato COMPUTING
       await Challenge.update(
         { scoringStatus: 'computing' },
         { where: { id: challengeId } }
@@ -103,21 +106,43 @@ const markPhaseTwoEnded = async (challengeId) => {
         },
       });
 
-      // 3. CALCOLO PUNTEGGI (Core Logic RT-215)
-      // Chiamiamo il servizio che hai creato in scoring-service.js
+      // ----------------------------------------------------------------
+      // 3. CALCOLO E SALVATAGGIO (RT-215)
+      // ----------------------------------------------------------------
+
+      // Calcola i voti in memoria
       const scores = await calculateChallengeScores(challengeId);
 
+      // Salva i risultati nella tabella submission_score_breakdown
       if (scores && scores.length > 0) {
         await Promise.all(
-          scores.map((score) =>
-            ChallengeParticipant.update(
-              { codeReviewScore: score.codeReviewScore },
-              { where: { id: score.participantId } }
-            )
-          )
+          scores.map(async (scoreItem) => {
+            // Salviamo il voto SOLO se l'utente ha una submission (lo schema richiede submission_id)
+            if (scoreItem.submissionId) {
+              // Cerca se esiste già un record (es. calcoli parziali precedenti) o crealo
+              const [breakdown, created] =
+                await SubmissionScoreBreakdown.findOrCreate({
+                  where: { submissionId: scoreItem.submissionId },
+                  defaults: {
+                    codeReviewScore: scoreItem.codeReviewScore,
+                    implementationScore: 0, // Sarà calcolato nel RT-216
+                    totalScore: 0,
+                  },
+                });
+
+              // Se esisteva già, aggiorniamo solo la parte di Code Review
+              if (!created) {
+                await breakdown.update({
+                  codeReviewScore: scoreItem.codeReviewScore,
+                });
+              }
+            }
+          })
         );
       }
+      // ----------------------------------------------------------------
 
+      // 4. Imposta stato COMPLETED
       await Challenge.update(
         { scoringStatus: 'completed' },
         { where: { id: challengeId } }
@@ -131,10 +156,6 @@ const markPhaseTwoEnded = async (challengeId) => {
           scoringStatus: 'completed',
         },
       });
-
-      console.log(
-        `Scoring completed successfully for challenge ${challengeId}`
-      );
     } catch (error) {
       console.error(
         `Error computing scores for challenge ${challengeId}:`,
