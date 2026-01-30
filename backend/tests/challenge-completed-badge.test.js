@@ -18,10 +18,11 @@ import {
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
-
 import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
+import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 
 /* ------------------------------------------------------------------ */
+/* Helper: create a completed challenge for a student */
 const createCompletedChallenge = async (student, suffix) => {
   const matchSetting = await MatchSetting.create({
     problemTitle: `Problem ${suffix}`,
@@ -75,11 +76,12 @@ const createCompletedChallenge = async (student, suffix) => {
     peerReviewAssignmentId: assignment.id,
     vote: VoteType.ABSTAIN,
   });
+
+  return challenge; // return the challenge to finalize later
 };
 
 /* ------------------------------------------------------------------ */
 /* Test suite */
-/* ------------------------------------------------------------------ */
 describe('Milestone Badge Service', () => {
   beforeAll(async () => {
     const safeSync = async (model) => {
@@ -118,7 +120,7 @@ describe('Milestone Badge Service', () => {
     await User.destroy({ where: {} });
   });
 
-  it('awards multiple milestones correctly', async () => {
+  it('awards multiple milestones correctly via direct badge service', async () => {
     const student = await User.create({
       username: 'all_milestones',
       email: 'all@test.com',
@@ -131,11 +133,45 @@ describe('Milestone Badge Service', () => {
     }
 
     const result = await awardBadgeIfEligible(student.id);
-
     const badges = result.unlockedBadges;
 
     expect(badges).toContain('First Steps'); // challenge_3
     expect(badges).toContain('On a Roll'); // challenge_5
     expect(badges).toContain('Challenge Veteran'); // challenge_10
+  });
+
+  it('finalizes peer review and triggers badge awarding', async () => {
+    const student = await User.create({
+      username: 'peer_review_student',
+      email: 'peer@test.com',
+      password: 'pw',
+      role: 'student',
+    });
+
+    const challenges = [];
+    for (let i = 0; i < 10; i++) {
+      const challenge = await createCompletedChallenge(student, i);
+      challenges.push(challenge);
+    }
+
+    // Pick one challenge to finalize
+    const challengeToFinalize = challenges[0];
+    const result = await finalizePeerReviewChallenge({
+      challengeId: challengeToFinalize.id,
+      allowEarly: true,
+    });
+
+    // Ensure challenge status is updated
+    expect(result.challenge.status).toBe(ChallengeStatus.ENDED_PHASE_TWO);
+
+    // Ensure badgeUnlocked flag is true and badgesAwarded includes our student
+    expect(result.badgeUnlocked).toBe(true);
+    const studentBadges = result.badgesAwarded.find(
+      (b) => b.studentId === student.id
+    );
+    expect(studentBadges).toBeDefined();
+    expect(studentBadges.unlockedBadges).toContain('First Steps');
+    expect(studentBadges.unlockedBadges).toContain('On a Roll');
+    expect(studentBadges.unlockedBadges).toContain('Challenge Veteran');
   });
 });
