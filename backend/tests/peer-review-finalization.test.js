@@ -132,7 +132,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   if (sequelize) await sequelize.close();
-});
+}, 300000);
 
 describe('Peer Review Finalization', () => {
   const createChallengeAndParticipants = async (
