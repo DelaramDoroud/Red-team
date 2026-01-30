@@ -8,6 +8,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
@@ -129,6 +130,77 @@ router.get('/challenges/for-student', async (req, res) => {
       order: Challenge.getDefaultOrder(),
     });
 
+    const endedChallengeIds = challenges
+      .filter((c) => c.status === ChallengeStatus.ENDED_PHASE_TWO)
+      .map((c) => c.id);
+
+    const resultsReadyMap = new Map();
+
+    if (endedChallengeIds.length > 0) {
+      const allMatches = await Match.findAll({
+        attributes: ['id'],
+        include: [
+          {
+            model: ChallengeMatchSetting,
+            as: 'challengeMatchSetting',
+            attributes: ['challengeId'],
+            where: { challengeId: { [Op.in]: endedChallengeIds } },
+          },
+        ],
+      });
+
+      const allFinalSubmissions = await Submission.findAll({
+        attributes: ['matchId'],
+        where: { isFinal: true },
+        include: [
+          {
+            model: Match,
+            as: 'match',
+            attributes: ['id'],
+            required: true,
+            include: [
+              {
+                model: ChallengeMatchSetting,
+                as: 'challengeMatchSetting',
+                attributes: ['challengeId'],
+                required: true,
+                where: { challengeId: { [Op.in]: endedChallengeIds } },
+              },
+            ],
+          },
+        ],
+      });
+
+      const matchesCountByChallenge = {};
+      const finalMatchIdsByChallenge = {};
+
+      allMatches.forEach((m) => {
+        const cId = m.challengeMatchSetting?.challengeId;
+        if (cId) {
+          matchesCountByChallenge[cId] =
+            (matchesCountByChallenge[cId] || 0) + 1;
+        }
+      });
+
+      allFinalSubmissions.forEach((s) => {
+        const cId = s.match?.challengeMatchSetting?.challengeId;
+        if (cId) {
+          if (!finalMatchIdsByChallenge[cId]) {
+            finalMatchIdsByChallenge[cId] = new Set();
+          }
+          finalMatchIdsByChallenge[cId].add(s.matchId);
+        }
+      });
+
+      endedChallengeIds.forEach((id) => {
+        const total = matchesCountByChallenge[id] || 0;
+        const final = finalMatchIdsByChallenge[id]
+          ? finalMatchIdsByChallenge[id].size
+          : 0;
+        resultsReadyMap.set(id, total > 0 && final === total);
+      });
+    }
+
     const participations = await ChallengeParticipant.findAll({
       where: { studentId },
       attributes: ['challengeId'],
@@ -148,6 +220,9 @@ router.get('/challenges/for-student', async (req, res) => {
       duration: challenge.duration,
       durationPeerReview: challenge.durationPeerReview,
       joined: joinedSet.has(challenge.id),
+      resultsReady: resultsReadyMap.has(challenge.id)
+        ? resultsReadyMap.get(challenge.id)
+        : false,
     }));
 
     return res.json({ success: true, data });
@@ -1977,7 +2052,12 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
     }
 
     let peerReviewTests = [];
+    let scoreBreakdown = null;
     if (isFullyEnded && studentSubmission) {
+      scoreBreakdown = await SubmissionScoreBreakdown.findOne({
+        where: { submissionId: studentSubmission.id },
+      });
+
       const assignments = await PeerReviewAssignment.findAll({
         where: { submissionId: studentSubmission.id },
         include: [
@@ -2044,6 +2124,7 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         },
         otherSubmissions,
         peerReviewTests,
+        scoreBreakdown,
       },
     });
   } catch (error) {

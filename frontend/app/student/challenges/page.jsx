@@ -341,13 +341,16 @@ export default function StudentChallengesPage() {
     }
 
     if (isJoined && isPhaseTwoComplete) {
+      if (!challenge.resultsReady) {
+        return null;
+      }
       return (
         <Button
           size='lg'
           variant='secondary'
           onClick={() => router.push(getChallengeRoute(challenge))}
         >
-          View results
+          View Your Solution & Feedback
         </Button>
       );
     }
