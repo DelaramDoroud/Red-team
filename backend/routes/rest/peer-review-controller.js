@@ -67,17 +67,131 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
           as: 'vote',
           required: true,
         },
+        {
+          model: Submission,
+          as: 'submission',
+          include: [
+            {
+              model: Match,
+              as: 'match',
+              include: [
+                {
+                  model: ChallengeMatchSetting,
+                  as: 'challengeMatchSetting',
+                  include: [
+                    {
+                      model: MatchSetting,
+                      as: 'matchSetting',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
 
-    const votes = assignments.map((a) => {
-      return {
+    const votes = [];
+    for (const a of assignments) {
+      const voteRecord = a.vote;
+      const submission = a.submission;
+
+      let isVoteCorrect = voteRecord.isVoteCorrect;
+      let isExpectedOutputCorrect = voteRecord.isExpectedOutputCorrect;
+      let needsUpdate = false;
+
+      // Compute isVoteCorrect if missing
+      if (isVoteCorrect === null && submission && submission.status) {
+        const isSubmissionValid =
+          submission.status === SubmissionStatus.PROBABLY_CORRECT;
+
+        if (voteRecord.vote === VoteType.CORRECT) {
+          isVoteCorrect = isSubmissionValid;
+          needsUpdate = true;
+        } else if (voteRecord.vote === VoteType.INCORRECT) {
+          isVoteCorrect = !isSubmissionValid;
+          needsUpdate = true;
+        }
+      }
+
+      // Compute isExpectedOutputCorrect if missing and vote is INCORRECT
+      if (
+        voteRecord.vote === VoteType.INCORRECT &&
+        isExpectedOutputCorrect === null &&
+        submission
+      ) {
+        let matchSetting =
+          submission.match?.challengeMatchSetting?.matchSetting;
+
+        if (matchSetting && !matchSetting.referenceSolution) {
+          matchSetting = await MatchSetting.findByPk(matchSetting.id);
+        }
+
+        if (
+          matchSetting?.referenceSolution &&
+          voteRecord.testCaseInput &&
+          voteRecord.expectedOutput
+        ) {
+          try {
+            let input = voteRecord.testCaseInput;
+            try {
+              input = JSON.parse(input);
+            } catch (e) {
+              // input is already string or invalid
+            }
+
+            let expected = voteRecord.expectedOutput;
+            try {
+              expected = JSON.parse(expected);
+            } catch (e) {
+              // expected is already string or invalid
+            }
+
+            const { referenceOutput } = await runReferenceSolution({
+              referenceSolution: matchSetting.referenceSolution,
+              testCaseInput: voteRecord.testCaseInput,
+            });
+
+            isExpectedOutputCorrect =
+              normalizeOutputForComparison(voteRecord.expectedOutput) ===
+              normalizeOutputForComparison(referenceOutput);
+
+            voteRecord.referenceOutput = referenceOutput;
+
+            needsUpdate = true;
+          } catch (e) {
+            logger.error('Error computing expected output correctness', e);
+          }
+        }
+      }
+
+      if (needsUpdate) {
+        await voteRecord.update({
+          isVoteCorrect,
+          isExpectedOutputCorrect,
+          referenceOutput: voteRecord.referenceOutput,
+        });
+      }
+
+      let earnedCredit = false;
+      if (voteRecord.vote === VoteType.CORRECT) {
+        earnedCredit = !!isVoteCorrect;
+      } else if (voteRecord.vote === VoteType.INCORRECT) {
+        earnedCredit = !!isVoteCorrect && !!isExpectedOutputCorrect;
+      }
+
+      votes.push({
         submissionId: a.submissionId,
-        vote: a.vote.vote,
-        testCaseInput: a.vote.testCaseInput,
-        expectedOutput: a.vote.expectedOutput,
-      };
-    });
+        vote: voteRecord.vote,
+        testCaseInput: voteRecord.testCaseInput,
+        expectedOutput: voteRecord.expectedOutput,
+        referenceOutput: voteRecord.referenceOutput,
+        isVoteCorrect,
+        isExpectedOutputCorrect,
+        earnedCredit,
+      });
+    }
 
     return res.json({
       success: true,
@@ -169,21 +283,21 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     }
 
     // RT-182: Ensure finaization only happens after timer expiration
-    // const now = new Date();
-    // const peerReviewEndTime = new Date(
-    //   new Date(challenge.startPhaseTwoDateTime).getTime() +
-    //     challenge.durationPeerReview * 60000
-    // );
+    const now = new Date();
+    const peerReviewEndTime = new Date(
+      new Date(challenge.startPhaseTwoDateTime).getTime() +
+        challenge.durationPeerReview * 60000
+    );
 
-    // if (now < peerReviewEndTime) {
-    //   console.log('Peer review end time:', peerReviewEndTime);
-    //   console.log('Current time:', now);
-    //   await t.rollback();
-    //   return res.status(400).json({
-    //     success: false,
-    //     error: 'Peer review phase has not ended yet',
-    //   });
-    // }
+    if (now < peerReviewEndTime) {
+      console.log('Peer review end time:', peerReviewEndTime);
+      console.log('Current time:', now);
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'Peer review phase has not ended yet',
+      });
+    }
 
     const participants = await ChallengeParticipant.findAll({
       where: { challengeId },
@@ -275,7 +389,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
 
         const referenceSolution =
           assignment.submission.match.challengeMatchSetting.matchSetting
-            .dataValues.referenceSo;
+            .dataValues.referenceSolution;
 
         if (!referenceSolution) {
           console.log('No reference solution found for vote:', vote.id);
