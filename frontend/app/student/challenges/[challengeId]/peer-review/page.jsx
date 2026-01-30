@@ -53,13 +53,6 @@ const buildTimeLeft = (startValue, durationMinutes, endValue) => {
   const endMs = startMs + durationMinutes * 60 * 1000 + COUNTDOWN_BUFFER_MS;
   return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
 };
-const createFeedbackTestId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `feedback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
 const formatCodeWithNewlines = (code) => {
   if (!code || typeof code !== 'string') return code;
   if (code.includes('\n')) return code;
@@ -147,7 +140,6 @@ export default function PeerReviewPage() {
     getPeerReviewSummary,
     submitPeerReviewVote,
     getStudentVotes,
-    savePeerReviewTests,
     finalizePeerReview,
     exitPeerReview,
     getChallengeResults,
@@ -160,12 +152,6 @@ export default function PeerReviewPage() {
 
   const [voteMap, setVoteMap] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
-  const [feedbackTestsByAssignment, setFeedbackTestsByAssignment] = useState(
-    {}
-  );
-  const [feedbackStateByAssignment, setFeedbackStateByAssignment] = useState(
-    {}
-  );
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
   const [error, setError] = useState(null);
@@ -349,30 +335,6 @@ export default function PeerReviewPage() {
     return () => clearTimeout(timeoutId);
   }, [challengeInfo?.status, isFinalizationPending, loadFinalization]);
 
-  useEffect(() => {
-    if (assignments.length === 0) {
-      setFeedbackTestsByAssignment({});
-      setFeedbackStateByAssignment({});
-      return;
-    }
-    setFeedbackTestsByAssignment((prev) => {
-      const next = { ...prev };
-      assignments.forEach((assignment) => {
-        if (next[assignment.id]) return;
-        const rawTests = Array.isArray(assignment.feedbackTests)
-          ? assignment.feedbackTests
-          : [];
-        next[assignment.id] = rawTests.map((test) => ({
-          id: createFeedbackTestId(),
-          input: test.input ?? '',
-          expectedOutput: test.expectedOutput ?? '',
-          notes: test.notes ?? '',
-        }));
-      });
-      return next;
-    });
-  }, [assignments]);
-
   const phaseTwoStart = challengeInfo?.startPhaseTwoDateTime;
   const phaseTwoDuration = challengeInfo?.durationPeerReview;
   const phaseTwoEnd = challengeInfo?.endPhaseTwoDateTime;
@@ -452,7 +414,6 @@ export default function PeerReviewPage() {
     challengeInfo?.status === ChallengeStatus.ENDED_PHASE_ONE;
 
   const selectedAssignment = assignments[selectedIndex] || null;
-  const selectedAssignmentId = selectedAssignment?.id;
   const selectedSubmissionId = selectedAssignment?.submissionId;
 
   const currentVoteEntry = selectedSubmissionId
@@ -460,14 +421,6 @@ export default function PeerReviewPage() {
     : null;
   const hasExplicitVote = Boolean(currentVoteEntry?.type);
   const currentVote = hasExplicitVote ? currentVoteEntry.type : 'abstain';
-  const selectedFeedbackTests = selectedAssignmentId
-    ? feedbackTestsByAssignment[selectedAssignmentId] || []
-    : [];
-  const selectedFeedbackState = selectedAssignmentId
-    ? feedbackStateByAssignment[selectedAssignmentId] || {}
-    : {};
-  const canEditFeedback =
-    challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO;
 
   const completedCount = useMemo(
     () =>
@@ -595,144 +548,6 @@ export default function PeerReviewPage() {
       }));
     }
   };
-
-  const updateFeedbackState = useCallback((assignmentId, updates) => {
-    if (!assignmentId) return;
-    setFeedbackStateByAssignment((prev) => ({
-      ...prev,
-      [assignmentId]: {
-        ...prev[assignmentId],
-        ...updates,
-      },
-    }));
-  }, []);
-
-  const addFeedbackTest = useCallback((assignmentId) => {
-    if (!assignmentId) return;
-    setFeedbackTestsByAssignment((prev) => {
-      const current = prev[assignmentId] || [];
-      const nextTests = [
-        ...current,
-        {
-          id: createFeedbackTestId(),
-          input: '',
-          expectedOutput: '',
-          notes: '',
-        },
-      ];
-      return { ...prev, [assignmentId]: nextTests };
-    });
-  }, []);
-
-  const updateFeedbackTest = useCallback(
-    (assignmentId, testId, field, value) => {
-      if (!assignmentId) return;
-      setFeedbackTestsByAssignment((prev) => {
-        const current = prev[assignmentId] || [];
-        const nextTests = current.map((testCase) => {
-          if (testCase.id !== testId) return testCase;
-          return { ...testCase, [field]: value };
-        });
-        return { ...prev, [assignmentId]: nextTests };
-      });
-    },
-    []
-  );
-
-  const removeFeedbackTest = useCallback((assignmentId, testId) => {
-    if (!assignmentId) return;
-    setFeedbackTestsByAssignment((prev) => {
-      const current = prev[assignmentId] || [];
-      const nextTests = current.filter((testCase) => testCase.id !== testId);
-      return { ...prev, [assignmentId]: nextTests };
-    });
-  }, []);
-
-  const buildFeedbackPayload = useCallback((tests) => {
-    const list = Array.isArray(tests) ? tests : [];
-    return list
-      .map((testCase) => {
-        const { input, expectedOutput, notes } = testCase;
-        const trimmedInput = typeof input === 'string' ? input.trim() : '';
-        if (!trimmedInput) return null;
-        const payload = { input: trimmedInput };
-        const trimmedExpected =
-          typeof expectedOutput === 'string' ? expectedOutput.trim() : '';
-        if (trimmedExpected) payload.expectedOutput = trimmedExpected;
-        const trimmedNotes = typeof notes === 'string' ? notes.trim() : '';
-        if (trimmedNotes) payload.notes = trimmedNotes;
-        return payload;
-      })
-      .filter(Boolean);
-  }, []);
-
-  const handleSaveFeedbackTests = useCallback(async () => {
-    if (!selectedAssignmentId || !studentId || !challengeId) return;
-    const tests = feedbackTestsByAssignment[selectedAssignmentId] || [];
-    const payload = buildFeedbackPayload(tests);
-    if (payload.length === 0) {
-      updateFeedbackState(selectedAssignmentId, {
-        error: 'Add at least one test input before saving.',
-        message: null,
-      });
-      return;
-    }
-
-    updateFeedbackState(selectedAssignmentId, {
-      saving: true,
-      error: null,
-      message: null,
-    });
-
-    try {
-      const res = await savePeerReviewTests({
-        challengeId,
-        assignmentId: selectedAssignmentId,
-        studentId,
-        tests: payload,
-      });
-      if (!res?.success) {
-        updateFeedbackState(selectedAssignmentId, {
-          error: getApiErrorMessage(res, 'Unable to save peer review tests.'),
-          saving: false,
-        });
-        return;
-      }
-
-      const savedTests = Array.isArray(res?.data?.feedbackTests)
-        ? res.data.feedbackTests
-        : payload;
-      setFeedbackTestsByAssignment((prev) => ({
-        ...prev,
-        [selectedAssignmentId]: savedTests.map((testCase) => ({
-          id: createFeedbackTestId(),
-          input: testCase.input ?? '',
-          expectedOutput: testCase.expectedOutput ?? '',
-          notes: testCase.notes ?? '',
-        })),
-      }));
-
-      updateFeedbackState(selectedAssignmentId, {
-        saving: false,
-        error: null,
-        message: 'Peer review tests saved.',
-      });
-    } catch (_err) {
-      updateFeedbackState(selectedAssignmentId, {
-        saving: false,
-        error: 'Unable to save peer review tests.',
-        message: null,
-      });
-    }
-  }, [
-    buildFeedbackPayload,
-    challengeId,
-    feedbackTestsByAssignment,
-    savePeerReviewTests,
-    selectedAssignmentId,
-    studentId,
-    updateFeedbackState,
-  ]);
 
   const saveCurrentVotes = async () => {
     if (!challengeId || !studentId || hasExited || isExiting) {
@@ -1304,160 +1119,6 @@ export default function PeerReviewPage() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-4'>
-                <div className='flex flex-wrap items-start justify-between gap-3'>
-                  <div>
-                    <p className='text-sm font-semibold text-foreground'>
-                      Peer review tests
-                    </p>
-                    <p className='text-xs text-muted-foreground'>
-                      Share inputs that reveal bugs or confirm correctness.
-                    </p>
-                  </div>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={() => addFeedbackTest(selectedAssignmentId)}
-                    disabled={!canEditFeedback || !selectedAssignmentId}
-                  >
-                    Add test
-                  </Button>
-                </div>
-
-                {selectedFeedbackTests.length === 0 && (
-                  <p className='text-xs text-muted-foreground'>
-                    No feedback tests added yet.
-                  </p>
-                )}
-
-                {selectedFeedbackTests.map((testCase) => {
-                  const { id, input, expectedOutput, notes } = testCase;
-                  const inputId = `feedback-input-${id}`;
-                  const expectedId = `feedback-expected-${id}`;
-                  const notesId = `feedback-notes-${id}`;
-                  return (
-                    <div
-                      key={id}
-                      className='rounded-lg border border-border bg-card p-3 space-y-3'
-                    >
-                      <div className='grid gap-3 md:grid-cols-2'>
-                        <div className='space-y-1'>
-                          <label
-                            htmlFor={inputId}
-                            className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-                          >
-                            Input
-                          </label>
-                          <textarea
-                            id={inputId}
-                            className='w-full min-h-[70px] rounded-md border bg-background px-3 py-2 text-xs'
-                            value={input}
-                            onChange={(event) =>
-                              updateFeedbackTest(
-                                selectedAssignmentId,
-                                id,
-                                'input',
-                                event.target.value
-                              )
-                            }
-                            placeholder='Input to test'
-                            disabled={!canEditFeedback}
-                          />
-                        </div>
-                        <div className='space-y-1'>
-                          <label
-                            htmlFor={expectedId}
-                            className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-                          >
-                            Expected output
-                          </label>
-                          <textarea
-                            id={expectedId}
-                            className='w-full min-h-[70px] rounded-md border bg-background px-3 py-2 text-xs'
-                            value={expectedOutput}
-                            onChange={(event) =>
-                              updateFeedbackTest(
-                                selectedAssignmentId,
-                                id,
-                                'expectedOutput',
-                                event.target.value
-                              )
-                            }
-                            placeholder='Expected output (optional)'
-                            disabled={!canEditFeedback}
-                          />
-                        </div>
-                      </div>
-                      <div className='space-y-1'>
-                        <label
-                          htmlFor={notesId}
-                          className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-                        >
-                          Notes
-                        </label>
-                        <textarea
-                          id={notesId}
-                          className='w-full min-h-[60px] rounded-md border bg-background px-3 py-2 text-xs'
-                          value={notes}
-                          onChange={(event) =>
-                            updateFeedbackTest(
-                              selectedAssignmentId,
-                              id,
-                              'notes',
-                              event.target.value
-                            )
-                          }
-                          placeholder='Explain what this test checks (optional)'
-                          disabled={!canEditFeedback}
-                        />
-                      </div>
-                      <div className='flex justify-end'>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            removeFeedbackTest(selectedAssignmentId, id)
-                          }
-                          disabled={!canEditFeedback}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <div className='flex flex-wrap items-center gap-3 text-xs'>
-                  <Button
-                    type='button'
-                    onClick={handleSaveFeedbackTests}
-                    disabled={
-                      !canEditFeedback ||
-                      !selectedAssignmentId ||
-                      selectedFeedbackState.saving
-                    }
-                  >
-                    {selectedFeedbackState.saving ? 'Saving...' : 'Save tests'}
-                  </Button>
-                  {!canEditFeedback && (
-                    <span className='text-muted-foreground'>
-                      Peer review has ended. Tests are read-only.
-                    </span>
-                  )}
-                  {selectedFeedbackState.error && (
-                    <span className='text-red-600'>
-                      {selectedFeedbackState.error}
-                    </span>
-                  )}
-                  {selectedFeedbackState.message && (
-                    <span className='text-emerald-600'>
-                      {selectedFeedbackState.message}
-                    </span>
-                  )}
-                </div>
               </div>
 
               <div className='flex items-center justify-between text-xs text-muted-foreground'>

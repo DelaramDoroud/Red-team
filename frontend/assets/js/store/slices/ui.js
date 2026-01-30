@@ -7,6 +7,7 @@ const initialState = {
   challengeTimers: {},
   challengeCountdowns: {},
   peerReviewExits: {},
+  solutionFeedbackVisibility: {},
 };
 
 const getDraftEntry = (userDrafts, key) =>
@@ -227,6 +228,19 @@ const uiSlice = createSlice({
         ),
       };
     },
+    setSolutionFeedbackVisibility: (state, action) => {
+      const { userId, challengeId, value } = action.payload || {};
+      if (!userId || !challengeId || typeof value !== 'boolean') return state;
+      return {
+        ...state,
+        solutionFeedbackVisibility: upsertUserValue(
+          state.solutionFeedbackVisibility || {},
+          userId,
+          challengeId,
+          value
+        ),
+      };
+    },
     clearPeerReviewExit: (state, action) => {
       const { userId, challengeId } = action.payload || {};
       if (!userId || !challengeId) return state;
@@ -247,12 +261,14 @@ const uiSlice = createSlice({
         challengeDrafts: {},
         challengeCountdowns: {},
         peerReviewExits: {},
+        solutionFeedbackVisibility: {},
       }))
       .addCase(clearUser, (state) => ({
         ...state,
         challengeDrafts: {},
         challengeCountdowns: {},
         peerReviewExits: {},
+        solutionFeedbackVisibility: {},
       }));
   },
 });
@@ -270,6 +286,7 @@ export const {
   clearChallengeCountdown,
   setPeerReviewExit,
   clearPeerReviewExit,
+  setSolutionFeedbackVisibility,
 } = uiSlice.actions;
 
 export const uiReducer = uiSlice.reducer;
