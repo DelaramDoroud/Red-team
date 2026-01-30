@@ -2,6 +2,8 @@ import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { calculateChallengeScores } from '#root/services/scoring-service.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 
 const phaseOneTimers = new Map();
 const phaseTwoTimers = new Map();
@@ -69,6 +71,7 @@ const clearPhaseTwoTimer = (challengeId) => {
 const markPhaseTwoEnded = async (challengeId) => {
   clearPhaseTwoTimer(challengeId);
   const challenge = await Challenge.findByPk(challengeId);
+
   if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
     return;
   }
@@ -100,15 +103,26 @@ const markPhaseTwoEnded = async (challengeId) => {
         },
       });
 
-      // 3. ESEGUI IL CALCOLO DEI PUNTEGGI (Task RT-215 e RT-216)
-      // TODO: await calculateChallengeScores(challengeId);
+      // 3. CALCOLO PUNTEGGI (Core Logic RT-215)
+      // Chiamiamo il servizio che hai creato in scoring-service.js
+      const scores = await calculateChallengeScores(challengeId);
+
+      if (scores && scores.length > 0) {
+        await Promise.all(
+          scores.map((score) =>
+            ChallengeParticipant.update(
+              { codeReviewScore: score.codeReviewScore },
+              { where: { id: score.participantId } }
+            )
+          )
+        );
+      }
 
       await Challenge.update(
         { scoringStatus: 'completed' },
         { where: { id: challengeId } }
       );
 
-      // Notifica finale (Frontend mostra Score Breakdown)
       broadcastEvent({
         event: 'challenge-updated',
         data: {
@@ -117,6 +131,10 @@ const markPhaseTwoEnded = async (challengeId) => {
           scoringStatus: 'completed',
         },
       });
+
+      console.log(
+        `Scoring completed successfully for challenge ${challengeId}`
+      );
     } catch (error) {
       console.error(
         `Error computing scores for challenge ${challengeId}:`,

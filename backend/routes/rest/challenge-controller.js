@@ -2318,7 +2318,6 @@ router.get('/challenges/:challengeId/scoring-status', async (req, res) => {
         .json({ success: false, error: 'Challenge not found' });
     }
 
-    // Security check (opzionale, basato sulle tue policy)
     if (
       shouldHidePrivate(req) &&
       challenge.status === ChallengeStatus.PRIVATE
@@ -2333,10 +2332,6 @@ router.get('/challenges/:challengeId/scoring-status', async (req, res) => {
       ? new Date(challenge.endPhaseTwoDateTime)
       : null;
 
-    // --- STATE MACHINE LOGIC ---
-
-    // CASO 1: Peer Review non ancora finita
-    // Se la data di fine non esiste O la data attuale è precedente alla fine
     if (!peerReviewEnd || now < peerReviewEnd) {
       return res.json({
         state: Scoring_Availability.PEER_REVIEW_NOT_ENDED,
