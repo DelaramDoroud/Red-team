@@ -8,6 +8,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
@@ -1857,7 +1858,12 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
     }
 
     let peerReviewTests = [];
+    let scoreBreakdown = null;
     if (isFullyEnded && studentSubmission) {
+      scoreBreakdown = await SubmissionScoreBreakdown.findOne({
+        where: { submissionId: studentSubmission.id },
+      });
+
       const assignments = await PeerReviewAssignment.findAll({
         where: { submissionId: studentSubmission.id },
         include: [
@@ -1921,6 +1927,7 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         },
         otherSubmissions,
         peerReviewTests,
+        scoreBreakdown,
       },
     });
   } catch (error) {

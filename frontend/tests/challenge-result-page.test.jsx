@@ -130,7 +130,7 @@ describe('ChallengeResultPage', () => {
     expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
     expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
     expect(screen.getAllByText('1 2').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Peer review tests/i)).toBeInTheDocument();
+    expect(screen.getByText(/Peer Review Results/i)).toBeInTheDocument();
     expect(screen.getByText(/Check ordering/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Other participant solutions/i)
