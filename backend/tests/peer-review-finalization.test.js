@@ -131,7 +131,15 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (sequelize) await sequelize.close();
+  try {
+    if (sequelize) {
+      await sequelize.close();
+    }
+  } catch (error) {
+    console.warn('Error while closing sequelize:', error);
+  } finally {
+    process.exit(0);
+  }
 }, 3000000);
 
 describe('Peer Review Finalization', () => {
