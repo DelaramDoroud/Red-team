@@ -131,16 +131,23 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  try {
-    if (sequelize) {
-      await sequelize.close();
+  if (sequelize) {
+    try {
+      await Promise.race([
+        sequelize.close(),
+        new Promise(
+          (resolve) =>
+            setTimeout(() => {
+              console.warn('sequelize.close() timed out, continuing...');
+              resolve();
+            }, 10000) // 10s
+        ),
+      ]);
+    } catch (err) {
+      console.error('Error closing sequelize:', err);
     }
-  } catch (error) {
-    console.warn('Error while closing sequelize:', error);
-  } finally {
-    process.exit(0);
   }
-}, 3000000);
+});
 
 describe('Peer Review Finalization', () => {
   const createChallengeAndParticipants = async (
@@ -257,8 +264,8 @@ describe('Peer Review Finalization', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/Peer review phase has not ended yet/i);
-  });
-*/
+  });*/
+
   it('should finalize correctly if timer has expired', async () => {
     const { challenge, assignment } = await createChallengeAndParticipants();
 
