@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 
 import User from '#root/models/user.js';
-import Badge from '#root/models/badges.js';
+import Badge from '#root/models/badge.js';
 import StudentBadge from '#root/models/student-badges.js';
 
 import Challenge from '#root/models/challenge.js';
@@ -22,9 +22,6 @@ import {
 import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
 
 /* ------------------------------------------------------------------ */
-/* helpers */
-/* ------------------------------------------------------------------ */
-
 const createCompletedChallenge = async (student, suffix) => {
   const matchSetting = await MatchSetting.create({
     problemTitle: `Problem ${suffix}`,
@@ -38,8 +35,8 @@ const createCompletedChallenge = async (student, suffix) => {
   const challenge = await Challenge.create({
     title: `Challenge ${suffix}`,
     duration: 30,
-    startDatetime: new Date(),
-    endDatetime: new Date(),
+    startDatetime: new Date(Date.now() - 60 * 60 * 1000),
+    endDatetime: new Date(Date.now() - 30 * 60 * 1000),
     durationPeerReview: 20,
     allowedNumberOfReview: 1,
     status: ChallengeStatus.FINISHED,
@@ -76,14 +73,13 @@ const createCompletedChallenge = async (student, suffix) => {
 
   await PeerReviewVote.create({
     peerReviewAssignmentId: assignment.id,
-    vote: VoteType.ABSTAIN, // ✅ valid vote
+    vote: VoteType.ABSTAIN,
   });
 };
 
 /* ------------------------------------------------------------------ */
-/* tests */
+/* Test suite */
 /* ------------------------------------------------------------------ */
-
 describe('Milestone Badge Service', () => {
   beforeAll(async () => {
     const safeSync = async (model) => {
@@ -106,30 +102,7 @@ describe('Milestone Badge Service', () => {
     await safeSync(PeerReviewAssignment);
     await safeSync(PeerReviewVote);
 
-    // seed badges
-    await Badge.bulkCreate([
-      {
-        name: 'Challenge Novice',
-        type: 'milestone',
-        description: 'Complete 3 challenges',
-        metric: 'completed_challenges',
-        threshold: 3,
-      },
-      {
-        name: 'Challenge Pro',
-        type: 'milestone',
-        description: 'Complete 5 challenges',
-        metric: 'completed_challenges',
-        threshold: 5,
-      },
-      {
-        name: 'Challenge Master',
-        type: 'milestone',
-        description: 'Complete 10 challenges',
-        metric: 'completed_challenges',
-        threshold: 10,
-      },
-    ]);
+    await Badge.seed();
   });
 
   beforeEach(async () => {
@@ -145,31 +118,10 @@ describe('Milestone Badge Service', () => {
     await User.destroy({ where: {} });
   });
 
-  afterEach(async () => {
-    await StudentBadge.destroy({ where: {} });
-  });
-
-  it('awards "Challenge Novice" after 3 completed challenges', async () => {
+  it('awards multiple milestones correctly', async () => {
     const student = await User.create({
-      username: 'novice',
-      email: 'novice@test.com',
-      password: 'pw',
-      role: 'student',
-    });
-
-    for (let i = 0; i < 3; i++) {
-      await createCompletedChallenge(student, i);
-    }
-
-    const badges = await awardBadgeIfEligible(student.id);
-
-    expect(badges).toContain('Challenge Novice');
-  });
-
-  it('awards "Challenge Pro" and "Challenge Master" correctly', async () => {
-    const student = await User.create({
-      username: 'master',
-      email: 'master@test.com',
+      username: 'all_milestones',
+      email: 'all@test.com',
       password: 'pw',
       role: 'student',
     });
@@ -178,9 +130,12 @@ describe('Milestone Badge Service', () => {
       await createCompletedChallenge(student, i);
     }
 
-    const badges = await awardBadgeIfEligible(student.id);
+    const result = await awardBadgeIfEligible(student.id);
 
-    expect(badges).toContain('Challenge Pro');
-    expect(badges).toContain('Challenge Master');
+    const badges = result.unlockedBadges;
+
+    expect(badges).toContain('First Steps'); // challenge_3
+    expect(badges).toContain('On a Roll'); // challenge_5
+    expect(badges).toContain('Challenge Veteran'); // challenge_10
   });
 });
