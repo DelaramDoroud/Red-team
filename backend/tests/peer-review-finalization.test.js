@@ -131,7 +131,13 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (sequelize) await sequelize.close();
+  if (!sequelize) return;
+  await Promise.race([
+    sequelize.close(),
+    new Promise((resolve) => {
+      setTimeout(resolve, 5000);
+    }),
+  ]);
 });
 
 describe('Peer Review Finalization', () => {
