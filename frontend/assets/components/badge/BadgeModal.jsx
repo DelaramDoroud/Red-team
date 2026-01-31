@@ -74,15 +74,6 @@ function BadgeModal({ badge, onClose }) {
 
       {/* Modal */}
       <div className='relative bg-white rounded-2xl p-6 w-96 text-center shadow-xl z-20 animate-pop overflow-hidden'>
-        {/* Close button */}
-        <button
-          type='button'
-          onClick={onClose}
-          className='absolute top-3 right-3 text-gray-400 hover:text-gray-600'
-        >
-          ✕
-        </button>
-
         {/* Header */}
         <div className='flex items-center justify-center gap-2 mb-6'>
           <Star className='w-6 h-6 text-yellow-400 animate-pulse' />
