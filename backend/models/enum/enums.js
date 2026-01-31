@@ -52,3 +52,9 @@ export const BadgeMetric = {
   CORRECT_REVIEWS: 'correct_reviews',
   ERRORS_FOUND: 'errors_found',
 };
+
+export const Scoring_Availability = {
+  PEER_REVIEW_NOT_ENDED: 'PEER_REVIEW_NOT_ENDED',
+  SCORING_IN_PROGRESS: 'SCORING_IN_PROGRESS',
+  READY: 'READY',
+};

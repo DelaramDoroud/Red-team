@@ -69,6 +69,12 @@ const Challenge = sequelize.define(
       allowNull: false,
       defaultValue: 'private',
     },
+    scoringStatus: {
+      type: DataTypes.ENUM('pending', 'computing', 'completed'),
+      allowNull: false,
+      defaultValue: 'pending',
+      field: 'scoring_status',
+    },
     startPhaseOneDateTime: {
       type: DataTypes.DATE,
       field: 'startPhaseOneDateTime',
