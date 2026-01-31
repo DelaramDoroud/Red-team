@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
+import ToggleSwitch from '#components/common/ToggleSwitch';
 import {
   Card,
   CardContent,
@@ -10,16 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#components/common/Table';
 import useChallenge from '#js/useChallenge';
-import { useAppSelector } from '#js/store/hooks';
+import { useAppDispatch, useAppSelector } from '#js/store/hooks';
+import { setSolutionFeedbackVisibility } from '#js/store/slices/ui';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
@@ -44,6 +38,38 @@ const renderValue = (value) => (
   <span className='whitespace-pre-wrap'>{formatValue(value)}</span>
 );
 
+const buildResultBadge = (count, tone) => {
+  const base =
+    'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold';
+  if (tone === 'success') {
+    return `${base} bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200`;
+  }
+  if (tone === 'danger') {
+    return `${base} bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200`;
+  }
+  return `${base} bg-muted text-muted-foreground`;
+};
+
+const getResultCardClasses = (passed) =>
+  passed
+    ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-400/40 dark:bg-emerald-500/10'
+    : 'border-rose-200 bg-rose-50/70 dark:border-rose-400/40 dark:bg-rose-500/10';
+
+const getResultStatusClasses = (passed) =>
+  passed
+    ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15'
+    : 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
+
+const getTestFailureDetails = (result) => {
+  if (!result || result.passed) return null;
+  if (result.error) return result.error;
+  if (result.stderr) return result.stderr;
+  if (typeof result.exitCode === 'number' && result.exitCode !== 0) {
+    return `Execution failed with exit code ${result.exitCode}.`;
+  }
+  return 'Output did not match the expected result.';
+};
+
 const buildTestKey = (result) => {
   if (Number.isInteger(result?.testIndex)) return `private-${result.testIndex}`;
   return JSON.stringify({
@@ -56,6 +82,7 @@ const buildTestKey = (result) => {
 export default function ChallengeResultPage() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const durationContext = useDuration();
   const challengeStatus = durationContext?.status;
   const hasChallengeStatus =
@@ -68,8 +95,17 @@ export default function ChallengeResultPage() {
     loading: authLoading,
     isLoggedIn,
   } = useAppSelector((state) => state.auth);
+  const solutionFeedbackVisibility = useAppSelector(
+    (state) => state.ui.solutionFeedbackVisibility
+  );
   const studentId = user?.id;
   const challengeId = params?.challengeId;
+  const solutionFeedbackKey = challengeId ? String(challengeId) : null;
+  const isSolutionFeedbackOpen = Boolean(
+    studentId &&
+    solutionFeedbackKey &&
+    solutionFeedbackVisibility?.[studentId]?.[solutionFeedbackKey]
+  );
   const { getChallengeResults } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
@@ -79,6 +115,7 @@ export default function ChallengeResultPage() {
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
+  const [showReviewDetails, setShowReviewDetails] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -297,7 +334,7 @@ export default function ChallengeResultPage() {
     );
   }
 
-  const { challenge, matchSetting } = resultData;
+  const { challenge, matchSetting, scoreBreakdown } = resultData;
   const phaseTwoEndTimestamp = challenge?.endPhaseTwoDateTime
     ? new Date(challenge.endPhaseTwoDateTime).getTime()
     : null;
@@ -306,6 +343,9 @@ export default function ChallengeResultPage() {
   const isFullyEnded =
     challenge?.status === ChallengeStatus.ENDED_PHASE_TWO && hasPhaseTwoEnded;
   const studentSubmission = resultData?.studentSubmission || null;
+  const publicResults = Array.isArray(studentSubmission?.publicTestResults)
+    ? studentSubmission.publicTestResults
+    : [];
   const privateResults = Array.isArray(studentSubmission?.privateTestResults)
     ? studentSubmission.privateTestResults
     : [];
@@ -320,6 +360,26 @@ export default function ChallengeResultPage() {
   const hasPeerReviewTests = peerReviewTests.some(
     (review) => Array.isArray(review.tests) && review.tests.length > 0
   );
+  const feedbackSectionId = solutionFeedbackKey
+    ? `solution-feedback-${solutionFeedbackKey}`
+    : 'solution-feedback';
+  const totalPublic = publicResults.length;
+  const totalPrivate = privateResults.length;
+  const passedPublic = publicResults.filter((result) => result.passed).length;
+  const passedPrivate = privateResults.filter((result) => result.passed).length;
+  const failedPublic = totalPublic - passedPublic;
+  const failedPrivate = totalPrivate - passedPrivate;
+
+  const handleToggleSolutionFeedback = () => {
+    if (!studentId || !solutionFeedbackKey) return;
+    dispatch(
+      setSolutionFeedbackVisibility({
+        userId: studentId,
+        challengeId: solutionFeedbackKey,
+        value: !isSolutionFeedbackOpen,
+      })
+    );
+  };
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -342,134 +402,341 @@ export default function ChallengeResultPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
-          {!studentSubmission && (
-            <p className='text-sm text-muted-foreground'>
-              You did not submit a solution for this challenge.
-            </p>
-          )}
+          <Button
+            variant='outline'
+            onClick={handleToggleSolutionFeedback}
+            aria-expanded={isSolutionFeedbackOpen}
+            aria-controls={feedbackSectionId}
+          >
+            {isSolutionFeedbackOpen
+              ? 'Hide Your Solution & Feedback'
+              : 'View Your Solution & Feedback'}
+          </Button>
 
-          {studentSubmission && (
-            <>
-              <div className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'>
-                <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
-                  Submitted at {formatDateTime(studentSubmission.createdAt)}
+          {isSolutionFeedbackOpen && (
+            <div
+              id={feedbackSectionId}
+              className='rounded-2xl border border-border bg-card/90 p-5 shadow-sm space-y-6 text-card-foreground dark:bg-card/70'
+            >
+              {!studentSubmission && (
+                <p className='text-sm text-muted-foreground'>
+                  You did not submit a solution for this challenge.
                 </p>
-                <pre className='max-h-[320px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-sm'>
-                  {studentSubmission.code || ''}
-                </pre>
-              </div>
+              )}
 
-              <div>
-                <p className='text-sm font-semibold'>Private test results</p>
-                {privateResults.length === 0 ? (
-                  <p className='text-xs text-muted-foreground mt-2'>
-                    No private test results available.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Expected output</TableHead>
-                        <TableHead>Your output</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {privateResults.map((result, index) => {
-                        const displayIndex = Number.isInteger(result.testIndex)
-                          ? result.testIndex + 1
-                          : index + 1;
-                        const statusLabel = result.passed ? 'Passed' : 'Failed';
-                        const statusClass = result.passed
-                          ? 'text-emerald-600'
-                          : 'text-red-600';
-                        return (
-                          <TableRow key={buildTestKey(result)}>
-                            <TableCell>Test {displayIndex}</TableCell>
-                            <TableCell>
-                              {renderValue(result.expectedOutput)}
-                            </TableCell>
-                            <TableCell>
-                              {renderValue(result.actualOutput)}
-                            </TableCell>
-                            <TableCell className={statusClass}>
-                              {statusLabel}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            </>
+              {studentSubmission && (
+                <>
+                  <div className='space-y-4'>
+                    <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3'>
+                      <div className='flex items-center gap-2 text-sm font-semibold text-foreground'>
+                        <span className='inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary'>
+                          {'</>'}
+                        </span>
+                        Your Solution & Feedback
+                      </div>
+                      <div className='text-xs font-semibold text-muted-foreground'>
+                        Submitted at{' '}
+                        {formatDateTime(studentSubmission.createdAt)}
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <div className='flex items-center justify-between'>
+                        <p className='text-sm font-semibold text-foreground'>
+                          Your Submitted Solution
+                        </p>
+                        {matchSetting?.language && (
+                          <span className='inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary'>
+                            {matchSetting.language.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <pre className='w-full overflow-auto rounded-xl border border-slate-900/80 bg-slate-900 p-4 text-sm text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
+                        {normalizeMultilineValue(studentSubmission.code || '')}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                      <p className='text-sm font-semibold text-foreground'>
+                        Public test results
+                      </p>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <span
+                          className={buildResultBadge(passedPublic, 'success')}
+                        >
+                          {passedPublic} Passed
+                        </span>
+                        <span
+                          className={buildResultBadge(failedPublic, 'danger')}
+                        >
+                          {failedPublic} Failed
+                        </span>
+                      </div>
+                    </div>
+                    {publicResults.length === 0 ? (
+                      <p className='text-xs text-muted-foreground mt-2'>
+                        No public test results available.
+                      </p>
+                    ) : (
+                      <div className='mt-3 space-y-3'>
+                        {publicResults.map((result, index) => {
+                          const displayIndex = Number.isInteger(
+                            result.testIndex
+                          )
+                            ? result.testIndex + 1
+                            : index + 1;
+                          const statusLabel = result.passed
+                            ? 'Passed'
+                            : 'Failed';
+                          const failureDetails = getTestFailureDetails(result);
+                          return (
+                            <div
+                              key={buildTestKey(result)}
+                              className={`rounded-xl border p-4 ${getResultCardClasses(
+                                result.passed
+                              )}`}
+                            >
+                              <div className='flex flex-wrap items-center justify-between gap-2'>
+                                <p className='text-sm font-semibold text-foreground'>
+                                  Test {displayIndex}
+                                </p>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
+                                    result.passed
+                                  )}`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </div>
+                              <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Expected:
+                                  </span>{' '}
+                                  {renderValue(result.expectedOutput)}
+                                </p>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Your output:
+                                  </span>{' '}
+                                  {renderValue(result.actualOutput)}
+                                </p>
+                                {failureDetails && (
+                                  <p className='text-rose-700 dark:text-rose-200'>
+                                    <span className='font-semibold'>
+                                      Feedback:
+                                    </span>{' '}
+                                    {renderValue(failureDetails)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                      <p className='text-sm font-semibold text-foreground'>
+                        Private test results
+                      </p>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <span
+                          className={buildResultBadge(passedPrivate, 'success')}
+                        >
+                          {passedPrivate} Passed
+                        </span>
+                        <span
+                          className={buildResultBadge(failedPrivate, 'danger')}
+                        >
+                          {failedPrivate} Failed
+                        </span>
+                      </div>
+                    </div>
+                    {privateResults.length === 0 ? (
+                      <p className='text-xs text-muted-foreground mt-2'>
+                        No private test results available.
+                      </p>
+                    ) : (
+                      <div className='mt-3 space-y-3'>
+                        {privateResults.map((result, index) => {
+                          const displayIndex = Number.isInteger(
+                            result.testIndex
+                          )
+                            ? result.testIndex + 1
+                            : index + 1;
+                          const statusLabel = result.passed
+                            ? 'Passed'
+                            : 'Failed';
+                          const failureDetails = getTestFailureDetails(result);
+                          return (
+                            <div
+                              key={buildTestKey(result)}
+                              className={`rounded-xl border p-4 ${getResultCardClasses(
+                                result.passed
+                              )}`}
+                            >
+                              <div className='flex flex-wrap items-center justify-between gap-2'>
+                                <p className='text-sm font-semibold text-foreground'>
+                                  Test {displayIndex}
+                                </p>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
+                                    result.passed
+                                  )}`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </div>
+                              <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Expected:
+                                  </span>{' '}
+                                  {renderValue(result.expectedOutput)}
+                                </p>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Your output:
+                                  </span>{' '}
+                                  {renderValue(result.actualOutput)}
+                                </p>
+                                {failureDetails && (
+                                  <p className='text-rose-700 dark:text-rose-200'>
+                                    <span className='font-semibold'>
+                                      Feedback:
+                                    </span>{' '}
+                                    {renderValue(failureDetails)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
 
       {isFullyEnded && (
         <Card>
-          <CardHeader>
-            <CardTitle>Peer review tests</CardTitle>
-            <CardDescription>
-              Tests submitted by classmates during peer review.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {!hasPeerReviewTests && (
-              <p className='text-sm text-muted-foreground'>
-                No peer review tests were submitted for your solution.
-              </p>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <div className='space-y-1'>
+              <CardTitle>Peer Review Results</CardTitle>
+              <CardDescription>
+                Overview of your performance in the peer review phase.
+              </CardDescription>
+            </div>
+            {scoreBreakdown && (
+              <ToggleSwitch
+                checked={showReviewDetails}
+                onChange={() => setShowReviewDetails((prev) => !prev)}
+                label='Show details'
+              />
             )}
-            {hasPeerReviewTests &&
-              peerReviewTests.map((review) => {
-                const reviewerName = review.reviewer?.username || 'Anonymous';
-                const tests = Array.isArray(review.tests) ? review.tests : [];
-                if (tests.length === 0) return null;
-                return (
-                  <div
-                    key={`review-${review.id}`}
-                    className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
-                  >
-                    <p className='text-sm font-semibold'>
-                      Reviewer: {reviewerName}
-                    </p>
-                    <div className='space-y-3'>
-                      {tests.map((test) => {
-                        const testKey = JSON.stringify({
-                          input: test.input,
-                          expectedOutput: test.expectedOutput,
-                          notes: test.notes,
-                        });
-                        return (
-                          <div
-                            key={testKey}
-                            className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
-                          >
-                            <p>
-                              <span className='font-semibold'>Input:</span>{' '}
-                              {renderValue(test.input)}
-                            </p>
-                            <p>
-                              <span className='font-semibold'>
-                                Expected output:
-                              </span>{' '}
-                              {renderValue(test.expectedOutput)}
-                            </p>
-                            {test.notes && (
-                              <p>
-                                <span className='font-semibold'>Notes:</span>{' '}
-                                {test.notes}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+          </CardHeader>
+          <CardContent className='space-y-6 pt-4'>
+            {scoreBreakdown && !showReviewDetails && (
+              <div className='grid gap-4 md:grid-cols-3'>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Total Score
                   </div>
-                );
-              })}
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.totalScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Implementation
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.implementationScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Code Review
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.codeReviewScore}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(showReviewDetails || !scoreBreakdown) && (
+              <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
+                <h3 className='text-sm font-semibold'>Received Tests</h3>
+                {!hasPeerReviewTests && (
+                  <p className='text-sm text-muted-foreground'>
+                    No peer review tests were submitted for your solution.
+                  </p>
+                )}
+                {hasPeerReviewTests &&
+                  peerReviewTests.map((review) => {
+                    const reviewerName =
+                      review.reviewer?.username || 'Anonymous';
+                    const tests = Array.isArray(review.tests)
+                      ? review.tests
+                      : [];
+                    if (tests.length === 0) return null;
+                    return (
+                      <div
+                        key={`review-${review.id}`}
+                        className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
+                      >
+                        <p className='text-sm font-semibold'>
+                          Reviewer: {reviewerName}
+                        </p>
+                        <div className='space-y-3'>
+                          {tests.map((test) => {
+                            const testKey = JSON.stringify({
+                              input: test.input,
+                              expectedOutput: test.expectedOutput,
+                              notes: test.notes,
+                            });
+                            return (
+                              <div
+                                key={testKey}
+                                className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
+                              >
+                                <p>
+                                  <span className='font-semibold'>Input:</span>{' '}
+                                  {renderValue(test.input)}
+                                </p>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Expected output:
+                                  </span>{' '}
+                                  {renderValue(test.expectedOutput)}
+                                </p>
+                                {test.notes && (
+                                  <p>
+                                    <span className='font-semibold'>
+                                      Notes:
+                                    </span>{' '}
+                                    {test.notes}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

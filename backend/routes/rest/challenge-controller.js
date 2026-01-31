@@ -13,6 +13,7 @@ import {
   SubmissionStatus,
   Scoring_Availability,
 } from '#root/models/enum/enums.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import {
@@ -33,7 +34,7 @@ import { validateImportsBlock } from '#root/services/import-validation.js';
 import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
-import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 
 const router = Router();
 
@@ -1220,7 +1221,8 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
 });
 router.post('/challenges/:challengeId/start', async (req, res) => {
   try {
-    const challengeId = Number(req.params.challengeId);
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
     if (!Number.isInteger(challengeId) || challengeId < 1) {
       return res
         .status(400)
@@ -1301,6 +1303,198 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
         endPhaseOneDateTime: challenge.endPhaseOneDateTime,
       },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-coding', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Coding phase can only be ended while it is active.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const endPhaseOneDateTime = new Date();
+    const [updatedCount, updatedRows] = await Challenge.update(
+      {
+        status: ChallengeStatus.ENDED_PHASE_ONE,
+        endPhaseOneDateTime,
+      },
+      {
+        where: {
+          id: challengeId,
+          status: ChallengeStatus.STARTED_PHASE_ONE,
+        },
+        returning: true,
+      }
+    );
+
+    if (updatedCount === 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'Coding phase could not be ended.',
+      });
+    }
+
+    const updatedChallenge = updatedRows?.[0] || challenge;
+    emitChallengeUpdate(updatedChallenge);
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: updatedChallenge.id,
+        title: updatedChallenge.title,
+        status: updatedChallenge.status,
+        endPhaseOneDateTime: updatedChallenge.endPhaseOneDateTime,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-peer-review', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+      return res.status(409).json({
+        success: false,
+        error: 'Peer review can only be ended while it is active.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const result = await finalizePeerReviewChallenge({
+      challengeId,
+      allowEarly: true,
+    });
+
+    if (result.status === 'challenge_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (result.status === 'no_participants') {
+      return res.status(400).json({
+        success: false,
+        error: 'Peer review cannot be finalized without participants',
+      });
+    }
+
+    if (result.status === 'update_failed') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to finalize peer review',
+      });
+    }
+
+    if (result.status === 'ok' && result.challenge) {
+      emitChallengeUpdate(result.challenge);
+    }
+
+    return res.json({
+      success: true,
+      data: { finalized: true },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-challenge', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge can only be ended after the coding phase.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const result = await finalizePeerReviewChallenge({
+      challengeId,
+      allowEarly: true,
+    });
+
+    if (result.status === 'challenge_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (result.status === 'no_participants') {
+      return res.status(400).json({
+        success: false,
+        error: 'Challenge cannot be finalized without participants',
+      });
+    }
+
+    if (result.status === 'update_failed') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to finalize challenge',
+      });
+    }
+
+    if (result.status === 'ok' && result.challenge) {
+      emitChallengeUpdate(result.challenge);
+    }
+
+    return res.json({
+      success: true,
+      data: { finalized: true },
     });
   } catch (error) {
     handleException(res, error);
@@ -1863,7 +2057,12 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
     }
 
     let peerReviewTests = [];
+    let scoreBreakdown = null;
     if (isFullyEnded && studentSubmission) {
+      scoreBreakdown = await SubmissionScoreBreakdown.findOne({
+        where: { submissionId: studentSubmission.id },
+      });
+
       const assignments = await PeerReviewAssignment.findAll({
         where: { submissionId: studentSubmission.id },
         include: [
@@ -1912,6 +2111,9 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
               status: studentSubmission.status,
               isAutomaticSubmission: studentSubmission.isAutomaticSubmission,
               isFinal: studentSubmission.isFinal,
+              publicTestResults: parseTestResults(
+                studentSubmission.publicTestResults
+              ),
               privateTestResults: parseTestResults(
                 studentSubmission.privateTestResults
               ),
@@ -1927,6 +2129,7 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         },
         otherSubmissions,
         peerReviewTests,
+        scoreBreakdown,
       },
     });
   } catch (error) {

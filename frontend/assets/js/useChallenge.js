@@ -96,6 +96,13 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const endCodingPhase = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/end-coding`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
   const assignPeerReviews = useCallback(
     async (challengeId, expectedReviewsPerSubmission) => {
       const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/assign`;
@@ -121,6 +128,13 @@ export default function useChallenge() {
   const startPeerReview = useCallback(
     async (challengeId) => {
       const url = `${API_REST_BASE}/challenges/${challengeId}/peer-reviews/start`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
+  const endPeerReview = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/end-peer-review`;
       return fetchData(url, { method: 'POST' });
     },
     [fetchData]
@@ -284,6 +298,13 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+  const endChallenge = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/end-challenge`;
+      return fetchData(url, { method: 'POST' });
+    },
+    [fetchData]
+  );
 
   const finalizePeerReview = useCallback(
     async (challengeId) => {
@@ -322,9 +343,11 @@ export default function useChallenge() {
       assignChallenge,
       unpublishChallenge,
       startChallenge,
+      endCodingPhase,
       assignPeerReviews,
       updateExpectedReviews,
       startPeerReview,
+      endPeerReview,
       getStudentPeerReviewAssignments,
       getChallengeForJoinedStudent,
       getChallengesForStudent,
@@ -336,6 +359,7 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      endChallenge,
       getPeerReviewSummary,
       getStudentVotes,
       submitPeerReviewVote,
@@ -355,9 +379,11 @@ export default function useChallenge() {
       assignChallenge,
       unpublishChallenge,
       startChallenge,
+      endCodingPhase,
       assignPeerReviews,
       updateExpectedReviews,
       startPeerReview,
+      endPeerReview,
       getStudentPeerReviewAssignments,
       getChallengeForJoinedStudent,
       getChallengesForStudent,
@@ -369,6 +395,7 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      endChallenge,
       getPeerReviewSummary,
       getStudentVotes,
       submitPeerReviewVote,

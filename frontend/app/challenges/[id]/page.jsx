@@ -139,10 +139,13 @@ export default function ChallengeDetailPage() {
     assignChallenge,
     getChallengeParticipants,
     startChallenge,
+    endCodingPhase,
     assignPeerReviews,
     updateExpectedReviews,
     startPeerReview,
+    endPeerReview,
     unpublishChallenge,
+    endChallenge,
   } = useChallenge();
   const challengeId = params?.id;
   const redirectOnError = useApiErrorRedirect();
@@ -167,6 +170,8 @@ export default function ChallengeDetailPage() {
   const [savingExpectedReviews, setSavingExpectedReviews] = useState(false);
   const [peerReviewMessages, setPeerReviewMessages] = useState([]);
   const [phaseNow, setPhaseNow] = useState(Date.now());
+  const [dangerAction, setDangerAction] = useState(null);
+  const [dangerPending, setDangerPending] = useState(false);
   const getChallengeParticipantsRef = useRef(getChallengeParticipants);
 
   useEffect(() => {
@@ -443,6 +448,73 @@ export default function ChallengeDetailPage() {
     }
   }, [challengeId, load, startPeerReview]);
 
+  const dangerActions = useMemo(
+    () => ({
+      endCoding: {
+        key: 'endCoding',
+        label: 'End coding phase',
+        title: 'End coding phase?',
+        description:
+          'This will immediately stop the coding phase for all students.',
+        confirmLabel: 'End coding phase',
+        pendingLabel: 'Ending coding phase...',
+        errorMessage: 'Unable to end the coding phase.',
+        run: endCodingPhase,
+      },
+      endPeerReview: {
+        key: 'endPeerReview',
+        label: 'End peer review',
+        title: 'End peer review?',
+        description:
+          'This will finalize peer review and lock in the current results.',
+        confirmLabel: 'End peer review',
+        pendingLabel: 'Ending peer review...',
+        errorMessage: 'Unable to end peer review.',
+        run: endPeerReview,
+      },
+      endChallenge: {
+        key: 'endChallenge',
+        label: 'End challenge',
+        title: 'End challenge?',
+        description:
+          'This will immediately complete the challenge without starting peer review.',
+        confirmLabel: 'End challenge',
+        pendingLabel: 'Ending challenge...',
+        errorMessage: 'Unable to end the challenge.',
+        run: endChallenge,
+      },
+    }),
+    [endChallenge, endCodingPhase, endPeerReview]
+  );
+
+  const activeDangerAction = dangerAction ? dangerActions[dangerAction] : null;
+
+  const handleConfirmDangerAction = useCallback(async () => {
+    if (!challengeId || !dangerAction) return;
+    const actionConfig = dangerActions[dangerAction];
+    if (!actionConfig) return;
+    setDangerPending(true);
+    setError(null);
+    try {
+      const res = await actionConfig.run(challengeId);
+      if (res?.success === false) {
+        setError(getApiErrorMessage(res, actionConfig.errorMessage));
+        return;
+      }
+      setDangerAction(null);
+      await load();
+    } catch (_err) {
+      setError(actionConfig.errorMessage);
+    } finally {
+      setDangerPending(false);
+    }
+  }, [challengeId, dangerAction, dangerActions, load]);
+
+  const handleCancelDangerAction = useCallback(() => {
+    if (dangerPending) return;
+    setDangerAction(null);
+  }, [dangerPending]);
+
   const handleEditClick = () => {
     if (!challengeId) return;
     if (challenge?.status === ChallengeStatus.PUBLIC) {
@@ -496,6 +568,16 @@ export default function ChallengeDetailPage() {
     challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && peerReviewReady;
   const showPeerReviewInProgress =
     challenge?.status === ChallengeStatus.STARTED_PHASE_TWO;
+  const showEndCodingPhaseButton =
+    isTeacher && challenge?.status === ChallengeStatus.STARTED_PHASE_ONE;
+  const showEndPeerReviewButton =
+    isTeacher && challenge?.status === ChallengeStatus.STARTED_PHASE_TWO;
+  const showEndChallengeButton =
+    isTeacher && challenge?.status === ChallengeStatus.ENDED_PHASE_ONE;
+  const showDangerZone =
+    showEndCodingPhaseButton ||
+    showEndPeerReviewButton ||
+    showEndChallengeButton;
   const isEditableStatus =
     challenge?.status === ChallengeStatus.PRIVATE ||
     challenge?.status === ChallengeStatus.PUBLIC;
@@ -981,6 +1063,51 @@ export default function ChallengeDetailPage() {
         </div>
       )}
 
+      {showDangerZone ? (
+        <Card className='border border-destructive/40 bg-destructive/5'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-base font-semibold text-destructive'>
+              Danger zone
+            </CardTitle>
+            <CardDescription className='text-sm text-destructive/80'>
+              These actions end phases early and cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='flex flex-wrap gap-2'>
+            {showEndCodingPhaseButton ? (
+              <Button
+                type='button'
+                variant='destructive'
+                onClick={() => setDangerAction('endCoding')}
+                disabled={loading || dangerPending}
+              >
+                End coding phase
+              </Button>
+            ) : null}
+            {showEndPeerReviewButton ? (
+              <Button
+                type='button'
+                variant='destructive'
+                onClick={() => setDangerAction('endPeerReview')}
+                disabled={loading || dangerPending}
+              >
+                End peer review
+              </Button>
+            ) : null}
+            {showEndChallengeButton ? (
+              <Button
+                type='button'
+                variant='destructive'
+                onClick={() => setDangerAction('endChallenge')}
+                disabled={loading || dangerPending}
+              >
+                End challenge
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!assignments.length && !error ? (
         <Card className='border border-dashed border-border bg-card text-card-foreground shadow-sm'>
           <CardContent className='py-6'>
@@ -1108,6 +1235,23 @@ export default function ChallengeDetailPage() {
         cancelDisabled={editPending}
         onConfirm={handleConfirmUnpublish}
         onCancel={handleEditCancel}
+      />
+      <AlertDialog
+        open={Boolean(activeDangerAction)}
+        title={activeDangerAction?.title}
+        description={activeDangerAction?.description}
+        confirmLabel={
+          dangerPending
+            ? activeDangerAction?.pendingLabel
+            : activeDangerAction?.confirmLabel
+        }
+        cancelLabel='Cancel'
+        confirmVariant='destructive'
+        cancelVariant='outline'
+        confirmDisabled={dangerPending}
+        cancelDisabled={dangerPending}
+        onConfirm={handleConfirmDangerAction}
+        onCancel={handleCancelDangerAction}
       />
     </div>
   );

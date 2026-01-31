@@ -74,6 +74,7 @@ const createSubmission = async ({
   participant,
   code,
   isFinal = true,
+  publicTestResults = [],
   privateTestResults = [],
 }) =>
   Submission.create({
@@ -82,6 +83,7 @@ const createSubmission = async ({
     code,
     status: SubmissionStatus.PROBABLY_CORRECT,
     isFinal,
+    publicTestResults: JSON.stringify(publicTestResults),
     privateTestResults: JSON.stringify(privateTestResults),
   });
 
@@ -409,6 +411,14 @@ describe('Student challenge endpoints', () => {
           student: reviewer,
         });
 
+      const publicTestResults = [
+        {
+          testIndex: 0,
+          passed: true,
+          expectedOutput: '1',
+          actualOutput: '1',
+        },
+      ];
       const privateTestResults = [
         {
           testIndex: 0,
@@ -421,6 +431,7 @@ describe('Student challenge endpoints', () => {
         match,
         participant,
         code: 'int main() { return 0; }',
+        publicTestResults,
         privateTestResults,
       });
       await createSubmission({
@@ -443,6 +454,7 @@ describe('Student challenge endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(res.body.data.studentSubmission.publicTestResults.length).toBe(1);
       expect(res.body.data.studentSubmission.privateTestResults.length).toBe(1);
       expect(res.body.data.otherSubmissions.length).toBeGreaterThan(0);
       expect(res.body.data.peerReviewTests.length).toBeGreaterThan(0);

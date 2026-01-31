@@ -39,10 +39,11 @@ export default function SnakeGame() {
   const foodRef = useRef(pickRandomFood(snakeRef.current));
   const directionRef = useRef({ x: 1, y: 0 });
   const nextDirectionRef = useRef({ x: 1, y: 0 });
-  const runningRef = useRef(true);
+  const runningRef = useRef(false);
 
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -75,17 +76,31 @@ export default function SnakeGame() {
     });
   }, []);
 
-  const resetGame = useCallback(() => {
-    const nextSnake = createInitialSnake();
-    snakeRef.current = nextSnake;
-    foodRef.current = pickRandomFood(nextSnake);
-    directionRef.current = { x: 1, y: 0 };
-    nextDirectionRef.current = { x: 1, y: 0 };
+  const resetGame = useCallback(
+    (options = {}) => {
+      const { shouldRun = true } = options;
+      const nextSnake = createInitialSnake();
+      snakeRef.current = nextSnake;
+      foodRef.current = pickRandomFood(nextSnake);
+      directionRef.current = { x: 1, y: 0 };
+      nextDirectionRef.current = { x: 1, y: 0 };
+      runningRef.current = shouldRun;
+      setIsPlaying(shouldRun);
+      setScore(0);
+      setGameOver(false);
+      draw();
+    },
+    [draw]
+  );
+
+  const startGame = useCallback(() => {
+    if (gameOver) {
+      resetGame({ shouldRun: true });
+      return;
+    }
     runningRef.current = true;
-    setScore(0);
-    setGameOver(false);
-    draw();
-  }, [draw]);
+    setIsPlaying(true);
+  }, [gameOver, resetGame]);
 
   const step = useCallback(() => {
     if (!runningRef.current) return;
@@ -111,6 +126,7 @@ export default function SnakeGame() {
     if (hitsWall || hitsBody) {
       runningRef.current = false;
       setGameOver(true);
+      setIsPlaying(false);
       return;
     }
 
@@ -148,6 +164,8 @@ export default function SnakeGame() {
       };
       const next = nextMap[key];
       if (!next) return;
+      if (!isPlaying || gameOver) return;
+      event.preventDefault();
       const { current } = directionRef;
       if (isOppositeDirection(next, current)) return;
       nextDirectionRef.current = next;
@@ -155,7 +173,7 @@ export default function SnakeGame() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [gameOver, isPlaying]);
 
   useEffect(() => {
     const id = setInterval(step, TICK_MS);
@@ -190,9 +208,13 @@ export default function SnakeGame() {
         <button
           type='button'
           className='rounded-md border border-border px-3 py-1 text-xs font-semibold text-foreground hover:bg-muted'
-          onClick={resetGame}
+          onClick={
+            isPlaying || gameOver
+              ? () => resetGame({ shouldRun: true })
+              : startGame
+          }
         >
-          Restart
+          {isPlaying || gameOver ? 'Restart' : 'Start'}
         </button>
       </div>
     </div>

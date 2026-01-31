@@ -1,9 +1,9 @@
 import {
   describe,
   it,
+  beforeAll,
   expect,
   vi,
-  beforeAll,
   afterAll,
   beforeEach,
   afterEach,
