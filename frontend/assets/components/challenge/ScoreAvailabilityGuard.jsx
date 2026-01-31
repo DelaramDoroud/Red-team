@@ -15,7 +15,6 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // FIX 1: useCallback per stabilizzare la funzione e includerla nelle dipendenze
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch(
@@ -36,15 +35,13 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
   useEffect(() => {
     fetchStatus();
 
-    // POLLING: Se il calcolo è in corso, controlla ogni 5 secondi
     let interval;
     if (status === SCORING_STATUS.SCORING_IN_PROGRESS) {
       interval = setInterval(fetchStatus, 5000);
     }
     return () => clearInterval(interval);
-  }, [fetchStatus, status]); // Ora fetchStatus è una dipendenza sicura
+  }, [fetchStatus, status]);
 
-  // 1. Loading Iniziale
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -53,7 +50,6 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
     );
   }
 
-  // 2. Peer Review non finita
   if (status === SCORING_STATUS.PEER_REVIEW_NOT_ENDED) {
     return (
       <div className={`${styles.alert} ${styles.alertWarning}`}>
@@ -66,7 +62,6 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
     );
   }
 
-  // 3. Calcolo in corso (Mostra Spinner + Messaggio)
   if (status === SCORING_STATUS.SCORING_IN_PROGRESS) {
     return (
       <div className={styles.computingContainer}>
@@ -78,8 +73,6 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
       </div>
     );
   }
-
-  // 4. READY -> Renderizza i figli
 
   if (status === SCORING_STATUS.READY) {
     return children;
