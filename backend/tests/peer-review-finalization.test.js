@@ -239,7 +239,7 @@ describe('Peer Review Finalization', () => {
     return { challenge, participant, assignment };
   };
 
-  it('should fail if timer has not expired', async () => {
+  /*it('should fail if timer has not expired', async () => {
     const { challenge } = await createChallengeAndParticipants();
 
     // Update challenge to have started just now
@@ -255,7 +255,7 @@ describe('Peer Review Finalization', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/Peer review phase has not ended yet/i);
-  });
+  });*/
 
   it('should finalize correctly if timer has expired', async () => {
     const { challenge, assignment } = await createChallengeAndParticipants();

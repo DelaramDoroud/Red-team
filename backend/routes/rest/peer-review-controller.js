@@ -22,9 +22,11 @@ import {
   normalizeOutputForComparison,
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
 
 const router = Router();
 
+// ----------------------------- GET VOTES -----------------------------
 router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
   try {
     const { challengeId } = req.params;
@@ -202,6 +204,8 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
     handleException(res, error);
   }
 });
+
+// ----------------------------- SUBMIT VOTE -----------------------------
 router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   try {
     const { assignmentId } = req.params;
@@ -251,6 +255,8 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
     handleException(res, error);
   }
 });
+
+// ----------------------------- FINALIZE CHALLENGE -----------------------------
 router.post('/peer-review/finalize-challenge', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
   try {
@@ -312,6 +318,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
+    // ------------------ PROCESS VOTES ------------------
     for (const participant of participants) {
       const reviewerId = participant.id;
 
@@ -368,6 +375,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         (vote) => vote.vote === VoteType.CORRECT
       );
 
+      // Process correct votes
       for (const vote of correctVotes) {
         const assignment = assignmentById.get(vote.peerReviewAssignmentId);
         const submissionStatus = assignment?.submission?.status;
@@ -384,6 +392,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         );
       }
 
+      // Process incorrect votes
       for (const vote of incorrectVotes) {
         const assignment = assignmentById.get(vote.peerReviewAssignmentId);
 
@@ -531,15 +540,37 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     );
 
     await t.commit();
+
+    // ------------------ BADGE CHECK ------------------
+    const badgeResults = [];
+    for (const participant of participants) {
+      // awardBadgeIfEligible returns only the badges JUST unlocked
+      const { unlockedBadges, completedChallenges } =
+        await awardBadgeIfEligible(participant.studentId);
+      if (unlockedBadges.length > 0) {
+        badgeResults.push({
+          studentId: participant.studentId,
+          unlockedBadges,
+          completedChallenges,
+        });
+      }
+    }
+
     return res.json({
       success: true,
-      data: { finalized: true },
+      data: {
+        finalized: true,
+        badgeUnlocked: badgeResults.length > 0,
+        badgeResults,
+      },
     });
   } catch (error) {
-    return handleException(res, error);
+    await t.rollback();
+    handleException(res, error);
   }
 });
 
+// ----------------------------- EXIT PEER REVIEW -----------------------------
 router.post('/peer-review/exit', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
 
