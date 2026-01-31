@@ -131,22 +131,13 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  if (sequelize) {
-    try {
-      await Promise.race([
-        sequelize.close(),
-        new Promise(
-          (resolve) =>
-            setTimeout(() => {
-              console.warn('sequelize.close() timed out, continuing...');
-              resolve();
-            }, 10000) // 10s
-        ),
-      ]);
-    } catch (err) {
-      console.error('Error closing sequelize:', err);
-    }
-  }
+  if (!sequelize) return;
+  await Promise.race([
+    sequelize.close(),
+    new Promise((resolve) => {
+      setTimeout(resolve, 5000);
+    }),
+  ]);
 });
 
 describe('Peer Review Finalization', () => {
