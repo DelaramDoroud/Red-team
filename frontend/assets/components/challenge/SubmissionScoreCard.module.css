@@ -49,7 +49,7 @@
 .totalScoreValue {
   font-size: 5rem;
   font-weight: 800;
-  color: var(--primary-purple); /* VIOLA FISSO */
+  color: var(--primary-purple);
   line-height: 1;
   margin: 0;
 }
@@ -57,7 +57,7 @@
 .totalLabel {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-muted); /* Adatta al tema */
+  color: var(--text-muted);
   margin-top: 0.5rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -87,12 +87,12 @@
 .subValue {
   font-size: 2.25rem;
   font-weight: 700;
-  color: var(--light-purple); /* VIOLA FISSO */
+  color: var(--light-purple);
 }
 
 .subLabel {
   font-size: 0.875rem;
-  color: var(--text-muted); /* Adatta al tema */
+  color: var(--text-muted);
 }
 
 .timestamp {
@@ -144,7 +144,6 @@
   font-weight: 700;
 }
 
-/* I colori delle icone si adattano leggermente lo sfondo, ma il testo resta colorato */
 .iconReview {
   background-color: var(--icon-bg-review);
   color: #3b82f6;
@@ -158,7 +157,7 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-main); /* Diventa bianco in dark mode */
+  color: var(--text-main);
 }
 
 .headerInfo span {
@@ -171,7 +170,7 @@
   margin-left: auto;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--primary-purple); /* VIOLA FISSO */
+  color: var(--primary-purple);
 }
 
 .headerMax {
@@ -183,5 +182,5 @@
 .description {
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--text-muted); /* Si legge bene sia su bianco che su nero */
+  color: var(--text-muted);
 }
