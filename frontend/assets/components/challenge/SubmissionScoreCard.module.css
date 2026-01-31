@@ -1,0 +1,187 @@
+.container {
+  /* --- COLORI PRINCIPALI (VIOLA) - Questi restano fissi --- */
+  --primary-purple: #5b21b6;
+  --light-purple: #7c3aed;
+
+  /* --- VARIABILI DINAMICHE (Cambiano tra Chiaro/Scuro) --- */
+  /* Default: LIGHT MODE */
+  --card-bg: #ffffff; /* Sfondo bianco */
+  --text-main: #1f2937; /* Testo scuro */
+  --text-muted: #6b7280; /* Testo grigio */
+  --border-color: #e5e7eb; /* Bordi chiari */
+  --icon-bg-review: #eff6ff; /* Sfondo icona review (celestino) */
+  --icon-bg-impl: #f5f3ff; /* Sfondo icona impl (violetto chiaro) */
+  --divider-color: #e5e7eb;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  font-family: system-ui, sans-serif;
+}
+
+/* --- DARK MODE OVERRIDES --- */
+/* Quando il sito è in dark mode, cambiamo le variabili dello sfondo e del testo piccolo */
+:global(.dark) .container {
+  --card-bg: #0f172a; /* Sfondo molto scuro (Slate 900) */
+  --text-main: #f3f4f6; /* Testo quasi bianco */
+  --text-muted: #9ca3af; /* Testo grigio chiaro */
+  --border-color: #1e293b; /* Bordi scuri */
+  --icon-bg-review: #1e293b; /* Sfondo icona scuro */
+  --icon-bg-impl: #1e293b; /* Sfondo icona scuro */
+  --divider-color: #374151;
+}
+
+/* --- STILI DELLE CARD --- */
+.heroCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color); /* Aggiunto bordo sottile per definizione */
+  border-radius: 16px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: background-color 0.3s ease;
+}
+
+.totalScoreValue {
+  font-size: 5rem;
+  font-weight: 800;
+  color: var(--primary-purple); /* VIOLA FISSO */
+  line-height: 1;
+  margin: 0;
+}
+
+.totalLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted); /* Adatta al tema */
+  margin-top: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heroDivider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--divider-color);
+  margin: 2rem 0;
+  max-width: 400px;
+}
+
+.heroSubScores {
+  display: flex;
+  justify-content: center;
+  gap: 4rem;
+  width: 100%;
+}
+
+.subScoreItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.subValue {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--light-purple); /* VIOLA FISSO */
+}
+
+.subLabel {
+  font-size: 0.875rem;
+  color: var(--text-muted); /* Adatta al tema */
+}
+
+.timestamp {
+  margin-top: 2rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* --- GRID LAYOUT --- */
+.breakdownGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .breakdownGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detailCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.iconBox {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* I colori delle icone si adattano leggermente lo sfondo, ma il testo resta colorato */
+.iconReview {
+  background-color: var(--icon-bg-review);
+  color: #3b82f6;
+}
+.iconImpl {
+  background-color: var(--icon-bg-impl);
+  color: #8b5cf6;
+}
+
+.headerInfo h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-main); /* Diventa bianco in dark mode */
+}
+
+.headerInfo span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.headerScore {
+  margin-left: auto;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-purple); /* VIOLA FISSO */
+}
+
+.headerMax {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.description {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-muted); /* Si legge bene sia su bianco che su nero */
+}
