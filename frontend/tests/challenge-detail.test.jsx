@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChallengeDetailPage from '../app/challenges/[id]/page';
 
@@ -7,10 +13,13 @@ const mockGetChallengeMatches = vi.fn();
 const mockAssignChallenge = vi.fn();
 const mockGetChallengeParticipants = vi.fn();
 const mockStartChallenge = vi.fn();
+const mockEndCodingPhase = vi.fn();
 const mockAssignPeerReviews = vi.fn();
 const mockUpdateExpectedReviews = vi.fn();
 const mockStartPeerReview = vi.fn();
+const mockEndPeerReview = vi.fn();
 const mockUnpublishChallenge = vi.fn();
+const mockEndChallenge = vi.fn();
 const mockDispatch = vi.fn(() => Promise.resolve());
 
 vi.mock('#js/useChallenge', () => ({
@@ -20,10 +29,13 @@ vi.mock('#js/useChallenge', () => ({
     assignChallenge: mockAssignChallenge,
     getChallengeParticipants: mockGetChallengeParticipants,
     startChallenge: mockStartChallenge,
+    endCodingPhase: mockEndCodingPhase,
     assignPeerReviews: mockAssignPeerReviews,
     updateExpectedReviews: mockUpdateExpectedReviews,
     startPeerReview: mockStartPeerReview,
+    endPeerReview: mockEndPeerReview,
     unpublishChallenge: mockUnpublishChallenge,
+    endChallenge: mockEndChallenge,
   }),
 }));
 
@@ -84,10 +96,13 @@ describe('ChallengeDetailPage', () => {
       data: [{ id: 1 }, { id: 2 }],
     });
     mockStartChallenge.mockResolvedValue({ success: true });
+    mockEndCodingPhase.mockResolvedValue({ success: true });
     mockAssignPeerReviews.mockResolvedValue({ success: true, results: [] });
     mockUpdateExpectedReviews.mockResolvedValue({ success: true });
     mockStartPeerReview.mockResolvedValue({ success: true });
+    mockEndPeerReview.mockResolvedValue({ success: true });
     mockUnpublishChallenge.mockResolvedValue({ success: true });
+    mockEndChallenge.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -241,6 +256,65 @@ describe('ChallengeDetailPage', () => {
       expect(mockUnpublishChallenge).toHaveBeenCalledWith('123')
     );
     expect(mockRouter.push).toHaveBeenCalledWith('/challenges/123/edit');
+  });
+
+  it('confirms ending the coding phase from the danger zone', async () => {
+    const user = userEvent.setup();
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'started_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    const endCodingButton = await screen.findByRole('button', {
+      name: /end coding phase/i,
+    });
+    await user.click(endCodingButton);
+
+    const dialog = await screen.findByRole('dialog');
+    const confirmButton = within(dialog).getByRole('button', {
+      name: /end coding phase/i,
+    });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(mockEndCodingPhase).toHaveBeenCalledWith('123'));
+  });
+
+  it('shows the end peer review button only during peer review', async () => {
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'started_phase_two',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: true,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    expect(
+      await screen.findByRole('button', { name: /end peer review/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /end coding phase/i })
+    ).not.toBeInTheDocument();
   });
 
   it('shows joined student names when no matches are assigned', async () => {

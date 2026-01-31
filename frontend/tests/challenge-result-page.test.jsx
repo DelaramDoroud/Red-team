@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { ChallengeStatus } from '#js/constants';
 import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
@@ -39,7 +40,39 @@ describe('ChallengeResultPage', () => {
     vi.clearAllMocks();
   });
 
-  const renderPage = ({ durationValue } = {}) =>
+  const renderPage = ({ durationValue, preloadedState } = {}) => {
+    const baseState = {
+      auth: {
+        user: { id: 1, role: 'student' },
+        isLoggedIn: true,
+        loading: false,
+        roles: ['student'],
+        error: null,
+        loginRedirectPath: null,
+        permissions: null,
+      },
+      ui: {
+        theme: null,
+        challengeDrafts: {},
+        challengeTimers: {},
+        challengeCountdowns: {},
+        peerReviewExits: {},
+        solutionFeedbackVisibility: {},
+      },
+    };
+    const mergedState = {
+      ...baseState,
+      ...preloadedState,
+      auth: {
+        ...baseState.auth,
+        ...(preloadedState?.auth || {}),
+      },
+      ui: {
+        ...baseState.ui,
+        ...(preloadedState?.ui || {}),
+      },
+    };
+
     renderWithProviders(
       durationValue ? (
         <DurationProvider value={durationValue}>
@@ -49,28 +82,13 @@ describe('ChallengeResultPage', () => {
         <ChallengeResultPage />
       ),
       {
-        preloadedState: {
-          auth: {
-            user: { id: 1, role: 'student' },
-            isLoggedIn: true,
-            loading: false,
-            roles: ['student'],
-            error: null,
-            loginRedirectPath: null,
-            permissions: null,
-          },
-          ui: {
-            theme: null,
-            challengeDrafts: {},
-            challengeTimers: {},
-            challengeCountdowns: {},
-            peerReviewExits: {},
-          },
-        },
+        preloadedState: mergedState,
       }
     );
+  };
 
   it('renders ended challenge details with private tests and peer review feedback', async () => {
+    const user = userEvent.setup();
     mockGetChallengeResults.mockResolvedValue({
       success: true,
       data: {
@@ -85,6 +103,14 @@ describe('ChallengeResultPage', () => {
           id: 99,
           code: 'int main() { return 0; }',
           createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
+          publicTestResults: [
+            {
+              testIndex: 0,
+              passed: true,
+              expectedOutput: '1 2',
+              actualOutput: '1 2',
+            },
+          ],
           privateTestResults: [
             {
               testIndex: 0,
@@ -127,7 +153,19 @@ describe('ChallengeResultPage', () => {
     expect(await screen.findByText('Sorting Challenge')).toBeInTheDocument();
     expect(screen.getByText(/Problem: Sort an array/i)).toBeInTheDocument();
     expect(screen.getByText(/^Your submission$/i)).toBeInTheDocument();
+    const toggleButton = screen.getByRole('button', {
+      name: /View Your Solution & Feedback/i,
+    });
+    expect(toggleButton).toBeInTheDocument();
+    expect(
+      screen.queryByText(/int main\(\) { return 0; }/i)
+    ).not.toBeInTheDocument();
+    await user.click(toggleButton);
+    expect(
+      screen.getByRole('button', { name: /Hide Your Solution & Feedback/i })
+    ).toBeInTheDocument();
     expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
+    expect(screen.getByText(/Public test results/i)).toBeInTheDocument();
     expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
     expect(screen.getAllByText('1 2').length).toBeGreaterThan(0);
     expect(screen.getByText(/Peer Review Results/i)).toBeInTheDocument();
@@ -136,6 +174,67 @@ describe('ChallengeResultPage', () => {
       screen.getByText(/Other participant solutions/i)
     ).toBeInTheDocument();
     expect(screen.getAllByText('peer').length).toBeGreaterThan(0);
+  });
+
+  it('respects persisted solution feedback visibility', async () => {
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        challenge: {
+          id: 42,
+          title: 'Sorting Challenge',
+          status: 'ended_phase_two',
+          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+        },
+        matchSetting: { id: 5, problemTitle: 'Sort an array' },
+        studentSubmission: {
+          id: 99,
+          code: 'int main() { return 0; }',
+          createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
+          publicTestResults: [
+            {
+              testIndex: 0,
+              passed: true,
+              expectedOutput: '1 2',
+              actualOutput: '1 2',
+            },
+          ],
+          privateTestResults: [
+            {
+              testIndex: 0,
+              passed: false,
+              expectedOutput: '1 2',
+              actualOutput: '2 1',
+              stderr: 'Wrong order',
+            },
+          ],
+        },
+      },
+    });
+
+    renderPage({
+      durationValue: {
+        status: ChallengeStatus.ENDED_PHASE_TWO,
+      },
+      preloadedState: {
+        ui: {
+          solutionFeedbackVisibility: {
+            1: {
+              42: true,
+            },
+          },
+        },
+      },
+    });
+
+    expect(
+      await screen.findByRole('button', {
+        name: /Hide Your Solution & Feedback/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
+    expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wrong order/i)).toBeInTheDocument();
   });
 
   it('shows an error message when the API fails', async () => {

@@ -8,8 +8,12 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import {
+  ChallengeStatus,
+  SubmissionStatus,
+  Scoring_Availability,
+} from '#root/models/enum/enums.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
-import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import {
@@ -29,6 +33,8 @@ import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
 import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
+import { calculateChallengeScores } from '#root/services/scoring-service.js';
+import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 
 const router = Router();
 
@@ -1215,7 +1221,8 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
 });
 router.post('/challenges/:challengeId/start', async (req, res) => {
   try {
-    const challengeId = Number(req.params.challengeId);
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
     if (!Number.isInteger(challengeId) || challengeId < 1) {
       return res
         .status(400)
@@ -1296,6 +1303,198 @@ router.post('/challenges/:challengeId/start', async (req, res) => {
         startPhaseOneDateTime: challenge.startPhaseOneDateTime,
         endPhaseOneDateTime: challenge.endPhaseOneDateTime,
       },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-coding', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_ONE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Coding phase can only be ended while it is active.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const endPhaseOneDateTime = new Date();
+    const [updatedCount, updatedRows] = await Challenge.update(
+      {
+        status: ChallengeStatus.ENDED_PHASE_ONE,
+        endPhaseOneDateTime,
+      },
+      {
+        where: {
+          id: challengeId,
+          status: ChallengeStatus.STARTED_PHASE_ONE,
+        },
+        returning: true,
+      }
+    );
+
+    if (updatedCount === 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'Coding phase could not be ended.',
+      });
+    }
+
+    const updatedChallenge = updatedRows?.[0] || challenge;
+    emitChallengeUpdate(updatedChallenge);
+
+    return res.json({
+      success: true,
+      challenge: {
+        id: updatedChallenge.id,
+        title: updatedChallenge.title,
+        status: updatedChallenge.status,
+        endPhaseOneDateTime: updatedChallenge.endPhaseOneDateTime,
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-peer-review', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+      return res.status(409).json({
+        success: false,
+        error: 'Peer review can only be ended while it is active.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const result = await finalizePeerReviewChallenge({
+      challengeId,
+      allowEarly: true,
+    });
+
+    if (result.status === 'challenge_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (result.status === 'no_participants') {
+      return res.status(400).json({
+        success: false,
+        error: 'Peer review cannot be finalized without participants',
+      });
+    }
+
+    if (result.status === 'update_failed') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to finalize peer review',
+      });
+    }
+
+    if (result.status === 'ok' && result.challenge) {
+      emitChallengeUpdate(result.challenge);
+    }
+
+    return res.json({
+      success: true,
+      data: { finalized: true },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post('/challenges/:challengeId/end-challenge', async (req, res) => {
+  try {
+    const { challengeId: challengeIdParam } = req.params;
+    const challengeId = Number(challengeIdParam);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge can only be ended after the coding phase.',
+        currentStatus: challenge.status,
+      });
+    }
+
+    const result = await finalizePeerReviewChallenge({
+      challengeId,
+      allowEarly: true,
+    });
+
+    if (result.status === 'challenge_not_found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Challenge not found',
+      });
+    }
+
+    if (result.status === 'no_participants') {
+      return res.status(400).json({
+        success: false,
+        error: 'Challenge cannot be finalized without participants',
+      });
+    }
+
+    if (result.status === 'update_failed') {
+      return res.status(500).json({
+        success: false,
+        error: 'Unable to finalize challenge',
+      });
+    }
+
+    if (result.status === 'ok' && result.challenge) {
+      emitChallengeUpdate(result.challenge);
+    }
+
+    return res.json({
+      success: true,
+      data: { finalized: true },
     });
   } catch (error) {
     handleException(res, error);
@@ -1912,6 +2111,9 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
               status: studentSubmission.status,
               isAutomaticSubmission: studentSubmission.isAutomaticSubmission,
               isFinal: studentSubmission.isFinal,
+              publicTestResults: parseTestResults(
+                studentSubmission.publicTestResults
+              ),
               privateTestResults: parseTestResults(
                 studentSubmission.privateTestResults
               ),
@@ -2301,4 +2503,112 @@ router.get('/challenges/:challengeId', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.get('/challenges/:challengeId/scoring-status', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid challengeId' });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId, {
+      attributes: ['id', 'status', 'endPhaseTwoDateTime', 'scoringStatus'],
+    });
+
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+
+    if (
+      shouldHidePrivate(req) &&
+      challenge.status === ChallengeStatus.PRIVATE
+    ) {
+      return res
+        .status(403)
+        .json({ success: false, error: 'Challenge is private' });
+    }
+
+    const now = new Date();
+    const peerReviewEnd = challenge.endPhaseTwoDateTime
+      ? new Date(challenge.endPhaseTwoDateTime)
+      : null;
+
+    if (!peerReviewEnd || now < peerReviewEnd) {
+      return res.json({
+        state: Scoring_Availability.PEER_REVIEW_NOT_ENDED,
+        message:
+          'Scoring is not available yet. Please wait until the peer review phase has ended.',
+        canAccessData: false,
+      });
+    }
+
+    if (challenge.scoringStatus !== 'completed') {
+      return res.json({
+        state: Scoring_Availability.SCORING_IN_PROGRESS,
+        message:
+          'Scoring is not available yet. Please wait until scoring is computed.',
+        canAccessData: false,
+      });
+    }
+
+    return res.json({
+      state: Scoring_Availability.READY,
+      message: null,
+      canAccessData: true,
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post(
+  '/challenges/:challengeId/test-scoring-manual',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      console.log(`Manual trigger scoring for challenge ${challengeId}...`);
+
+      // 1. Lancia il calcolo (RT-215 Logic)
+      const scores = await calculateChallengeScores(challengeId);
+
+      // 2. Simula il salvataggio (lo stesso codice dello scheduler)
+      if (scores && scores.length > 0) {
+        await Promise.all(
+          scores.map(async (scoreItem) => {
+            if (scoreItem.submissionId) {
+              const [breakdown, created] =
+                await SubmissionScoreBreakdown.findOrCreate({
+                  where: { submissionId: scoreItem.submissionId },
+                  defaults: {
+                    codeReviewScore: scoreItem.codeReviewScore,
+                    implementationScore: 0,
+                    totalScore: 0,
+                  },
+                });
+              if (!created) {
+                await breakdown.update({
+                  codeReviewScore: scoreItem.codeReviewScore,
+                });
+              }
+            }
+          })
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: 'Calculation executed',
+        results: scores,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 export default router;
