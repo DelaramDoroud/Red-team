@@ -6,13 +6,15 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { VoteType } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 
 /**
- * CALCOLO COMPLETO (RT-215 + RT-216)
- * Calcola Code Review Score e Implementation Score per tutti i partecipanti.
+ * FULL CALCULATION (RT-215 + RT-216)
+ * Calculates Code Review Score, Implementation Score, and Total Score.
+ * Saves the results in the submission_score_breakdown table.
  */
 export async function calculateChallengeScores(challengeId) {
   logger.info(`Starting FULL score calculation for Challenge ${challengeId}`);
@@ -32,7 +34,6 @@ export async function calculateChallengeScores(challengeId) {
 
   if (!challenge) throw new Error(`Challenge ${challengeId} not found`);
 
-  // Mappa MatchSettingID -> Oggetto MatchSetting (per reference_solution)
   const matchSettingsMap = new Map();
   challenge.challengeMatchSettings.forEach((cms) => {
     if (cms.matchSetting) {
@@ -40,7 +41,6 @@ export async function calculateChallengeScores(challengeId) {
     }
   });
 
-  // Recupera tutte le Submission FINALI (include i dati del Match)
   const submissions = await Submission.findAll({
     where: { isFinal: true },
     include: [
@@ -56,7 +56,6 @@ export async function calculateChallengeScores(challengeId) {
     ],
   });
 
-  // Recupera Assegnazioni e Voti
   const assignments = await PeerReviewAssignment.findAll({
     where: {
       submissionId: { [Op.in]: submissions.map((s) => s.id) },
@@ -68,9 +67,8 @@ export async function calculateChallengeScores(challengeId) {
   });
 
   // ---------------------------------------------------------
-  // FASE A: VALIDAZIONE TEST CASE (Reference Check)
+  // PHASE A: TEST CASE VALIDATION (Reference Check)
   // ---------------------------------------------------------
-
   const incorrectVotesWithTests = assignments
     .map((a) => a.vote)
     .filter(
@@ -85,15 +83,11 @@ export async function calculateChallengeScores(challengeId) {
     );
     if (!assignment) continue;
 
-    // FIX: Usiamo l'array 'submissions' scaricato all'inizio
     const fullSubmission = submissions.find(
       (s) => s.id === assignment.submissionId
     );
 
     if (!fullSubmission || !fullSubmission.match) {
-      logger.warn(
-        `Could not find submission or match info for assignment ${assignment.id}`
-      );
       continue;
     }
 
@@ -111,20 +105,10 @@ export async function calculateChallengeScores(challengeId) {
     }
   }
 
-  logger.info(
-    `Votes to validate grouped by MatchSetting: ${votesByMatchSetting.size}`
-  );
-
-  // Eseguiamo i test contro la Reference Solution
   for (const { setting, votes } of votesByMatchSetting.values()) {
     const referenceCode = setting.referenceSolution;
 
-    if (!referenceCode) {
-      logger.warn(
-        `No reference solution for MatchSetting ${setting.id}. Skipping validation.`
-      );
-      continue;
-    }
+    if (!referenceCode) continue;
 
     const testCases = votes.map((v) => ({
       input: v.testCaseInput,
@@ -143,19 +127,15 @@ export async function calculateChallengeScores(challengeId) {
         votes.map(async (vote, index) => {
           const result = execResult.testResults[index];
 
-          // --- FIX SICUREZZA TRIM ---
           let producedOutput = result.actualOutput;
-          if (typeof producedOutput !== 'string') {
+          if (typeof producedOutput !== 'string')
             producedOutput = JSON.stringify(producedOutput);
-          }
           producedOutput = (producedOutput || '').trim();
 
           let expectedOutput = vote.expectedOutput;
-          if (typeof expectedOutput !== 'string') {
+          if (typeof expectedOutput !== 'string')
             expectedOutput = JSON.stringify(expectedOutput);
-          }
           expectedOutput = (expectedOutput || '').trim();
-          // --------------------------
 
           const isOutputCorrect = producedOutput === expectedOutput;
 
@@ -165,21 +145,16 @@ export async function calculateChallengeScores(challengeId) {
           });
         })
       );
-    } else {
-      logger.error(
-        `Reference solution failed to compile for MatchSetting ${setting.id}`
-      );
     }
   }
 
   // ---------------------------------------------------------
-  // FASE B: DETERMINA LA VERITÀ (Ground Truth)
+  // PHASE B: DETERMINE TRUTH (Ground Truth)
   // ---------------------------------------------------------
   const submissionTruthMap = new Map();
   const implementationStatsMap = new Map();
 
   for (const submission of submissions) {
-    // --- 1. Teacher Tests ---
     let passedTeacherTests = 0;
     let totalTeacherTests = 0;
     const cmsId = submission.match?.challengeMatchSettingId;
@@ -210,7 +185,6 @@ export async function calculateChallengeScores(challengeId) {
     const isTeacherPassed =
       totalTeacherTests > 0 && passedTeacherTests === totalTeacherTests;
 
-    // --- 2. Valid Peer Tests (Killer Tests) ---
     const relevantAssignments = assignments.filter(
       (a) => a.submissionId === submission.id
     );
@@ -237,18 +211,14 @@ export async function calculateChallengeScores(challengeId) {
       });
 
       if (execResult.isCompiled) {
-        // FIX: Usare 'killerVotes', NON 'votes' (che non esiste qui)
         await Promise.all(
           killerVotes.map(async (vote, index) => {
             const result = execResult.testResults[index];
-            const passed = result.passed; // true se output studente == expectedOutput
+            const passed = result.passed;
 
-            // --- FIX SICUREZZA SALVATAGGIO ---
             let actualOutputToSave = result.actualOutput;
-            if (typeof actualOutputToSave !== 'string') {
+            if (typeof actualOutputToSave !== 'string')
               actualOutputToSave = JSON.stringify(actualOutputToSave);
-            }
-            // ---------------------------------
 
             if (!passed) failedPeerTestCount++;
 
@@ -262,7 +232,6 @@ export async function calculateChallengeScores(challengeId) {
       }
     }
 
-    // Salva stats per RT-216
     implementationStatsMap.set(submission.id, {
       passedTeacher: passedTeacherTests,
       totalTeacher: totalTeacherTests,
@@ -274,7 +243,7 @@ export async function calculateChallengeScores(challengeId) {
     submissionTruthMap.set(submission.id, isUltimatelyCorrect);
   }
 
-  // Aggiorna Endorsements (RT-215 Fase B-2)
+  // Update Endorsements
   const endorsementVotes = assignments
     .map((a) => a.vote)
     .filter((v) => v && v.vote === VoteType.CORRECT);
@@ -293,7 +262,7 @@ export async function calculateChallengeScores(challengeId) {
   );
 
   // ---------------------------------------------------------
-  // FASE C: CALCOLO SCORE
+  // PHASE C: FINAL SCORE CALCULATION AND SAVING
   // ---------------------------------------------------------
   const results = [];
 
@@ -306,12 +275,12 @@ export async function calculateChallengeScores(challengeId) {
   });
 
   for (const [reviewerId, revAssignments] of reviewerAssignmentsMap) {
+    // 1. CALCULATE CODE REVIEW SCORE (RT-215)
     let E = 0,
       C = 0,
       W = 0,
       I_total = 0,
       C_total = 0;
-
     const reviewerSubmission = submissions.find(
       (s) => s.challengeParticipantId === reviewerId
     );
@@ -336,19 +305,23 @@ export async function calculateChallengeScores(challengeId) {
     const numerator = 2 * E + 1 * C - 0.5 * W;
     const denominator = 2 * I_total + 1 * C_total;
     let rawReviewScore = denominator > 0 ? 50 * (numerator / denominator) : 0;
-    const finalReviewScore = Math.max(0, Math.min(50, rawReviewScore));
+    const finalReviewScore = parseFloat(
+      Math.max(0, Math.min(50, rawReviewScore)).toFixed(2)
+    );
 
-    // CALCOLO IMPLEMENTATION SCORE (RT-216)
+    // 2. CALCULATE IMPLEMENTATION SCORE (RT-216)
     let implementationScore = 0;
 
     if (reviewerSubmission) {
       const stats = implementationStatsMap.get(reviewerSubmission.id);
       if (stats) {
+        // Base Formula
         let baseScore = 0;
         if (stats.totalTeacher > 0) {
           baseScore = (stats.passedTeacher / stats.totalTeacher) * 50;
         }
 
+        // Penalty Formula
         let penalty = 0;
         if (stats.totalPeer > 0) {
           const rawPenalty = (stats.failedPeer / stats.totalPeer) * 50;
@@ -357,21 +330,60 @@ export async function calculateChallengeScores(challengeId) {
         }
 
         implementationScore = baseScore - penalty;
-        implementationScore = Math.max(0, implementationScore);
+        implementationScore = parseFloat(
+          Math.max(0, implementationScore).toFixed(2)
+        );
+      }
+    }
+
+    // 3. CALCULATE TOTAL SCORE (RT-216)
+    const totalScore = parseFloat(
+      (finalReviewScore + implementationScore).toFixed(2)
+    );
+
+    // 4. SAVE TO SUBMISSION_SCORE_BREAKDOWN
+    if (reviewerSubmission) {
+      try {
+        // Check if a record already exists for this submission
+        const existingBreakdown = await SubmissionScoreBreakdown.findOne({
+          where: { submissionId: reviewerSubmission.id },
+        });
+
+        if (existingBreakdown) {
+          // UPDATE if exists
+          await existingBreakdown.update({
+            codeReviewScore: finalReviewScore,
+            implementationScore: implementationScore,
+            totalScore: totalScore,
+          });
+        } else {
+          // CREATE if it does not exist
+          await SubmissionScoreBreakdown.create({
+            submissionId: reviewerSubmission.id,
+            codeReviewScore: finalReviewScore,
+            implementationScore: implementationScore,
+            totalScore: totalScore,
+          });
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to save breakdown for submission ${reviewerSubmission.id}: ${error.message}`
+        );
       }
     }
 
     results.push({
       participantId: reviewerId,
       submissionId: reviewerSubmission ? reviewerSubmission.id : null,
-      codeReviewScore: parseFloat(finalReviewScore.toFixed(2)),
-      implementationScore: parseFloat(implementationScore.toFixed(2)),
+      codeReviewScore: finalReviewScore,
+      implementationScore: implementationScore,
+      totalScore: totalScore,
       stats: { E, C, W, I_total, C_total },
     });
   }
 
   logger.info(
-    `Calculated scores for ${results.length} participants in Challenge ${challengeId}`
+    `Calculated and saved scores for ${results.length} participants.`
   );
   return results;
 }
