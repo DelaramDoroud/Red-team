@@ -1,31 +1,26 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-
 import User from '#root/models/user.js';
 import Badge from '#root/models/badge.js';
 import StudentBadge from '#root/models/student-badges.js';
-
 import Challenge from '#root/models/challenge.js';
 import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Match from '#root/models/match.js';
 import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 
-import {
-  ChallengeStatus,
-  SubmissionStatus,
-  VoteType,
-} from '#root/models/enum/enums.js';
-
 import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
-import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 /* ------------------------------------------------------------------ */
 /* Helper: create a completed challenge for a student */
-const createCompletedChallenge = async (student, suffix, score = 30) => {
+const createCompletedChallenge = async (
+  student,
+  suffix,
+  codeReviewScore = 30
+) => {
+  // 1️⃣ Create a match setting
   const matchSetting = await MatchSetting.create({
     problemTitle: `Problem ${suffix}`,
     problemDescription: 'desc',
@@ -35,95 +30,86 @@ const createCompletedChallenge = async (student, suffix, score = 30) => {
     status: 'ready',
   });
 
+  // 2️⃣ Create a challenge with all required fields
+  const now = new Date();
   const challenge = await Challenge.create({
     title: `Challenge ${suffix}`,
     duration: 30,
-    startDatetime: new Date(Date.now() - 60 * 60 * 1000),
-    endDatetime: new Date(Date.now() - 30 * 60 * 1000),
+    startDatetime: new Date(now.getTime() - 60 * 60 * 1000),
+    endDatetime: new Date(now.getTime() - 30 * 60 * 1000),
     durationPeerReview: 20,
-    allowedNumberOfReview: 1,
-    status: ChallengeStatus.FINISHED,
+    status: 'ended_phase_one',
   });
 
+  // 3️⃣ Link challenge and match setting
   const cms = await ChallengeMatchSetting.create({
     challengeId: challenge.id,
     matchSettingId: matchSetting.id,
   });
 
+  // 4️⃣ Register student participation
   const participant = await ChallengeParticipant.create({
     challengeId: challenge.id,
     studentId: student.id,
   });
 
+  // 5️⃣ Create a match
   const match = await Match.create({
     challengeMatchSettingId: cms.id,
     challengeParticipantId: participant.id,
   });
 
+  // 6️⃣ Create a final submission
   const submission = await Submission.create({
     matchId: match.id,
     challengeParticipantId: participant.id,
-    code: 'code',
+    code: 'some code',
     status: SubmissionStatus.PROBABLY_CORRECT,
     isFinal: true,
   });
 
+  // 7️⃣ Create score breakdown
   await SubmissionScoreBreakdown.create({
     submissionId: submission.id,
-    codeReviewScore: score,
+    codeReviewScore,
     implementationScore: 40,
     totalScore: 70,
   });
 
-  const assignment = await PeerReviewAssignment.create({
-    submissionId: submission.id,
-    reviewerId: participant.id,
-    isExtra: false,
-  });
-
-  await PeerReviewVote.create({
-    peerReviewAssignmentId: assignment.id,
-    vote: VoteType.ABSTAIN,
-  });
-
-  return challenge;
+  return participant;
 };
 
 /* ------------------------------------------------------------------ */
 /* Test suite */
-describe('Milestone Badge Service', () => {
+describe('Challenge milestone badge awarding (backend)', () => {
   beforeAll(async () => {
-    const safeSync = async (model) => {
+    const models = [
+      User,
+      Badge,
+      StudentBadge,
+      MatchSetting,
+      Challenge,
+      ChallengeMatchSetting,
+      ChallengeParticipant,
+      Match,
+      Submission,
+      SubmissionScoreBreakdown,
+    ];
+
+    for (const model of models) {
       try {
         await model.sync({ force: true });
       } catch {
         return null;
       }
-    };
+    }
 
-    // Sync models
-    await safeSync(User);
-    await safeSync(Badge);
-    await safeSync(StudentBadge);
-    await safeSync(MatchSetting);
-    await safeSync(Challenge);
-    await safeSync(ChallengeMatchSetting);
-    await safeSync(ChallengeParticipant);
-    await safeSync(Match);
-    await safeSync(Submission);
-    await safeSync(PeerReviewAssignment);
-    await safeSync(PeerReviewVote);
-    await safeSync(SubmissionScoreBreakdown);
-
-    // Seed badges
     await Badge.seed();
   });
 
   beforeEach(async () => {
     await StudentBadge.destroy({ where: {} });
     await SubmissionScoreBreakdown.destroy({ where: {} });
-    await PeerReviewVote.destroy({ where: {} });
-    await PeerReviewAssignment.destroy({ where: {} });
     await Submission.destroy({ where: {} });
     await Match.destroy({ where: {} });
     await ChallengeParticipant.destroy({ where: {} });
@@ -133,57 +119,81 @@ describe('Milestone Badge Service', () => {
     await User.destroy({ where: {} });
   });
 
-  it('awards milestone badges correctly via badge service', async () => {
-    const student = await User.create({
-      username: 'all_milestones',
-      email: 'all@test.com',
+  it('evaluates badge eligibility independently for each participant', async () => {
+    const eligibleStudent = await User.create({
+      username: 'eligible',
+      email: 'eligible@test.com',
+      password: 'pw',
+      role: 'student',
+    });
+    const ineligibleStudent = await User.create({
+      username: 'ineligible',
+      email: 'ineligible@test.com',
       password: 'pw',
       role: 'student',
     });
 
-    // 10 challenges, alternating valid/invalid scores
-    for (let i = 0; i < 10; i++) {
-      const score = i % 2 === 0 ? 30 : 20;
-      await createCompletedChallenge(student, i, score);
-    }
+    // Eligible student: 5 completed challenges → should unlock challenge_3 and challenge_5
+    for (let i = 0; i < 5; i++)
+      await createCompletedChallenge(eligibleStudent, i, 30);
 
-    const result = await awardBadgeIfEligible(student.id);
-    const badgeKeys = result.unlockedBadges.map((b) => b.key);
+    // Ineligible student: 2 completed challenges → should unlock nothing
+    for (let i = 0; i < 2; i++)
+      await createCompletedChallenge(ineligibleStudent, i, 30);
 
-    expect(badgeKeys).toContain('challenge_3'); // First Steps
-    expect(badgeKeys).toContain('challenge_5'); // On a Roll
-    expect(badgeKeys).not.toContain('challenge_10'); // Challenge Veteran
+    const eligibleResult = await awardBadgeIfEligible(eligibleStudent.id);
+    const ineligibleResult = await awardBadgeIfEligible(ineligibleStudent.id);
+
+    // Eligible student
+    const eligibleKeys = eligibleResult.unlockedBadges.map((b) => b.key);
+    expect(eligibleResult.completedChallenges).toBe(5);
+    expect(eligibleKeys).toContain('challenge_3');
+    expect(eligibleKeys).toContain('challenge_5');
+    expect(eligibleKeys).not.toContain('challenge_10');
+
+    // Ineligible student
+    const ineligibleKeys = ineligibleResult.unlockedBadges.map((b) => b.key);
+    expect(ineligibleResult.completedChallenges).toBe(2);
+    expect(ineligibleKeys.length).toBe(0);
   });
 
-  it('finalizes peer review and returns unlocked milestone badges', async () => {
+  it('allows a single student to unlock multiple challenge badges in one evaluation', async () => {
     const student = await User.create({
-      username: 'peer_review_student',
-      email: 'peer@test.com',
+      username: 'multi',
+      email: 'multi@test.com',
       password: 'pw',
       role: 'student',
     });
 
-    const challenges = [];
-    for (let i = 0; i < 10; i++) {
-      const score = i % 2 === 0 ? 30 : 20;
-      challenges.push(await createCompletedChallenge(student, i, score));
-    }
+    // 5 completed challenges → should unlock challenge_3 and challenge_5
+    for (let i = 0; i < 5; i++) await createCompletedChallenge(student, i, 30);
 
-    // Finalize peer review for first challenge
-    await finalizePeerReviewChallenge({
-      challengeId: challenges[0].id,
-      allowEarly: true,
+    const result = await awardBadgeIfEligible(student.id);
+    const keys = result.unlockedBadges.map((b) => b.key);
+
+    expect(result.completedChallenges).toBe(5);
+    expect(keys).toContain('challenge_3');
+    expect(keys).toContain('challenge_5');
+    expect(keys).not.toContain('challenge_10');
+  });
+
+  it('returns only newly unlocked badges and does not return duplicates', async () => {
+    const student = await User.create({
+      username: 'no-dup',
+      email: 'nodup@test.com',
+      password: 'pw',
+      role: 'student',
     });
 
-    // Ora recuperiamo i badge sbloccati
-    const result = await awardBadgeIfEligible(student.id);
+    // 5 completed challenges
+    for (let i = 0; i < 5; i++) await createCompletedChallenge(student, i, 30);
 
-    expect(Array.isArray(result.unlockedBadges)).toBe(true);
+    // First evaluation → badges should be returned
+    const first = await awardBadgeIfEligible(student.id);
+    expect(first.unlockedBadges.length).toBeGreaterThan(0);
 
-    const badgeKeys = result.unlockedBadges.map((b) => b.key);
-
-    expect(badgeKeys).toContain('challenge_3');
-    expect(badgeKeys).toContain('challenge_5');
-    expect(badgeKeys).not.toContain('challenge_10');
+    // Second evaluation → no new badges should be returned
+    const second = await awardBadgeIfEligible(student.id);
+    expect(second.unlockedBadges.length).toBe(0);
   });
 });

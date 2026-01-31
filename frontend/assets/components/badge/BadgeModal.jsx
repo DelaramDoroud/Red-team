@@ -106,13 +106,13 @@ function BadgeModal({ badge, onClose }) {
           </p>
         )}
 
-        {/* Continue button */}
+        {/* Close button */}
         <button
           type='button'
           onClick={onClose}
           className='mt-6 bg-blue-500 text-white px-6 py-2 rounded-full font-semibold hover:bg-blue-600 transition'
         >
-          Continue
+          Close
         </button>
       </div>
 
