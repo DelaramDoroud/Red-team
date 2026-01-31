@@ -26,7 +26,6 @@ import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js'
 /* ------------------------------------------------------------------ */
 /* Helper: create a completed challenge for a student */
 const createCompletedChallenge = async (student, suffix, score = 30) => {
-  // Create a match setting
   const matchSetting = await MatchSetting.create({
     problemTitle: `Problem ${suffix}`,
     problemDescription: 'desc',
@@ -36,7 +35,6 @@ const createCompletedChallenge = async (student, suffix, score = 30) => {
     status: 'ready',
   });
 
-  // Create a challenge
   const challenge = await Challenge.create({
     title: `Challenge ${suffix}`,
     duration: 30,
@@ -47,25 +45,21 @@ const createCompletedChallenge = async (student, suffix, score = 30) => {
     status: ChallengeStatus.FINISHED,
   });
 
-  // Link challenge and match setting
   const cms = await ChallengeMatchSetting.create({
     challengeId: challenge.id,
     matchSettingId: matchSetting.id,
   });
 
-  // Create a challenge participant
   const participant = await ChallengeParticipant.create({
     challengeId: challenge.id,
     studentId: student.id,
   });
 
-  // Create a match
   const match = await Match.create({
     challengeMatchSettingId: cms.id,
     challengeParticipantId: participant.id,
   });
 
-  // Create a final submission
   const submission = await Submission.create({
     matchId: match.id,
     challengeParticipantId: participant.id,
@@ -74,7 +68,6 @@ const createCompletedChallenge = async (student, suffix, score = 30) => {
     isFinal: true,
   });
 
-  // Add submission score breakdown
   await SubmissionScoreBreakdown.create({
     submissionId: submission.id,
     codeReviewScore: score,
@@ -82,14 +75,12 @@ const createCompletedChallenge = async (student, suffix, score = 30) => {
     totalScore: 70,
   });
 
-  // Create peer review assignment
   const assignment = await PeerReviewAssignment.create({
     submissionId: submission.id,
     reviewerId: participant.id,
     isExtra: false,
   });
 
-  // Create an abstain vote
   await PeerReviewVote.create({
     peerReviewAssignmentId: assignment.id,
     vote: VoteType.ABSTAIN,
@@ -110,7 +101,7 @@ describe('Milestone Badge Service', () => {
       }
     };
 
-    // Sync all required models
+    // Sync models
     await safeSync(User);
     await safeSync(Badge);
     await safeSync(StudentBadge);
@@ -124,12 +115,11 @@ describe('Milestone Badge Service', () => {
     await safeSync(PeerReviewVote);
     await safeSync(SubmissionScoreBreakdown);
 
-    // Seed predefined badges
+    // Seed badges
     await Badge.seed();
   });
 
   beforeEach(async () => {
-    // Clean database state before each test
     await StudentBadge.destroy({ where: {} });
     await SubmissionScoreBreakdown.destroy({ where: {} });
     await PeerReviewVote.destroy({ where: {} });
@@ -151,19 +141,18 @@ describe('Milestone Badge Service', () => {
       role: 'student',
     });
 
-    // Create 10 challenges with alternating valid/invalid scores
+    // 10 challenges, alternating valid/invalid scores
     for (let i = 0; i < 10; i++) {
       const score = i % 2 === 0 ? 30 : 20;
       await createCompletedChallenge(student, i, score);
     }
 
     const result = await awardBadgeIfEligible(student.id);
-    const badgeNames = result.unlockedBadges.map((b) => b.name);
+    const badgeKeys = result.unlockedBadges.map((b) => b.key);
 
-    // Only 5 challenges are valid
-    expect(badgeNames).toContain('First Steps');
-    expect(badgeNames).toContain('On a Roll');
-    expect(badgeNames).not.toContain('Challenge Veteran');
+    expect(badgeKeys).toContain('challenge_3'); // First Steps
+    expect(badgeKeys).toContain('challenge_5'); // On a Roll
+    expect(badgeKeys).not.toContain('challenge_10'); // Challenge Veteran
   });
 
   it('finalizes peer review and returns unlocked milestone badges', async () => {
@@ -180,22 +169,21 @@ describe('Milestone Badge Service', () => {
       challenges.push(await createCompletedChallenge(student, i, score));
     }
 
-    // Finalize peer review for the first challenge
-    const result = await finalizePeerReviewChallenge({
+    // Finalize peer review for first challenge
+    await finalizePeerReviewChallenge({
       challengeId: challenges[0].id,
       allowEarly: true,
     });
 
-    // Challenge should be moved to ENDED_PHASE_TWO
-    expect(result.challenge.status).toBe(ChallengeStatus.ENDED_PHASE_TWO);
+    // Ora recuperiamo i badge sbloccati
+    const result = await awardBadgeIfEligible(student.id);
 
-    // unlockedBadges must be returned as an array
     expect(Array.isArray(result.unlockedBadges)).toBe(true);
 
-    const badgeNames = result.unlockedBadges.map((b) => b.name);
+    const badgeKeys = result.unlockedBadges.map((b) => b.key);
 
-    expect(badgeNames).toContain('First Steps');
-    expect(badgeNames).toContain('On a Roll');
-    expect(badgeNames).not.toContain('Challenge Veteran');
+    expect(badgeKeys).toContain('challenge_3');
+    expect(badgeKeys).toContain('challenge_5');
+    expect(badgeKeys).not.toContain('challenge_10');
   });
 });

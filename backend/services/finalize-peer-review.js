@@ -4,12 +4,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
 
-/**
- * Computes the end time of the peer review phase for a challenge.
- * Returns null if the challenge or its phase dates are invalid.
- */
 const computePeerReviewEndTime = (challenge) => {
   if (!challenge) return null;
   if (challenge.endPhaseTwoDateTime) {
@@ -26,9 +21,6 @@ const computePeerReviewEndTime = (challenge) => {
   );
 };
 
-/**
- * Builds default abstain votes for assignments that have no votes yet.
- */
 const buildAbstainVotes = (assignmentIds, existingVotes) => {
   const votedAssignmentIds = new Set(
     existingVotes.map((vote) => vote.peerReviewAssignmentId)
@@ -49,9 +41,6 @@ const loadAssignments = async (reviewerId, transaction) =>
     transaction,
   });
 
-/**
- * Loads all votes for given assignments.
- */
 const loadVotes = async (assignmentIds, transaction) =>
   PeerReviewVote.findAll({
     where: { peerReviewAssignmentId: { [Op.in]: assignmentIds } },
@@ -100,7 +89,6 @@ export default async function finalizePeerReviewChallenge({
       return { status: 'no_participants' };
     }
 
-    // Fill in missing abstain votes for all participants
     for (const participant of participants) {
       const assignments = await loadAssignments(participant.id, transaction);
       const assignmentIds = assignments.map((assignment) => assignment.id);
@@ -114,7 +102,6 @@ export default async function finalizePeerReviewChallenge({
       }
     }
 
-    // Mark the challenge as ENDED_PHASE_TWO
     const endPhaseTwoDateTime = new Date();
     const [updatedCount, updatedRows] = await Challenge.update(
       {
@@ -129,24 +116,11 @@ export default async function finalizePeerReviewChallenge({
     );
 
     const updatedChallenge = updatedRows?.[0] || challenge;
-
-    // Award milestone badges for all participants
-    const unlockedBadgesMap = new Map();
-
-    for (const participant of participants) {
-      const result = await awardBadgeIfEligible(participant.studentId);
-
-      for (const badge of result.unlockedBadges) {
-        unlockedBadgesMap.set(badge.id, badge);
-      }
-    }
-
     await transaction.commit();
 
     return {
       status: updatedCount > 0 ? 'ok' : 'update_failed',
       challenge: updatedChallenge,
-      unlockedBadges: [...unlockedBadgesMap.values()], // Always an array
     };
   } catch (error) {
     await transaction.rollback();
