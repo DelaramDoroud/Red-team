@@ -131,14 +131,13 @@ export default async function finalizePeerReviewChallenge({
     const updatedChallenge = updatedRows?.[0] || challenge;
 
     // Award milestone badges for all participants
-    const badgeResults = [];
+    const unlockedBadgesMap = new Map();
+
     for (const participant of participants) {
       const result = await awardBadgeIfEligible(participant.studentId);
-      if (result.badgeUnlocked) {
-        badgeResults.push({
-          studentId: participant.studentId,
-          unlockedBadges: result.unlockedBadges,
-        });
+
+      for (const badge of result.unlockedBadges) {
+        unlockedBadgesMap.set(badge.id, badge);
       }
     }
 
@@ -147,8 +146,7 @@ export default async function finalizePeerReviewChallenge({
     return {
       status: updatedCount > 0 ? 'ok' : 'update_failed',
       challenge: updatedChallenge,
-      badgesAwarded: badgeResults,
-      badgeUnlocked: badgeResults.length > 0, // Flag for UI trigger
+      unlockedBadges: [...unlockedBadgesMap.values()], // Always an array
     };
   } catch (error) {
     await transaction.rollback();

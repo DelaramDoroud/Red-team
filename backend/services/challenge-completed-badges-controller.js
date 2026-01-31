@@ -26,7 +26,7 @@ export async function countCompletedChallenges(studentId) {
   // 2️⃣ Get all matches for those participations
   const matches = await Match.findAll({
     where: { challengeParticipantId: { [Op.in]: participantIds } },
-    attributes: ['id', 'challengeParticipantId'],
+    attributes: ['id'],
   });
   if (!matches.length) return 0;
 
@@ -60,12 +60,12 @@ export async function countCompletedChallenges(studentId) {
   });
   if (!scores.length) return 0;
 
-  const validSubmissionIds = scores.map((s) => s.submissionId);
+  const validSubmissionIds = new Set(scores.map((s) => s.submissionId));
 
   // 5️⃣ Filter submissions by the valid ones
   const completedParticipantIds = new Set(
     submissions
-      .filter((s) => validSubmissionIds.includes(s.id))
+      .filter((s) => validSubmissionIds.has(s.id))
       .map((s) => s.challengeParticipantId)
   );
 
@@ -87,7 +87,7 @@ export async function awardBadgeIfEligible(studentId) {
     order: [['threshold', 'ASC']],
   });
 
-  const awarded = [];
+  const unlockedBadges = [];
 
   for (const badge of milestoneBadges) {
     // Assign the badge only if the student hasn't earned it yet
@@ -96,12 +96,13 @@ export async function awardBadgeIfEligible(studentId) {
       defaults: { earnedAt: new Date() },
     });
 
-    if (created) awarded.push(badge.name);
+    if (created) {
+      unlockedBadges.push(badge); // Return full badge object
+    }
   }
 
   return {
-    badgeUnlocked: awarded.length > 0,
-    unlockedBadges: awarded,
+    unlockedBadges, // Always an array
     completedChallenges,
   };
 }
