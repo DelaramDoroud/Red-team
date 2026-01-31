@@ -21,9 +21,6 @@ import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import { useDuration } from '../(context)/DurationContext';
 
-// --- COMPONENTI SCORE (RT-217) ---
-// ---------------------------------
-
 const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
 
@@ -143,7 +140,7 @@ export default function ChallengeResultPage() {
       const payload = res?.data || res;
       const finalizationInfo = payload?.finalization || null;
 
-      // BYPASS PER FAR VEDERE I RISULTATI SE LO SCORING E' DONE
+      // BYPASS TO SHOW RESULTS IF SCORING IS DONE
       const isScoringCompleted =
         payload?.challenge?.scoringStatus === 'completed';
       const resultsReady =
@@ -395,12 +392,12 @@ export default function ChallengeResultPage() {
         </CardHeader>
       </Card>
 
-      {/* 2. SCORE CARD VIOLA */}
+      {/* 2. PURPLE SCORE CARD */}
       {scoreBreakdown && <SubmissionScoreCard scoreData={scoreBreakdown} />}
 
       {/* 3. NAVIGATION ACTIONS (SUBTASK RT-218) */}
       <div className='flex flex-col sm:flex-row gap-4'>
-        {/* A. Bottone Toggle Soluzione (Usa Redux = Stato persistente) */}
+        {/* A. Toggle Solution Button (Uses Redux = Persistent state) */}
         <Button
           onClick={handleToggleSolutionFeedback}
           aria-expanded={isSolutionFeedbackOpen}
@@ -412,17 +409,19 @@ export default function ChallengeResultPage() {
             : 'View Your Solution & Feedback'}
         </Button>
 
-        {/* B. Bottone Navigazione Voti (Va alla pagina dedicata) */}
+        {/* B. Navigate to Votes Button (Goes to the dedicated page) */}
         <Button
           variant='secondary'
-          // onClick={() =>router.push(`/student/challenges/${challengeId}/peer-reviews`)}
+          onClick={() =>
+            router.push(`/student/challenges/${challengeId}/peer-reviews`)
+          }
           className='flex-1'
         >
           View Your Code Review Votes
         </Button>
       </div>
 
-      {/* 4. SOLUTION SECTION (Visibile solo se aperta) */}
+      {/* 4. SOLUTION SECTION (Visible only if open) */}
       {isSolutionFeedbackOpen && (
         <Card
           id={feedbackSectionId}
@@ -594,7 +593,7 @@ export default function ChallengeResultPage() {
         </Card>
       )}
 
-      {/* --- PEER REVIEW RECEIVED TESTS (VISIBILE) --- */}
+      {/* --- PEER REVIEW RECEIVED TESTS (VISIBLE) --- */}
       {isFullyEnded && hasPeerReviewTests && (
         <Card>
           <CardHeader>
