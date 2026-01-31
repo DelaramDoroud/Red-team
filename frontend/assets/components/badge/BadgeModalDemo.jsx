@@ -32,7 +32,7 @@ function BadgeModalDemo() {
   return (
     <div className='min-h-screen flex flex-col items-center justify-center gap-6 bg-gray-100'>
       <button
-        type='button' // <-- aggiunto
+        type='button'
         onClick={() => setActiveBadge(bronzeBadge)}
         className='bg-blue-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-blue-600 transition'
       >
@@ -40,7 +40,7 @@ function BadgeModalDemo() {
       </button>
 
       <button
-        type='button' // <-- aggiunto
+        type='button'
         onClick={() => setActiveBadge(silverBadge)}
         className='bg-gray-700 text-white px-6 py-3 rounded-full font-semibold hover:bg-gray-800 transition'
       >
