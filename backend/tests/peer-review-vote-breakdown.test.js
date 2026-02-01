@@ -1,22 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
+import sequelize from '#root/services/sequelize.js';
+
 import app from '#root/app_initial.js';
 import User from '#root/models/user.js';
 import Challenge from '#root/models/challenge.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
+import MatchSetting from '#root/models/match-setting.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import Match from '#root/models/match.js';
+import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
-import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
-import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import MatchSetting from '#root/models/match-setting.js';
+
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
-import sequelize from '#root/services/sequelize.js';
 
+/* ------------------------------------------------------------------ */
+/* Test suite */
 describe('Peer Review Vote Breakdown API', () => {
   let student,
     challenge,
@@ -27,8 +31,26 @@ describe('Peer Review Vote Breakdown API', () => {
     submission,
     assignment;
 
+  /* ------------------------------------------------------------------ */
   beforeAll(async () => {
-    // No need to sync since we are in a test environment with a pre-synced DB
+    // Safe sync all required models
+    const safeSync = async (model) => {
+      try {
+        await model.sync({ force: true });
+      } catch {
+        return null;
+      }
+    };
+
+    await safeSync(User);
+    await safeSync(Challenge);
+    await safeSync(ChallengeParticipant);
+    await safeSync(MatchSetting);
+    await safeSync(ChallengeMatchSetting);
+    await safeSync(Match);
+    await safeSync(Submission);
+    await safeSync(PeerReviewAssignment);
+    await safeSync(PeerReviewVote);
   });
 
   afterAll(async () => {
@@ -36,16 +58,18 @@ describe('Peer Review Vote Breakdown API', () => {
   });
 
   beforeEach(async () => {
-    await PeerReviewVote.destroy({ where: {}, cascade: true });
-    await PeerReviewAssignment.destroy({ where: {}, cascade: true });
-    await Submission.destroy({ where: {}, cascade: true });
-    await Match.destroy({ where: {}, cascade: true });
-    await ChallengeMatchSetting.destroy({ where: {}, cascade: true });
-    await MatchSetting.destroy({ where: {}, cascade: true });
-    await ChallengeParticipant.destroy({ where: {}, cascade: true });
-    await Challenge.destroy({ where: {}, cascade: true });
-    await User.destroy({ where: {}, cascade: true });
+    // Clear all tables
+    await PeerReviewVote.destroy({ where: {} });
+    await PeerReviewAssignment.destroy({ where: {} });
+    await Submission.destroy({ where: {} });
+    await Match.destroy({ where: {} });
+    await ChallengeMatchSetting.destroy({ where: {} });
+    await MatchSetting.destroy({ where: {} });
+    await ChallengeParticipant.destroy({ where: {} });
+    await Challenge.destroy({ where: {} });
+    await User.destroy({ where: {} });
 
+    // Create base data
     student = await User.create({
       username: 'student1',
       email: 'student1@test.com',

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import sequelize from '#root/services/sequelize.js';
 
 import User from '#root/models/user.js';
 import Badge from '#root/models/badge.js';
@@ -10,6 +9,7 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Match from '#root/models/match.js';
 import Submission from '#root/models/submission.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import StudentBadge from '#root/models/student-badges.js';
 
 import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
@@ -72,17 +72,37 @@ async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
 /* Test suite */
 describe('Challenge milestone badge awarding (backend)', () => {
   beforeAll(async () => {
-    // Create the full schema once
-    await sequelize.sync({ force: true });
+    const safeSync = async (model) => {
+      try {
+        await model.sync({ force: true });
+      } catch {
+        return null;
+      }
+    };
 
-    // Seed challenge milestone badges (challenge_3, challenge_5, challenge_10)
+    await safeSync(User);
+    await safeSync(Badge);
+    await safeSync(StudentBadge);
+    await safeSync(MatchSetting);
+    await safeSync(Challenge);
+    await safeSync(ChallengeMatchSetting);
+    await safeSync(ChallengeParticipant);
+    await safeSync(Match);
+    await safeSync(Submission);
+    await safeSync(SubmissionScoreBreakdown);
     await Badge.seed();
   });
 
   beforeEach(async () => {
-    // Clean DB safely respecting FK constraints
-    await sequelize.truncate({ cascade: true });
-    await Badge.seed();
+    await StudentBadge.destroy({ where: {} });
+    await Submission.destroy({ where: {} });
+    await Match.destroy({ where: {} });
+    await ChallengeParticipant.destroy({ where: {} });
+    await ChallengeMatchSetting.destroy({ where: {} });
+    await Challenge.destroy({ where: {} });
+    await MatchSetting.destroy({ where: {} });
+    await User.destroy({ where: {} });
+    await SubmissionScoreBreakdown.destroy({ where: {} });
   });
 
   it('evaluates badge eligibility independently for each participant', async () => {
@@ -113,7 +133,6 @@ describe('Challenge milestone badge awarding (backend)', () => {
     const eligibleResult = await awardBadgeIfEligible(eligibleStudent.id);
     const ineligibleResult = await awardBadgeIfEligible(ineligibleStudent.id);
 
-    // Eligible student
     const eligibleKeys = eligibleResult.unlockedBadges.map((b) => b.key);
     expect(eligibleResult.completedChallenges).toBe(5);
     expect(eligibleKeys).toEqual(
@@ -121,7 +140,6 @@ describe('Challenge milestone badge awarding (backend)', () => {
     );
     expect(eligibleKeys).not.toContain('challenge_10');
 
-    // Ineligible student
     expect(ineligibleResult.completedChallenges).toBe(2);
     expect(ineligibleResult.unlockedBadges).toHaveLength(0);
   });
