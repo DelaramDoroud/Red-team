@@ -22,10 +22,10 @@ export async function up({ context: queryInterface }) {
 
     await queryInterface.sequelize.query(
       `
-      UPDATE submission_score_breakdown
-      SET challenge_participant_id = submission.challenge_participant_id
-      FROM submission
-      WHERE submission_score_breakdown.submission_id = submission.id
+        UPDATE submission_score_breakdown
+        SET challenge_participant_id = submission.challenge_participant_id
+          FROM submission
+        WHERE submission_score_breakdown.submission_id = submission.id
       `,
       { transaction }
     );
