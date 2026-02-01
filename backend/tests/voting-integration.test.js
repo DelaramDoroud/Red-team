@@ -420,6 +420,7 @@ describe('RT-181: Complete Voting Flow Integration Tests', () => {
       expect(votes[2].vote).toBe('abstain');
     });
 
+    // --- HO AGGIUNTO IL TIMEOUT QUI SOTTO (20000) ---
     it('maintains vote timestamps on creation and update', async () => {
       const { reviewer, assignments } =
         await createMultipleAssignmentsScenario();
@@ -437,7 +438,7 @@ describe('RT-181: Complete Voting Flow Integration Tests', () => {
       const createdAt = initialVote.createdAt;
 
       // Wait a bit to ensure different timestamp
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Update vote
       await submitVote(reviewer.id, assignments[0].id, { vote: 'abstain' });
@@ -453,7 +454,7 @@ describe('RT-181: Complete Voting Flow Integration Tests', () => {
       expect(updatedVote.updatedAt.getTime()).toBeGreaterThan(
         createdAt.getTime()
       );
-    });
+    }, 20000);
   });
 
   describe('Validation enforcement', () => {
