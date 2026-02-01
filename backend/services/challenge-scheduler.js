@@ -2,6 +2,8 @@ import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { calculateChallengeScores } from '#root/services/scoring-service.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 
 const phaseOneTimers = new Map();
 const phaseTwoTimers = new Map();
@@ -69,19 +71,97 @@ const clearPhaseTwoTimer = (challengeId) => {
 const markPhaseTwoEnded = async (challengeId) => {
   clearPhaseTwoTimer(challengeId);
   const challenge = await Challenge.findByPk(challengeId);
+
   if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
     return;
   }
 
+  // 1. Finalize Peer Review
   const result = await finalizePeerReviewChallenge({ challengeId });
+
   if (result.status === 'ok' && result.challenge) {
+    // Notify "Pending"
     broadcastEvent({
       event: 'challenge-updated',
       data: {
         challengeId: result.challenge.id,
         status: result.challenge.status,
+        scoringStatus: 'pending',
       },
     });
+
+    try {
+      // 2. Set COMPUTING status
+      await Challenge.update(
+        { scoringStatus: 'computing' },
+        { where: { id: challengeId } }
+      );
+
+      broadcastEvent({
+        event: 'challenge-updated',
+        data: {
+          challengeId: result.challenge.id,
+          status: result.challenge.status,
+          scoringStatus: 'computing',
+        },
+      });
+
+      // ----------------------------------------------------------------
+      // 3. CALCULATION AND SAVING (RT-215)
+      // ----------------------------------------------------------------
+
+      // Calculate scores in memory
+      const scores = await calculateChallengeScores(challengeId);
+
+      // Save results to the submission_score_breakdown table
+      if (scores && scores.length > 0) {
+        await Promise.all(
+          scores.map(async (scoreItem) => {
+            // Save the score ONLY if the user has a submission (schema requires submission_id)
+            if (scoreItem.submissionId) {
+              // Check if a record already exists (e.g., previous partial calculations) or create it
+              const [breakdown, created] =
+                await SubmissionScoreBreakdown.findOrCreate({
+                  where: { submissionId: scoreItem.submissionId },
+                  defaults: {
+                    codeReviewScore: scoreItem.codeReviewScore,
+                    implementationScore: 0, // calculated in RT-216
+                    totalScore: 0,
+                  },
+                });
+
+              // If it already existed, update only the Code Review part
+              if (!created) {
+                await breakdown.update({
+                  codeReviewScore: scoreItem.codeReviewScore,
+                });
+              }
+            }
+          })
+        );
+      }
+      // ----------------------------------------------------------------
+
+      // 4. COMPLETED
+      await Challenge.update(
+        { scoringStatus: 'completed' },
+        { where: { id: challengeId } }
+      );
+
+      broadcastEvent({
+        event: 'challenge-updated',
+        data: {
+          challengeId: result.challenge.id,
+          status: result.challenge.status,
+          scoringStatus: 'completed',
+        },
+      });
+    } catch (error) {
+      console.error(
+        `Error computing scores for challenge ${challengeId}:`,
+        error
+      );
+    }
   }
 };
 

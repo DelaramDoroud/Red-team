@@ -21,6 +21,7 @@ const MatchSetting = sequelize.define(
     referenceSolution: {
       type: DataTypes.TEXT,
       allowNull: false,
+      field: 'reference_solution',
     },
     publicTests: {
       type: DataTypes.JSONB,
