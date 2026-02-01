@@ -120,12 +120,39 @@ describe('Challenge milestone badge awarding (backend)', () => {
   });
 
   it('evaluates badge eligibility independently for each participant', async () => {
+    // --- START ADDITION ---
+    // Create badges in the DB, otherwise the system won't find any to assign
+    await Badge.bulkCreate([
+      {
+        key: 'challenge_3',
+        name: '3 Done',
+        description: 'Desc',
+        iconUrl: 'url',
+      },
+      {
+        key: 'challenge_5',
+        name: '5 Done',
+        description: 'Desc',
+        iconUrl: 'url',
+      },
+      {
+        key: 'challenge_10',
+        name: '10 Done',
+        description: 'Desc',
+        iconUrl: 'url',
+      },
+    ]);
+    // --- END ADDITION ---
+
     const eligibleStudent = await User.create({
       username: 'eligible',
       email: 'eligible@test.com',
       password: 'pw',
       role: 'student',
     });
+
+    // ... the rest of your code remains the same ...
+
     const ineligibleStudent = await User.create({
       username: 'ineligible',
       email: 'ineligible@test.com',
@@ -133,11 +160,11 @@ describe('Challenge milestone badge awarding (backend)', () => {
       role: 'student',
     });
 
-    // Eligible student: 5 completed challenges → should unlock challenge_3 and challenge_5
+    // Eligible student: 5 completed challenges
     for (let i = 0; i < 5; i++)
       await createCompletedChallenge(eligibleStudent, i, 30);
 
-    // Ineligible student: 2 completed challenges → should unlock nothing
+    // Ineligible student: 2 completed challenges
     for (let i = 0; i < 2; i++)
       await createCompletedChallenge(ineligibleStudent, i, 30);
 
@@ -146,6 +173,10 @@ describe('Challenge milestone badge awarding (backend)', () => {
 
     // Eligible student
     const eligibleKeys = eligibleResult.unlockedBadges.map((b) => b.key);
+
+    // Debug (if it fails again, uncomment to see what is returned)
+    // console.log('Badges found:', eligibleKeys);
+
     expect(eligibleResult.completedChallenges).toBe(5);
     expect(eligibleKeys).toContain('challenge_3');
     expect(eligibleKeys).toContain('challenge_5');
