@@ -37,6 +37,11 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: {},
     },
+    titleId: {
+      field: 'title_id',
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   },
   {
     tableName: 'users', // Plural is common for user tables to avoid conflict with 'user' reserved keyword in postgres
@@ -85,6 +90,10 @@ User.initializeRelations = function (models) {
     as: 'joinedChallenges',
     foreignKey: 'studentId',
     otherKey: 'challengeId',
+  });
+  User.belongsTo(models.Title, {
+    as: 'title',
+    foreignKey: 'titleId',
   });
 };
 User.seed = async function () {
