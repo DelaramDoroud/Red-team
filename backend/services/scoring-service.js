@@ -7,6 +7,7 @@ import Match from '#root/models/match.js';
 import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { VoteType } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
@@ -14,7 +15,7 @@ import logger from '#root/services/logger.js';
 /**
  * FULL CALCULATION (RT-215 + RT-216)
  * Calculates Code Review Score, Implementation Score, and Total Score.
- * Saves the results in the submission_score_breakdown table.
+ * Saves the results in the submission_score_breakdown table (linked to participant).
  */
 export async function calculateChallengeScores(challengeId) {
   logger.info(`Starting FULL score calculation for Challenge ${challengeId}`);
@@ -41,28 +42,42 @@ export async function calculateChallengeScores(challengeId) {
     }
   });
 
-  const submissions = await Submission.findAll({
-    where: { isFinal: true },
+  // Fetch ALL participants for this challenge (not just those with submissions)
+  const participants = await ChallengeParticipant.findAll({
+    where: { challengeId },
     include: [
       {
-        model: Match,
-        as: 'match',
-        where: {
-          challengeMatchSettingId: {
-            [Op.in]: Array.from(matchSettingsMap.keys()),
+        model: Submission,
+        as: 'submission', // Assuming relation is set up correctly (hasOne/hasMany)
+        required: false, // LEFT JOIN: include participants without submissions
+        where: { isFinal: true }, // We only care about their final submission if it exists
+        include: [
+          {
+            model: Match,
+            as: 'match',
           },
-        },
+        ],
       },
     ],
   });
 
+  // Filter valid submissions for ground truth calculation (only those that exist)
+  const validSubmissions = participants
+    .map((p) => p.submission)
+    .filter((s) => s && s.id);
+
+  // Fetch all assignments related to valid submissions (to verify truth)
+  // AND all assignments done BY the participants (to calculate their review score)
   const assignments = await PeerReviewAssignment.findAll({
     where: {
-      submissionId: { [Op.in]: submissions.map((s) => s.id) },
+      [Op.or]: [
+        { submissionId: { [Op.in]: validSubmissions.map((s) => s.id) } }, // Reviews received by submissions
+        { reviewerId: { [Op.in]: participants.map((p) => p.id) } }, // Reviews done by participants
+      ],
     },
     include: [
       { model: PeerReviewVote, as: 'vote', required: false },
-      { model: Submission, as: 'submission' },
+      { model: Submission, as: 'submission' }, // The submission being reviewed
     ],
   });
 
@@ -83,15 +98,14 @@ export async function calculateChallengeScores(challengeId) {
     );
     if (!assignment) continue;
 
-    const fullSubmission = submissions.find(
+    // Find the submission being reviewed to know which problem it is
+    const reviewedSubmission = validSubmissions.find(
       (s) => s.id === assignment.submissionId
     );
 
-    if (!fullSubmission || !fullSubmission.match) {
-      continue;
-    }
+    if (!reviewedSubmission || !reviewedSubmission.match) continue;
 
-    const cmsId = fullSubmission.match.challengeMatchSettingId;
+    const cmsId = reviewedSubmission.match.challengeMatchSettingId;
     const matchSetting = matchSettingsMap.get(cmsId);
 
     if (matchSetting) {
@@ -149,12 +163,12 @@ export async function calculateChallengeScores(challengeId) {
   }
 
   // ---------------------------------------------------------
-  // PHASE B: DETERMINE TRUTH (Ground Truth)
+  // PHASE B: DETERMINE TRUTH (Ground Truth for Submissions)
   // ---------------------------------------------------------
   const submissionTruthMap = new Map();
   const implementationStatsMap = new Map();
 
-  for (const submission of submissions) {
+  for (const submission of validSubmissions) {
     let passedTeacherTests = 0;
     let totalTeacherTests = 0;
     const cmsId = submission.match?.challengeMatchSettingId;
@@ -188,6 +202,8 @@ export async function calculateChallengeScores(challengeId) {
     const relevantAssignments = assignments.filter(
       (a) => a.submissionId === submission.id
     );
+
+    // Check for "Killer Votes" (Peer tests that prove a bug)
     const killerVotes = relevantAssignments
       .map((a) => a.vote)
       .filter(
@@ -243,10 +259,11 @@ export async function calculateChallengeScores(challengeId) {
     submissionTruthMap.set(submission.id, isUltimatelyCorrect);
   }
 
-  // Update Endorsements
+  // Update Endorsements (CORRECT votes)
   const endorsementVotes = assignments
     .map((a) => a.vote)
     .filter((v) => v && v.vote === VoteType.CORRECT);
+
   await Promise.all(
     endorsementVotes.map(async (vote) => {
       const assignment = assignments.find(
@@ -256,6 +273,8 @@ export async function calculateChallengeScores(challengeId) {
         const isSubmissionCorrect = submissionTruthMap.get(
           assignment.submissionId
         );
+        // If user says CORRECT, and submission is indeed CORRECT, then vote is correct.
+        // If submission is actually INCORRECT, then vote is wrong.
         await vote.update({ isVoteCorrect: isSubmissionCorrect });
       }
     })
@@ -266,6 +285,7 @@ export async function calculateChallengeScores(challengeId) {
   // ---------------------------------------------------------
   const results = [];
 
+  // Group assignments by REVIEWER (Participant ID)
   const reviewerAssignmentsMap = new Map();
   assignments.forEach((a) => {
     if (!reviewerAssignmentsMap.has(a.reviewerId)) {
@@ -274,21 +294,25 @@ export async function calculateChallengeScores(challengeId) {
     reviewerAssignmentsMap.get(a.reviewerId).push(a);
   });
 
-  for (const [reviewerId, revAssignments] of reviewerAssignmentsMap) {
+  // Calculate scores for EVERY participant (even if they didn't submit code)
+  for (const participant of participants) {
+    const reviewerId = participant.id;
+    const revAssignments = reviewerAssignmentsMap.get(reviewerId) || [];
+    const reviewerSubmission = participant.submission; // Might be null
+
     // 1. CALCULATE CODE REVIEW SCORE (RT-215)
-    let E = 0,
-      C = 0,
-      W = 0,
-      I_total = 0,
-      C_total = 0;
-    const reviewerSubmission = submissions.find(
-      (s) => s.challengeParticipantId === reviewerId
-    );
+    let E = 0, // Effective Bugs Exposed
+      C = 0, // Correct Endorsements
+      W = 0, // Wrong votes
+      I_total = 0, // Total Incorrect Submissions reviewed
+      C_total = 0; // Total Correct Submissions reviewed
 
     for (const assignment of revAssignments) {
       const isSubmissionCorrect = submissionTruthMap.get(
         assignment.submissionId
       );
+
+      // Track what kind of submissions they reviewed
       if (isSubmissionCorrect) C_total++;
       else I_total++;
 
@@ -305,6 +329,10 @@ export async function calculateChallengeScores(challengeId) {
     const numerator = 2 * E + 1 * C - 0.5 * W;
     const denominator = 2 * I_total + 1 * C_total;
     let rawReviewScore = denominator > 0 ? 50 * (numerator / denominator) : 0;
+
+    // Edge case: If they didn't do any reviews (or only abstained), score is 0
+    if (denominator === 0 && E + C + W === 0) rawReviewScore = 0;
+
     const finalReviewScore = parseFloat(
       Math.max(0, Math.min(50, rawReviewScore)).toFixed(2)
     );
@@ -334,6 +362,9 @@ export async function calculateChallengeScores(challengeId) {
           Math.max(0, implementationScore).toFixed(2)
         );
       }
+    } else {
+      // No submission = 0 implementation score
+      implementationScore = 0;
     }
 
     // 3. CALCULATE TOTAL SCORE (RT-216)
@@ -341,39 +372,34 @@ export async function calculateChallengeScores(challengeId) {
       (finalReviewScore + implementationScore).toFixed(2)
     );
 
-    // 4. SAVE TO SUBMISSION_SCORE_BREAKDOWN
-    if (reviewerSubmission) {
-      try {
-        // Check if a record already exists for this submission
-        const existingBreakdown = await SubmissionScoreBreakdown.findOne({
-          where: { submissionId: reviewerSubmission.id },
-        });
+    // 4. SAVE TO SUBMISSION_SCORE_BREAKDOWN (Using Participant ID)
+    try {
+      const [breakdown, created] = await SubmissionScoreBreakdown.findOrCreate({
+        where: { challengeParticipantId: reviewerId },
+        defaults: {
+          submissionId: reviewerSubmission ? reviewerSubmission.id : null,
+          codeReviewScore: finalReviewScore,
+          implementationScore: implementationScore,
+          totalScore: totalScore,
+        },
+      });
 
-        if (existingBreakdown) {
-          // UPDATE if exists
-          await existingBreakdown.update({
-            codeReviewScore: finalReviewScore,
-            implementationScore: implementationScore,
-            totalScore: totalScore,
-          });
-        } else {
-          // CREATE if it does not exist
-          await SubmissionScoreBreakdown.create({
-            submissionId: reviewerSubmission.id,
-            codeReviewScore: finalReviewScore,
-            implementationScore: implementationScore,
-            totalScore: totalScore,
-          });
-        }
-      } catch (error) {
-        logger.error(
-          `Failed to save breakdown for submission ${reviewerSubmission.id}: ${error.message}`
-        );
+      if (!created) {
+        await breakdown.update({
+          submissionId: reviewerSubmission ? reviewerSubmission.id : null, // Update in case they submitted late?
+          codeReviewScore: finalReviewScore,
+          implementationScore: implementationScore,
+          totalScore: totalScore,
+        });
       }
+    } catch (error) {
+      logger.error(
+        `Failed to save breakdown for participant ${reviewerId}: ${error.message}`
+      );
     }
 
     results.push({
-      participantId: reviewerId,
+      challengeParticipantId: reviewerId,
       submissionId: reviewerSubmission ? reviewerSubmission.id : null,
       codeReviewScore: finalReviewScore,
       implementationScore: implementationScore,
