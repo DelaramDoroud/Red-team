@@ -53,6 +53,8 @@ beforeAll(async () => {
   ChallengeMatchSetting = challengeMatchSettingModule.default;
   Match = matchModule.default;
   Submission = submissionModule.default;
+
+  await sequelize.sync({ force: true });
 }, 60000);
 
 beforeEach(() => {

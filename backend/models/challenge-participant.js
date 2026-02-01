@@ -28,7 +28,7 @@ const ChallengeParticipant = sequelize.define(
     indexes: [
       {
         unique: true,
-        fields: ['challengeId', 'studentId'],
+        fields: ['challenge_id', 'student_id'],
       },
     ],
   }
