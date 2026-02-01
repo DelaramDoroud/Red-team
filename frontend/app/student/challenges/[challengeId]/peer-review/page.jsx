@@ -23,6 +23,7 @@ import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { setPeerReviewExit } from '#js/store/slices/ui';
 import { validateIncorrectInput } from '#js/utils';
+import BadgeModal from '#components/badge/BadgeModal';
 import ExitConfirmationModal from './ExitConfirmationModal';
 import { useDuration } from '../(context)/DurationContext';
 
@@ -165,6 +166,8 @@ export default function PeerReviewPage() {
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [badgeQueue, setBadgeQueue] = useState([]);
+  const [activeBadge, setActiveBadge] = useState(null);
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -335,6 +338,13 @@ export default function PeerReviewPage() {
     return () => clearTimeout(timeoutId);
   }, [challengeInfo?.status, isFinalizationPending, loadFinalization]);
 
+  useEffect(() => {
+    if (badgeQueue.length > 0) return;
+    if (finalSummary) {
+      setShowSummaryDialog(true);
+    }
+  }, [badgeQueue, finalSummary]);
+
   const phaseTwoStart = challengeInfo?.startPhaseTwoDateTime;
   const phaseTwoDuration = challengeInfo?.durationPeerReview;
   const phaseTwoEnd = challengeInfo?.endPhaseTwoDateTime;
@@ -392,7 +402,20 @@ export default function PeerReviewPage() {
       hasFinalizedRef.current = true;
 
       finalizePeerReview(challengeId)
-        .then(async () => {
+        .then(async (res) => {
+          const badgeResults = res?.data?.badgeResults || [];
+          if (badgeResults.length > 0) {
+            const allBadges = badgeResults.flatMap((r) =>
+              r.unlockedBadges.map((badge) => ({
+                ...badge,
+                studentId: r.studentId,
+                completedChallenges: r.completedChallenges,
+              }))
+            );
+
+            setBadgeQueue(allBadges);
+            setActiveBadge(allBadges[0]);
+          }
           const result = await fetchPeerReviewSummary();
           if (result.success) {
             setFinalSummary(result.summary);
@@ -477,6 +500,8 @@ export default function PeerReviewPage() {
     }
     router.push(`/student/challenges/${challengeId}/result`);
   }, [router, challengeId, dispatch, studentId]);
+
+  const handleBadgeClose = () => {};
 
   useEffect(() => {
     const t = showSummaryDialog
@@ -1160,6 +1185,9 @@ export default function PeerReviewPage() {
         onContinue={handleContinue}
         onExit={handleExit}
       />
+      {activeBadge && (
+        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+      )}
     </div>
   );
 }
