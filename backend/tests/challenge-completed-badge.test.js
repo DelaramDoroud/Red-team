@@ -62,6 +62,7 @@ async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
 
   await SubmissionScoreBreakdown.create({
     submissionId: submission.id,
+    challengeParticipantId: participant.id,
     codeReviewScore,
     implementationScore: 40,
     totalScore: 70,

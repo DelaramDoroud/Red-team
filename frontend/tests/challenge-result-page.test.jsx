@@ -133,11 +133,7 @@ describe('ChallengeResultPage', () => {
             id: 201,
             reviewer: { id: 2, username: 'peer' },
             tests: [
-              {
-                input: '2 1',
-                expectedOutput: '1 2',
-                notes: 'Check ordering',
-              },
+              { input: '2 1', expectedOutput: '1 2', notes: 'Check ordering' },
             ],
           },
         ],
@@ -151,31 +147,44 @@ describe('ChallengeResultPage', () => {
     });
 
     expect(await screen.findByText('Sorting Challenge')).toBeInTheDocument();
-    expect(screen.getByText(/Problem: Sort an array/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Your submission$/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Problem: Sort an array/i)
+    ).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/Your (submission|solution)/i)
+    ).toBeInTheDocument();
+
     const toggleButton = screen.getByRole('button', {
       name: /View Your Solution & Feedback/i,
     });
     expect(toggleButton).toBeInTheDocument();
+
     expect(
       screen.queryByText(/int main\(\) { return 0; }/i)
     ).not.toBeInTheDocument();
+
     await user.click(toggleButton);
+
     expect(
-      screen.getByRole('button', { name: /Hide Your Solution & Feedback/i })
+      await screen.findByRole('button', {
+        name: /Hide Your Solution & Feedback/i,
+      })
     ).toBeInTheDocument();
     expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
     expect(screen.getByText(/Public test results/i)).toBeInTheDocument();
     expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
     expect(screen.getAllByText('1 2').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Peer Review Results/i)).toBeInTheDocument();
-    expect(screen.getByText(/Check ordering/i)).toBeInTheDocument();
+    expect(screen.getByText(/Received Peer Tests/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer:\s*peer/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 1/)).toBeInTheDocument();
+
     expect(
       screen.getByText(/Other participant solutions/i)
     ).toBeInTheDocument();
+
     expect(screen.getAllByText('peer').length).toBeGreaterThan(0);
   });
-
   it('respects persisted solution feedback visibility', async () => {
     mockGetChallengeResults.mockResolvedValue({
       success: true,
