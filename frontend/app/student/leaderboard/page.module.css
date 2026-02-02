@@ -126,6 +126,17 @@
   background: #fbfbfd;
 }
 
+.tableRowActive {
+  background: #eef2ff;
+  box-shadow: inset 0 0 0 1px #c7d2fe;
+}
+
+.tableEmpty {
+  padding: 1rem 1.4rem 1.2rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
 .rankCell {
   font-weight: 700;
   color: #4b5563;
@@ -228,6 +239,12 @@
   font-weight: 700;
   color: #7c2d12;
   margin-top: 0.2rem;
+}
+
+.errorText {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: #b45309;
 }
 
 @media (max-width: 960px) {

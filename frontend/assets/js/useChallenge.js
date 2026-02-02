@@ -298,6 +298,14 @@ export default function useChallenge() {
     },
     [fetchData]
   );
+
+  const getChallengeLeaderboard = useCallback(
+    async (challengeId) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/leaderboard`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
   const endChallenge = useCallback(
     async (challengeId) => {
       const url = `${API_REST_BASE}/challenges/${challengeId}/end-challenge`;
@@ -359,6 +367,7 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      getChallengeLeaderboard,
       endChallenge,
       getPeerReviewSummary,
       getStudentVotes,
@@ -395,6 +404,7 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      getChallengeLeaderboard,
       endChallenge,
       getPeerReviewSummary,
       getStudentVotes,
