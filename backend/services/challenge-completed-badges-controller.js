@@ -10,66 +10,47 @@ import {
   BadgeCategory,
   BadgeMetric,
 } from '#root/models/enum/enums.js';
+import logger from '#root/services/logger.js';
 
 /* ------------------------------------------------------------------ */
 /* Count the number of completed challenges for a student */
 export async function countCompletedChallenges(studentId) {
-  // 1️⃣ Get all participations of the student
-  const participations = await ChallengeParticipant.findAll({
+  const completedCount = await ChallengeParticipant.count({
     where: { studentId },
-    attributes: ['id'],
-  });
-  if (!participations.length) return 0;
-
-  const participantIds = participations.map((p) => p.id);
-
-  // 2️⃣ Get all matches for those participations
-  const matches = await Match.findAll({
-    where: { challengeParticipantId: { [Op.in]: participantIds } },
-    attributes: ['id'],
-  });
-  if (!matches.length) return 0;
-
-  const matchIds = matches.map((m) => m.id);
-
-  // 3️⃣ Get final submissions that are reviewable
-  const submissions = await Submission.findAll({
-    where: {
-      matchId: { [Op.in]: matchIds },
-      isFinal: true,
-      status: {
-        [Op.in]: [
-          SubmissionStatus.IMPROVABLE,
-          SubmissionStatus.PROBABLY_CORRECT,
+    include: [
+      {
+        model: Match,
+        as: 'match',
+        required: true,
+        include: [
+          {
+            model: Submission,
+            as: 'submissions',
+            required: true,
+            where: {
+              isFinal: true,
+              status: {
+                [Op.in]: [
+                  SubmissionStatus.IMPROVABLE,
+                  SubmissionStatus.PROBABLY_CORRECT,
+                ],
+              },
+            },
+            include: [
+              {
+                model: SubmissionScoreBreakdown,
+                as: 'scoreBreakdown',
+                required: true,
+                // where: { codeReviewScore: { [Op.gt]: 25 } },
+              },
+            ],
+          },
         ],
       },
-    },
-    attributes: ['id', 'challengeParticipantId'],
+    ],
   });
-  if (!submissions.length) return 0;
-
-  const submissionIds = submissions.map((s) => s.id);
-
-  // 4️⃣ Get submission scores and filter by codeReviewScore > 25
-  const scores = await SubmissionScoreBreakdown.findAll({
-    where: {
-      submissionId: { [Op.in]: submissionIds },
-      codeReviewScore: { [Op.gt]: 25 },
-    },
-    attributes: ['submissionId'],
-  });
-  if (!scores.length) return 0;
-
-  const validSubmissionIds = new Set(scores.map((s) => s.submissionId));
-
-  // 5️⃣ Filter submissions by the valid ones
-  const completedParticipantIds = new Set(
-    submissions
-      .filter((s) => validSubmissionIds.has(s.id))
-      .map((s) => s.challengeParticipantId)
-  );
-
-  return completedParticipantIds.size;
+  logger.info(`completedCount ${completedCount}`);
+  return completedCount;
 }
 
 /* ------------------------------------------------------------------ */

@@ -501,7 +501,20 @@ export default function PeerReviewPage() {
     router.push(`/student/challenges/${challengeId}/result`);
   }, [router, challengeId, dispatch, studentId]);
 
-  const handleBadgeClose = () => {};
+  const handleBadgeClose = () => {
+    setBadgeQueue((prevQueue) => {
+      const [, ...rest] = prevQueue;
+      if (rest.length > 0) {
+        setActiveBadge(rest[0]);
+      } else {
+        setActiveBadge(null);
+        if (finalSummary) {
+          setShowSummaryDialog(true);
+        }
+      }
+      return rest;
+    });
+  };
 
   useEffect(() => {
     const t = showSummaryDialog
@@ -1173,6 +1186,9 @@ export default function PeerReviewPage() {
           </Card>
         </section>
       </div>
+      {activeBadge && (
+        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+      )}
       <PeerReviewSummaryDialog
         open={showSummaryDialog}
         summary={finalSummary}
@@ -1185,9 +1201,6 @@ export default function PeerReviewPage() {
         onContinue={handleContinue}
         onExit={handleExit}
       />
-      {activeBadge && (
-        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
-      )}
     </div>
   );
 }

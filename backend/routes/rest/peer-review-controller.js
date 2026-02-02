@@ -259,6 +259,7 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
 // ----------------------------- FINALIZE CHALLENGE -----------------------------
 router.post('/peer-review/finalize-challenge', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
+  let participants = [];
   try {
     const { challengeId } = req.body;
 
@@ -305,7 +306,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
       });
     }
 
-    const participants = await ChallengeParticipant.findAll({
+    participants = await ChallengeParticipant.findAll({
       where: { challengeId },
       transaction: t,
     });
@@ -540,34 +541,35 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     );
 
     await t.commit();
-
-    // ------------------ BADGE CHECK ------------------
-    const badgeResults = [];
-    for (const participant of participants) {
-      // awardBadgeIfEligible returns only the badges JUST unlocked
-      const { unlockedBadges, completedChallenges } =
-        await awardBadgeIfEligible(participant.studentId);
-      if (unlockedBadges.length > 0) {
-        badgeResults.push({
-          studentId: participant.studentId,
-          unlockedBadges,
-          completedChallenges,
-        });
-      }
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        finalized: true,
-        badgeUnlocked: badgeResults.length > 0,
-        badgeResults,
-      },
-    });
   } catch (error) {
     await t.rollback();
     handleException(res, error);
   }
+  logger.info(`[Scheduler] Start count badge challenge`);
+  // ------------------ BADGE CHECK ------------------
+  const badgeResults = [];
+  for (const participant of participants) {
+    // awardBadgeIfEligible returns only the badges JUST unlocked
+    const { unlockedBadges, completedChallenges } = await awardBadgeIfEligible(
+      participant.studentId
+    );
+    if (unlockedBadges.length > 0) {
+      badgeResults.push({
+        studentId: participant.studentId,
+        unlockedBadges,
+        completedChallenges,
+      });
+    }
+  }
+  logger.info(`[Scheduler] End count badge challenge`);
+  return res.json({
+    success: true,
+    data: {
+      finalized: true,
+      badgeUnlocked: badgeResults.length > 0,
+      badgeResults,
+    },
+  });
 });
 
 // ----------------------------- EXIT PEER REVIEW -----------------------------
