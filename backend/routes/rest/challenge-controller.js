@@ -2903,10 +2903,8 @@ router.post(
       const challengeId = Number(req.params.challengeId);
       console.log(`Manual trigger scoring for challenge ${challengeId}...`);
 
-      // 1. Lancia il calcolo (RT-215 Logic)
       const scores = await calculateChallengeScores(challengeId);
 
-      // 2. Simula il salvataggio (lo stesso codice dello scheduler)
       if (scores && scores.length > 0) {
         await Promise.all(
           scores.map(async (scoreItem) => {
