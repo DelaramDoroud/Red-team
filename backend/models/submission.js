@@ -72,11 +72,13 @@ Submission.init(
     indexes: [
       {
         name: 'idx_match_submission_match_id',
-        fields: ['matchId'],
+
+        fields: ['match_id'],
       },
       {
         name: 'idx_match_submission_challenge_participant_id',
-        fields: ['challengeParticipantId'],
+
+        fields: ['challenge_participant_id'],
       },
     ],
   }
@@ -96,12 +98,22 @@ Submission.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+
   Submission.hasMany(models.PeerReviewAssignment, {
     as: 'peerReviewAssignments',
     foreignKey: 'submissionId',
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+
+  if (models.SubmissionScoreBreakdown) {
+    Submission.hasOne(models.SubmissionScoreBreakdown, {
+      as: 'scoreBreakdown',
+      foreignKey: 'submissionId',
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+    });
+  }
 };
 
 export default Submission;

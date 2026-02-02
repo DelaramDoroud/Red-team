@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
-import ToggleSwitch from '#components/common/ToggleSwitch';
 import {
   Card,
   CardContent,
@@ -19,6 +18,7 @@ import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
 import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
+import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import { useDuration } from '../(context)/DurationContext';
 
 const normalizeMultilineValue = (value) =>
@@ -115,7 +115,6 @@ export default function ChallengeResultPage() {
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
-  const [showReviewDetails, setShowReviewDetails] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -140,9 +139,16 @@ export default function ChallengeResultPage() {
       }
       const payload = res?.data || res;
       const finalizationInfo = payload?.finalization || null;
-      const resultsReady = finalizationInfo?.resultsReady !== false;
+
+      // BYPASS TO SHOW RESULTS IF SCORING IS DONE
+      const isScoringCompleted =
+        payload?.challenge?.scoringStatus === 'completed';
+      const resultsReady =
+        finalizationInfo?.resultsReady !== false || isScoringCompleted;
+
       setFinalization(finalizationInfo);
       setResultData(payload);
+
       if (!resultsReady) {
         setIsFinalizationPending(true);
         return;
@@ -196,7 +202,7 @@ export default function ChallengeResultPage() {
     return () => clearTimeout(timeoutId);
   }, [canLoadResults, isFinalizationPending, loadResults]);
 
-  if (authLoading) {
+  if (authLoading)
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
         <Card>
@@ -206,11 +212,8 @@ export default function ChallengeResultPage() {
         </Card>
       </div>
     );
-  }
-
   if (!isLoggedIn || !studentId) return null;
-
-  if (durationContext && !hasChallengeStatus && loading) {
+  if (durationContext && !hasChallengeStatus && loading)
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
         <Card>
@@ -220,7 +223,6 @@ export default function ChallengeResultPage() {
         </Card>
       </div>
     );
-  }
 
   const isWaitingForResults =
     awaitingChallengeEnd ||
@@ -256,7 +258,6 @@ export default function ChallengeResultPage() {
         : null;
     const pendingText =
       typeof pendingCount === 'number' ? `${pendingCount}` : null;
-
     return (
       <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
         <Card>
@@ -292,7 +293,7 @@ export default function ChallengeResultPage() {
     );
   }
 
-  if (loading) {
+  if (loading)
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
         <Card>
@@ -302,9 +303,7 @@ export default function ChallengeResultPage() {
         </Card>
       </div>
     );
-  }
-
-  if (error) {
+  if (error)
     return (
       <div className='max-w-4xl mx-auto px-4 py-10 space-y-4'>
         <Card className='border border-destructive/30 bg-destructive/5 text-destructive'>
@@ -320,9 +319,7 @@ export default function ChallengeResultPage() {
         </Button>
       </div>
     );
-  }
-
-  if (!resultData) {
+  if (!resultData)
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
         <Card>
@@ -332,7 +329,6 @@ export default function ChallengeResultPage() {
         </Card>
       </div>
     );
-  }
 
   const { challenge, matchSetting, scoreBreakdown } = resultData;
   const phaseTwoEndTimestamp = challenge?.endPhaseTwoDateTime
@@ -342,6 +338,7 @@ export default function ChallengeResultPage() {
     phaseTwoEndTimestamp !== null ? phaseTwoEndTimestamp <= Date.now() : false;
   const isFullyEnded =
     challenge?.status === ChallengeStatus.ENDED_PHASE_TWO && hasPhaseTwoEnded;
+
   const studentSubmission = resultData?.studentSubmission || null;
   const publicResults = Array.isArray(studentSubmission?.publicTestResults)
     ? studentSubmission.publicTestResults
@@ -383,6 +380,7 @@ export default function ChallengeResultPage() {
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
+      {/* 1. HEADER CARD */}
       <Card>
         <CardHeader>
           <CardTitle>{challenge?.title || 'Challenge results'}</CardTitle>
@@ -394,349 +392,258 @@ export default function ChallengeResultPage() {
         </CardHeader>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your submission</CardTitle>
-          <CardDescription>
-            Results appear after the challenge ends.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <Button
-            variant='outline'
-            onClick={handleToggleSolutionFeedback}
-            aria-expanded={isSolutionFeedbackOpen}
-            aria-controls={feedbackSectionId}
-          >
-            {isSolutionFeedbackOpen
-              ? 'Hide Your Solution & Feedback'
-              : 'View Your Solution & Feedback'}
-          </Button>
+      {/* 2. PURPLE SCORE CARD */}
+      {scoreBreakdown && <SubmissionScoreCard scoreData={scoreBreakdown} />}
 
-          {isSolutionFeedbackOpen && (
-            <div
-              id={feedbackSectionId}
-              className='rounded-2xl border border-border bg-card/90 p-5 shadow-sm space-y-6 text-card-foreground dark:bg-card/70'
-            >
-              {!studentSubmission && (
-                <p className='text-sm text-muted-foreground'>
-                  You did not submit a solution for this challenge.
-                </p>
-              )}
+      {/* 3. NAVIGATION ACTIONS (SUBTASK RT-218) */}
+      <div className='flex flex-col sm:flex-row gap-4'>
+        {/* A. Toggle Solution Button (Uses Redux = Persistent state) */}
+        <Button
+          onClick={handleToggleSolutionFeedback}
+          aria-expanded={isSolutionFeedbackOpen}
+          aria-controls={feedbackSectionId}
+          className='flex-1'
+        >
+          {isSolutionFeedbackOpen
+            ? 'Hide Your Solution & Feedback'
+            : 'View Your Solution & Feedback'}
+        </Button>
 
-              {studentSubmission && (
-                <>
-                  <div className='space-y-4'>
-                    <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3'>
-                      <div className='flex items-center gap-2 text-sm font-semibold text-foreground'>
-                        <span className='inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary'>
-                          {'</>'}
-                        </span>
-                        Your Solution & Feedback
-                      </div>
-                      <div className='text-xs font-semibold text-muted-foreground'>
-                        Submitted at{' '}
-                        {formatDateTime(studentSubmission.createdAt)}
-                      </div>
-                    </div>
+        {/* B. Navigate to Votes Button (Goes to the dedicated page) */}
+        <Button
+          variant='secondary'
+          onClick={() =>
+            router.push(`/student/challenges/${challengeId}/peer-reviews`)
+          }
+          className='flex-1'
+        >
+          View Your Code Review Votes
+        </Button>
+      </div>
 
-                    <div className='space-y-2'>
-                      <div className='flex items-center justify-between'>
-                        <p className='text-sm font-semibold text-foreground'>
-                          Your Submitted Solution
-                        </p>
-                        {matchSetting?.language && (
-                          <span className='inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary'>
-                            {matchSetting.language.toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <pre className='w-full overflow-auto rounded-xl border border-slate-900/80 bg-slate-900 p-4 text-sm text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
-                        {normalizeMultilineValue(studentSubmission.code || '')}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className='flex flex-wrap items-center justify-between gap-3'>
-                      <p className='text-sm font-semibold text-foreground'>
-                        Public test results
-                      </p>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <span
-                          className={buildResultBadge(passedPublic, 'success')}
-                        >
-                          {passedPublic} Passed
-                        </span>
-                        <span
-                          className={buildResultBadge(failedPublic, 'danger')}
-                        >
-                          {failedPublic} Failed
-                        </span>
-                      </div>
-                    </div>
-                    {publicResults.length === 0 ? (
-                      <p className='text-xs text-muted-foreground mt-2'>
-                        No public test results available.
-                      </p>
-                    ) : (
-                      <div className='mt-3 space-y-3'>
-                        {publicResults.map((result, index) => {
-                          const displayIndex = Number.isInteger(
-                            result.testIndex
-                          )
-                            ? result.testIndex + 1
-                            : index + 1;
-                          const statusLabel = result.passed
-                            ? 'Passed'
-                            : 'Failed';
-                          const failureDetails = getTestFailureDetails(result);
-                          return (
-                            <div
-                              key={buildTestKey(result)}
-                              className={`rounded-xl border p-4 ${getResultCardClasses(
-                                result.passed
-                              )}`}
-                            >
-                              <div className='flex flex-wrap items-center justify-between gap-2'>
-                                <p className='text-sm font-semibold text-foreground'>
-                                  Test {displayIndex}
-                                </p>
-                                <span
-                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
-                                    result.passed
-                                  )}`}
-                                >
-                                  {statusLabel}
-                                </span>
-                              </div>
-                              <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
-                                <p>
-                                  <span className='font-semibold'>
-                                    Expected:
-                                  </span>{' '}
-                                  {renderValue(result.expectedOutput)}
-                                </p>
-                                <p>
-                                  <span className='font-semibold'>
-                                    Your output:
-                                  </span>{' '}
-                                  {renderValue(result.actualOutput)}
-                                </p>
-                                {failureDetails && (
-                                  <p className='text-rose-700 dark:text-rose-200'>
-                                    <span className='font-semibold'>
-                                      Feedback:
-                                    </span>{' '}
-                                    {renderValue(failureDetails)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className='flex flex-wrap items-center justify-between gap-3'>
-                      <p className='text-sm font-semibold text-foreground'>
-                        Private test results
-                      </p>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <span
-                          className={buildResultBadge(passedPrivate, 'success')}
-                        >
-                          {passedPrivate} Passed
-                        </span>
-                        <span
-                          className={buildResultBadge(failedPrivate, 'danger')}
-                        >
-                          {failedPrivate} Failed
-                        </span>
-                      </div>
-                    </div>
-                    {privateResults.length === 0 ? (
-                      <p className='text-xs text-muted-foreground mt-2'>
-                        No private test results available.
-                      </p>
-                    ) : (
-                      <div className='mt-3 space-y-3'>
-                        {privateResults.map((result, index) => {
-                          const displayIndex = Number.isInteger(
-                            result.testIndex
-                          )
-                            ? result.testIndex + 1
-                            : index + 1;
-                          const statusLabel = result.passed
-                            ? 'Passed'
-                            : 'Failed';
-                          const failureDetails = getTestFailureDetails(result);
-                          return (
-                            <div
-                              key={buildTestKey(result)}
-                              className={`rounded-xl border p-4 ${getResultCardClasses(
-                                result.passed
-                              )}`}
-                            >
-                              <div className='flex flex-wrap items-center justify-between gap-2'>
-                                <p className='text-sm font-semibold text-foreground'>
-                                  Test {displayIndex}
-                                </p>
-                                <span
-                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
-                                    result.passed
-                                  )}`}
-                                >
-                                  {statusLabel}
-                                </span>
-                              </div>
-                              <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
-                                <p>
-                                  <span className='font-semibold'>
-                                    Expected:
-                                  </span>{' '}
-                                  {renderValue(result.expectedOutput)}
-                                </p>
-                                <p>
-                                  <span className='font-semibold'>
-                                    Your output:
-                                  </span>{' '}
-                                  {renderValue(result.actualOutput)}
-                                </p>
-                                {failureDetails && (
-                                  <p className='text-rose-700 dark:text-rose-200'>
-                                    <span className='font-semibold'>
-                                      Feedback:
-                                    </span>{' '}
-                                    {renderValue(failureDetails)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {isFullyEnded && (
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <div className='space-y-1'>
-              <CardTitle>Peer Review Results</CardTitle>
-              <CardDescription>
-                Overview of your performance in the peer review phase.
-              </CardDescription>
-            </div>
-            {scoreBreakdown && (
-              <ToggleSwitch
-                checked={showReviewDetails}
-                onChange={() => setShowReviewDetails((prev) => !prev)}
-                label='Show details'
-              />
-            )}
+      {/* 4. SOLUTION SECTION (Visible only if open) */}
+      {isSolutionFeedbackOpen && (
+        <Card
+          id={feedbackSectionId}
+          className='animate-in fade-in slide-in-from-top-4 duration-300'
+        >
+          <CardHeader>
+            <CardTitle>Your submission details</CardTitle>
+            <CardDescription>Code and automated test results.</CardDescription>
           </CardHeader>
-          <CardContent className='space-y-6 pt-4'>
-            {scoreBreakdown && !showReviewDetails && (
-              <div className='grid gap-4 md:grid-cols-3'>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Total Score
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.totalScore}
-                  </div>
-                </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Implementation
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.implementationScore}
-                  </div>
-                </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Code Review
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.codeReviewScore}
-                  </div>
-                </div>
-              </div>
+          <CardContent className='space-y-4'>
+            {!studentSubmission && (
+              <p className='text-sm text-muted-foreground'>
+                You did not submit a solution for this challenge.
+              </p>
             )}
+            {studentSubmission && (
+              <>
+                <div className='space-y-4'>
+                  <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3'>
+                    <div className='flex items-center gap-2 text-sm font-semibold text-foreground'>
+                      <span className='inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary'>
+                        {'</>'}
+                      </span>
+                      Your Solution
+                    </div>
+                    <div className='text-xs font-semibold text-muted-foreground'>
+                      Submitted at {formatDateTime(studentSubmission.createdAt)}
+                    </div>
+                  </div>
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between'>
+                      <p className='text-sm font-semibold text-foreground'>
+                        Code
+                      </p>
+                      {matchSetting?.language && (
+                        <span className='inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary'>
+                          {matchSetting.language.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <pre className='w-full overflow-auto rounded-xl border border-slate-900/80 bg-slate-900 p-4 text-sm text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
+                      {normalizeMultilineValue(studentSubmission.code || '')}
+                    </pre>
+                  </div>
+                </div>
 
-            {(showReviewDetails || !scoreBreakdown) && (
-              <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
-                <h3 className='text-sm font-semibold'>Received Tests</h3>
-                {!hasPeerReviewTests && (
-                  <p className='text-sm text-muted-foreground'>
-                    No peer review tests were submitted for your solution.
-                  </p>
-                )}
-                {hasPeerReviewTests &&
-                  peerReviewTests.map((review) => {
-                    const reviewerName =
-                      review.reviewer?.username || 'Anonymous';
-                    const tests = Array.isArray(review.tests)
-                      ? review.tests
-                      : [];
-                    if (tests.length === 0) return null;
+                {/* Public Results */}
+                <div>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <p className='text-sm font-semibold text-foreground'>
+                      Public test results
+                    </p>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <span
+                        className={buildResultBadge(passedPublic, 'success')}
+                      >
+                        {passedPublic} Passed
+                      </span>
+                      <span
+                        className={buildResultBadge(failedPublic, 'danger')}
+                      >
+                        {failedPublic} Failed
+                      </span>
+                    </div>
+                  </div>
+                  {publicResults.map((result, index) => {
+                    const displayIndex = Number.isInteger(result.testIndex)
+                      ? result.testIndex + 1
+                      : index + 1;
+                    const failureDetails = getTestFailureDetails(result);
                     return (
                       <div
-                        key={`review-${review.id}`}
-                        className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
+                        key={buildTestKey(result)}
+                        className={`rounded-xl border p-4 ${getResultCardClasses(result.passed)} mt-3`}
                       >
-                        <p className='text-sm font-semibold'>
-                          Reviewer: {reviewerName}
-                        </p>
-                        <div className='space-y-3'>
-                          {tests.map((test) => {
-                            const testKey = JSON.stringify({
-                              input: test.input,
-                              expectedOutput: test.expectedOutput,
-                              notes: test.notes,
-                            });
-                            return (
-                              <div
-                                key={testKey}
-                                className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
-                              >
-                                <p>
-                                  <span className='font-semibold'>Input:</span>{' '}
-                                  {renderValue(test.input)}
-                                </p>
-                                <p>
-                                  <span className='font-semibold'>
-                                    Expected output:
-                                  </span>{' '}
-                                  {renderValue(test.expectedOutput)}
-                                </p>
-                                {test.notes && (
-                                  <p>
-                                    <span className='font-semibold'>
-                                      Notes:
-                                    </span>{' '}
-                                    {test.notes}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
+                        <div className='flex flex-wrap items-center justify-between gap-2'>
+                          <p className='text-sm font-semibold text-foreground'>
+                            Test {displayIndex}
+                          </p>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(result.passed)}`}
+                          >
+                            {result.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                          <p>
+                            <span className='font-semibold'>Expected:</span>{' '}
+                            {renderValue(result.expectedOutput)}
+                          </p>
+                          <p>
+                            <span className='font-semibold'>Actual:</span>{' '}
+                            {renderValue(result.actualOutput)}
+                          </p>
+                          {failureDetails && (
+                            <p className='text-rose-700 dark:text-rose-200'>
+                              <span className='font-semibold'>Feedback:</span>{' '}
+                              {renderValue(failureDetails)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
                   })}
-              </div>
+                </div>
+
+                {/* Private Results */}
+                <div>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <p className='text-sm font-semibold text-foreground'>
+                      Private test results
+                    </p>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <span
+                        className={buildResultBadge(passedPrivate, 'success')}
+                      >
+                        {passedPrivate} Passed
+                      </span>
+                      <span
+                        className={buildResultBadge(failedPrivate, 'danger')}
+                      >
+                        {failedPrivate} Failed
+                      </span>
+                    </div>
+                  </div>
+                  {privateResults.map((result, index) => {
+                    const displayIndex = Number.isInteger(result.testIndex)
+                      ? result.testIndex + 1
+                      : index + 1;
+                    const failureDetails = getTestFailureDetails(result);
+                    return (
+                      <div
+                        key={buildTestKey(result)}
+                        className={`rounded-xl border p-4 ${getResultCardClasses(result.passed)} mt-3`}
+                      >
+                        <div className='flex flex-wrap items-center justify-between gap-2'>
+                          <p className='text-sm font-semibold text-foreground'>
+                            Test {displayIndex}
+                          </p>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(result.passed)}`}
+                          >
+                            {result.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        </div>
+                        <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                          <p>
+                            <span className='font-semibold'>Expected:</span>{' '}
+                            {renderValue(result.expectedOutput)}
+                          </p>
+                          <p>
+                            <span className='font-semibold'>Actual:</span>{' '}
+                            {renderValue(result.actualOutput)}
+                          </p>
+                          {failureDetails && (
+                            <p className='text-rose-700 dark:text-rose-200'>
+                              <span className='font-semibold'>Feedback:</span>{' '}
+                              {renderValue(failureDetails)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* --- PEER REVIEW RECEIVED TESTS (VISIBLE) --- */}
+      {isFullyEnded && hasPeerReviewTests && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Received Peer Tests</CardTitle>
+            <CardDescription>
+              Test cases created by other students that your code was evaluated
+              against.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='space-y-4'>
+              {peerReviewTests.map((review) => {
+                const tests = review.tests || [];
+                if (tests.length === 0) return null;
+                return (
+                  <div
+                    key={`review-${review.id}`}
+                    className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
+                  >
+                    <p className='text-sm font-semibold'>
+                      Reviewer: {review.reviewer?.username || 'Anonymous'}
+                    </p>
+                    <div className='space-y-3'>
+                      {tests.map((test) => {
+                        const testKey = JSON.stringify({
+                          input: test.input,
+                          expectedOutput: test.expectedOutput,
+                          notes: test.notes,
+                        });
+                        return (
+                          <div
+                            key={testKey}
+                            className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
+                          >
+                            <p>
+                              <span className='font-semibold'>Input:</span>{' '}
+                              {renderValue(test.input)}
+                            </p>
+                            <p>
+                              <span className='font-semibold'>Expected:</span>{' '}
+                              {renderValue(test.expectedOutput)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -755,27 +662,19 @@ export default function ChallengeResultPage() {
                 No other submissions available.
               </p>
             )}
-            {otherSubmissions.map((submission) => {
-              const authorName = submission.student?.username || 'Student';
-              return (
-                <div
-                  key={`submission-${submission.id}`}
-                  className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'
-                >
-                  <div className='flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between'>
-                    <p className='text-sm font-semibold'>{authorName}</p>
-                    {submission.createdAt && (
-                      <p className='text-xs text-muted-foreground'>
-                        {formatDateTime(submission.createdAt)}
-                      </p>
-                    )}
-                  </div>
-                  <pre className='max-h-[240px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-xs'>
-                    {submission.code || ''}
-                  </pre>
-                </div>
-              );
-            })}
+            {otherSubmissions.map((submission) => (
+              <div
+                key={`submission-${submission.id}`}
+                className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'
+              >
+                <p className='text-sm font-semibold'>
+                  {submission.student?.username || 'Student'}
+                </p>
+                <pre className='max-h-[240px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-xs'>
+                  {submission.code || ''}
+                </pre>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

@@ -14,17 +14,20 @@ PeerReviewAssignment.init(
     submissionId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'submission_id', // Esplicitiamo il nome colonna per sicurezza
     },
 
     reviewerId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'reviewer_id', // Esplicitiamo il nome colonna per sicurezza
     },
 
     isExtra: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+      field: 'is_extra',
     },
     feedbackTests: {
       type: DataTypes.JSONB,
@@ -43,15 +46,18 @@ PeerReviewAssignment.init(
       {
         name: 'uq_peer_review_assignment_submission_reviewer',
         unique: true,
-        fields: ['submissionId', 'reviewerId'],
+        // --- FIX CRUCIALE QUI SOTTO: snake_case ---
+        fields: ['submission_id', 'reviewer_id'],
       },
       {
         name: 'peer_review_assignment_submission_id_idx',
-        fields: ['submissionId'],
+        // --- FIX: snake_case ---
+        fields: ['submission_id'],
       },
       {
         name: 'peer_review_assignment_reviewer_id_idx',
-        fields: ['reviewerId'],
+        // --- FIX: snake_case ---
+        fields: ['reviewer_id'],
       },
     ],
   }

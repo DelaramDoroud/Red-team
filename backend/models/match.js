@@ -32,16 +32,15 @@ const Match = sequelize.define(
         fields: ['id'],
       },
       {
-        // constraint: each participant can have only one match per challenge match setting
         name: 'uq_match_challenge_match_setting_participant',
         unique: true,
-        fields: ['challengeMatchSettingId', 'challengeParticipantId'],
+        fields: ['challenge_match_setting_id', 'challenge_participant_id'],
       },
       {
-        // constraint: each participant can appear only once in the match table
         name: 'uq_match_challenge_participant_id',
         unique: true,
-        fields: ['challengeParticipantId'],
+
+        fields: ['challenge_participant_id'],
       },
     ],
   }
@@ -61,6 +60,7 @@ Match.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+
   Match.hasMany(models.Submission, {
     as: 'submissions',
     foreignKey: 'matchId',

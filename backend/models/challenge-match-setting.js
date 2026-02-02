@@ -24,7 +24,7 @@ const ChallengeMatchSetting = sequelize.define(
     tableName: 'challenge_match_setting',
     schema: 'public',
     underscored: true,
-    timestamps: true, // use created_at / updated_at
+    timestamps: true,
     indexes: [
       {
         name: 'challenge_match_setting_pkey',
@@ -34,7 +34,7 @@ const ChallengeMatchSetting = sequelize.define(
       {
         name: 'uq_challenge_match_setting_ids',
         unique: true,
-        fields: ['challengeId', 'matchSettingId'],
+        fields: ['challenge_id', 'match_setting_id'],
       },
     ],
   }
@@ -55,7 +55,6 @@ ChallengeMatchSetting.initializeRelations = (models) => {
     onUpdate: 'CASCADE',
   });
 
-  // A challenge_match_setting has one match
   ChallengeMatchSetting.hasMany(models.Match, {
     as: 'match',
     foreignKey: 'challengeMatchSettingId',
