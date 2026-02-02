@@ -398,7 +398,7 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
 
         const referenceSolution =
           assignment.submission.match.challengeMatchSetting.matchSetting
-            .dataValues.referenceSolution;
+            .dataValues.referenceSo;
 
         if (!referenceSolution) {
           console.log('No reference solution found for vote:', vote.id);
