@@ -11,7 +11,7 @@ import Submission from '#root/models/submission.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import StudentBadge from '#root/models/student-badges.js';
 
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
+import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges.js';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 

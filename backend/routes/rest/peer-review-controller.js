@@ -22,7 +22,7 @@ import {
   normalizeOutputForComparison,
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
+import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges.js';
 
 const router = Router();
 
