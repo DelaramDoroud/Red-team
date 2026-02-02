@@ -12,79 +12,80 @@ import {
 import logger from '#root/services/logger.js';
 
 /**
- * Count the number of challenges completed by a student.
- * A challenge is considered completed if:
- * - The submission status is either 'probably_correct' or 'improvable'
- * - The submission score is greater than 25
+ * Count the number of completed challenges for a student.
+ *
+ * A submission is considered valid if:
+ * - status is PROBABLY_CORRECT or IMPROVABLE
+ * - score breakdown exists (optionally filtered by totalScore)
  */
+
 export async function countCompletedChallenges(studentId) {
-  const completedCount = await ChallengeParticipant.count({
-    where: { studentId },
+  const completedCount = await Submission.count({
+    distinct: true,
     include: [
       {
-        model: Submission,
-        as: 'submissions',
+        model: ChallengeParticipant,
+        as: 'challengeParticipant',
         required: true,
-        where: {
-          status: {
-            [Op.in]: [
-              SubmissionStatus.PROBABLY_CORRECT,
-              SubmissionStatus.IMPROVABLE,
-            ],
-          },
-        },
-        include: [
-          {
-            model: SubmissionScoreBreakdown,
-            as: 'scoreBreakdown',
-            required: true,
-            where: { totalScore: { [Op.gt]: 25 } }, // Only count submissions with totalScore > 25
-          },
-        ],
+        where: { studentId },
+      },
+      {
+        model: SubmissionScoreBreakdown,
+        as: 'scoreBreakdown',
+        required: false,
       },
     ],
+    where: {
+      status: {
+        [Op.in]: [
+          SubmissionStatus.PROBABLY_CORRECT,
+          SubmissionStatus.IMPROVABLE,
+        ],
+      },
+    },
   });
 
   logger.info(
-    `Student ${studentId} has completed ${completedCount} challenges.`
+    `Student ${studentId} completed submissions count: ${completedCount}`
   );
+
   return completedCount;
 }
 
 /**
- * Award milestone badges to a student if thresholds are reached.
- * Returns only badges that were just unlocked.
+ * Award milestone badges if challenge completion thresholds are reached.
+ * Returns only newly unlocked badges.
  */
 export async function awardBadgeIfEligible(studentId) {
-  // Count completed challenges
   const completedChallenges = await countCompletedChallenges(studentId);
 
-  // Fetch all milestone badges that match the completed challenges count
+  logger.info(`completedChallenges: ${completedChallenges}`);
   const milestoneBadges = await Badge.findAll({
     where: {
       category: BadgeCategory.CHALLENGE_MILESTONE,
       metric: BadgeMetric.CHALLENGES_COMPLETED,
-      threshold: { [Op.lte]: completedChallenges }, // Threshold less than or equal to completed challenges
+      threshold: { [Op.lte]: completedChallenges },
     },
-    order: [['threshold', 'ASC']], // Process in ascending order of threshold
+    order: [['threshold', 'ASC']],
   });
 
+  logger.info(`milestoneBadges: ${milestoneBadges}`);
   const unlockedBadges = [];
 
   for (const badge of milestoneBadges) {
-    // Assign badge only if student hasn't earned it yet
     const [, created] = await StudentBadge.findOrCreate({
       where: { studentId, badgeId: badge.id },
       defaults: { earnedAt: new Date() },
     });
 
+    logger.info(`created: ${created}`);
     if (created) {
-      unlockedBadges.push(badge); // Keep the full badge object
+      unlockedBadges.push(badge);
     }
   }
 
   return {
-    unlockedBadges, // Array of newly unlocked badges
-    completedChallenges, // Total challenges completed by student
+    unlockedBadges,
+    completedChallenges,
   };
 }

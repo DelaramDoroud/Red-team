@@ -26,6 +26,7 @@ import { validateIncorrectInput } from '#js/utils';
 import BadgeModal from '#components/badge/BadgeModal';
 import ExitConfirmationModal from './ExitConfirmationModal';
 import { useDuration } from '../(context)/DurationContext';
+// import { get } from 'node:http';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -412,16 +413,16 @@ export default function PeerReviewPage() {
                 completedChallenges: r.completedChallenges,
               }))
             );
-
             setBadgeQueue(allBadges);
             setActiveBadge(allBadges[0]);
-          }
-          const result = await fetchPeerReviewSummary();
-          if (result.success) {
-            setFinalSummary(result.summary);
-            setShowSummaryDialog(true);
           } else {
-            toast.error(result.error);
+            const result = await fetchPeerReviewSummary();
+            if (result.success) {
+              setFinalSummary(result.summary);
+              setShowSummaryDialog(true);
+            } else {
+              toast.error(result.error);
+            }
           }
         })
         .catch(() => {
@@ -501,19 +502,31 @@ export default function PeerReviewPage() {
     router.push(`/student/challenges/${challengeId}/result`);
   }, [router, challengeId, dispatch, studentId]);
 
-  const handleBadgeClose = () => {
+  const handleBadgeClose = async () => {
     setBadgeQueue((prevQueue) => {
       const [, ...rest] = prevQueue;
       if (rest.length > 0) {
         setActiveBadge(rest[0]);
       } else {
         setActiveBadge(null);
-        if (finalSummary) {
-          setShowSummaryDialog(true);
-        }
       }
       return rest;
     });
+    // If there are no more badges, fetch the peer review summary
+    if (!badgeQueue || badgeQueue.length <= 1) {
+      try {
+        const result = await fetchPeerReviewSummary();
+        if (result.success) {
+          setFinalSummary(result.summary);
+          setShowSummaryDialog(true);
+        } else {
+          toast.error(result.error);
+        }
+      } catch (err) {
+        toast.error('Failed to fetch summary');
+        // console.error(err);
+      }
+    }
   };
 
   useEffect(() => {
