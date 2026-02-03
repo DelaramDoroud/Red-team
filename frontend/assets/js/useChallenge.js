@@ -300,8 +300,9 @@ export default function useChallenge() {
   );
 
   const getChallengeLeaderboard = useCallback(
-    async (challengeId) => {
-      const url = `${API_REST_BASE}/challenges/${challengeId}/leaderboard`;
+    async (challengeId, studentId) => {
+      const query = studentId != null ? `?studentId=${Number(studentId)}` : '';
+      const url = `${API_REST_BASE}/challenges/${challengeId}/leaderboard${query}`;
       return fetchData(url);
     },
     [fetchData]
