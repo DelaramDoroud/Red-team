@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.js'],
+    reporters: ['dot'],
     bail: 1,
     coverage: {
       reporter: ['text', 'lcov'],
