@@ -2645,7 +2645,14 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
                 {
                   model: User,
                   as: 'student',
-                  attributes: ['id', 'username'],
+                  attributes: ['id', 'username', 'titleId'],
+                  include: [
+                    {
+                      model: Title,
+                      as: 'title',
+                      attributes: ['id', 'name'],
+                    },
+                  ],
                 },
               ],
             },
@@ -2672,6 +2679,7 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
           participantId: participant.id,
           studentId: student.id,
           username: student.username,
+          skillTitle: student.title?.name || null,
           totalScore: safeNumber(row.totalScore),
           implementationScore: safeNumber(row.implementationScore),
           codeReviewScore: safeNumber(row.codeReviewScore),
@@ -2690,38 +2698,27 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
     });
 
     const requestUser = getRequestUser(req);
-    const requestUserId = requestUser?.id;
+    const requestUserIdRaw = req.query?.studentId ?? requestUser?.id ?? null;
+    const requestUserId = Number(requestUserIdRaw);
+    const requestUserIdFinal = Number.isFinite(requestUserId)
+      ? requestUserId
+      : null;
     const studentIds = Array.from(
       new Set(entries.map((entry) => entry.studentId))
     );
 
-    const [titles, studentBadges] = await Promise.all([
-      Title.findAll({
-        attributes: [
-          'key',
-          'name',
-          'description',
-          'rank',
-          'minChallenges',
-          'minAvgScore',
-          'minBadges',
-        ],
-        order: [['rank', 'ASC']],
-        raw: true,
-      }),
-      studentIds.length
-        ? StudentBadge.findAll({
-            where: { studentId: { [Op.in]: studentIds } },
-            include: [
-              {
-                model: Badge,
-                as: 'badge',
-                attributes: ['key', 'name', 'iconKey', 'level', 'category'],
-              },
-            ],
-          })
-        : Promise.resolve([]),
-    ]);
+    const studentBadges = studentIds.length
+      ? await StudentBadge.findAll({
+          where: { studentId: { [Op.in]: studentIds } },
+          include: [
+            {
+              model: Badge,
+              as: 'badge',
+              attributes: ['key', 'name', 'iconKey', 'level', 'category'],
+            },
+          ],
+        })
+      : [];
 
     const badgesByStudent = new Map();
     studentBadges.forEach((row) => {
@@ -2738,93 +2735,6 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
       badgesByStudent.set(row.studentId, list);
     });
 
-    const historyRows = studentIds.length
-      ? await SubmissionScoreBreakdown.findAll({
-          include: [
-            {
-              model: Submission,
-              as: 'submission',
-              attributes: ['id', 'challengeParticipantId'],
-              required: true,
-              include: [
-                {
-                  model: ChallengeParticipant,
-                  as: 'challengeParticipant',
-                  attributes: ['id', 'studentId', 'challengeId'],
-                  required: true,
-                  where: { studentId: { [Op.in]: studentIds } },
-                },
-              ],
-            },
-          ],
-        })
-      : [];
-
-    const challengeIds = Array.from(
-      new Set(
-        historyRows
-          .map((row) => row.submission?.challengeParticipant?.challengeId)
-          .filter(Boolean)
-      )
-    );
-
-    const eligibleChallenges = challengeIds.length
-      ? await Challenge.findAll({
-          attributes: ['id', 'status', 'scoringStatus'],
-          where: { id: { [Op.in]: challengeIds } },
-          raw: true,
-        })
-      : [];
-
-    const eligibleChallengeIds = new Set(
-      eligibleChallenges
-        .filter(
-          (c) =>
-            c.status === ChallengeStatus.ENDED_PHASE_TWO &&
-            c.scoringStatus === 'completed'
-        )
-        .map((c) => c.id)
-    );
-
-    const statsByStudent = new Map();
-    historyRows.forEach((row) => {
-      const submission = row.submission;
-      const participant = submission?.challengeParticipant;
-      if (!participant) return;
-      const studentId = participant.studentId;
-      const challengeId = participant.challengeId;
-      if (!eligibleChallengeIds.has(challengeId)) return;
-      const totalScore = safeNumber(row.totalScore);
-      const stats = statsByStudent.get(studentId) ?? new Map();
-      const existing = stats.get(challengeId);
-      if (existing == null || totalScore > existing) {
-        stats.set(challengeId, totalScore);
-      }
-      statsByStudent.set(studentId, stats);
-    });
-
-    const resolveTitle = (studentId) => {
-      const stats = statsByStudent.get(studentId);
-      const scores = stats ? Array.from(stats.values()) : [];
-      const completedChallenges = scores.length;
-      const avgScore =
-        completedChallenges > 0
-          ? scores.reduce((sum, value) => sum + value, 0) / completedChallenges
-          : 0;
-      const badgeCount = (badgesByStudent.get(studentId) ?? []).length;
-      let currentTitle = null;
-      titles.forEach((title) => {
-        if (
-          completedChallenges >= (title.minChallenges ?? 0) &&
-          avgScore >= (title.minAvgScore ?? 0) &&
-          badgeCount >= (title.minBadges ?? 0)
-        ) {
-          currentTitle = title;
-        }
-      });
-      return currentTitle?.name || 'Student';
-    };
-
     const leaderboard = entries.map((entry, index) => {
       const rank = index + 1;
       const previous = index > 0 ? entries[index - 1] : null;
@@ -2839,10 +2749,10 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
         ...entry,
         rank,
         gapFromPrevious,
-        isCurrentUser: requestUserId
-          ? Number(entry.studentId) === Number(requestUserId)
+        isCurrentUser: requestUserIdFinal
+          ? Number(entry.studentId) === Number(requestUserIdFinal)
           : false,
-        skillTitle: resolveTitle(entry.studentId),
+        skillTitle: entry.skillTitle ?? null,
         badges: badgesByStudent.get(entry.studentId) ?? [],
       };
     });
@@ -2857,9 +2767,9 @@ router.get('/challenges/:challengeId/leaderboard', async (req, res) => {
         : 0;
     const averageScore = Number(averageScoreRaw.toFixed(1));
 
-    const currentRow = requestUserId
+    const currentRow = requestUserIdFinal
       ? leaderboard.find(
-          (row) => Number(row.studentId) === Number(requestUserId)
+          (row) => Number(row.studentId) === Number(requestUserIdFinal)
         )
       : null;
 
