@@ -80,6 +80,7 @@ export default function Header() {
       return [
         { href: '/student/challenges', label: 'Students' },
         { href: '/student/rewards', label: 'Game Rules Guide' },
+        { href: '/student/leaderboard', label: 'Leaderboard' },
       ];
     }
     if (isLoggedIn) {
