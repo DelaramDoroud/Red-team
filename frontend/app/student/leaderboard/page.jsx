@@ -72,7 +72,7 @@ export default function StudentLeaderboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await getChallengeLeaderboard(challengeId);
+        const res = await getChallengeLeaderboard(challengeId, studentId);
         if (res?.success === false) {
           setError(res?.message || 'Unable to load leaderboard.');
           setLeaderboardData({
@@ -102,7 +102,7 @@ export default function StudentLeaderboardPage() {
         setLoading(false);
       }
     },
-    [getChallengeLeaderboard]
+    [getChallengeLeaderboard, studentId]
   );
 
   useEffect(() => {
@@ -151,10 +151,17 @@ export default function StudentLeaderboardPage() {
   };
 
   let personalHint = 'No higher rank available yet';
-  if (leaderboardData.personalSummary?.rank === 1) {
+  const personalRank =
+    leaderboardData.personalSummary?.rank != null
+      ? Number(leaderboardData.personalSummary.rank)
+      : null;
+  if (personalRank === 1) {
     personalHint = 'You are in the top position.';
   } else if (leaderboardData.personalSummary?.gapToPrevious != null) {
-    personalHint = `Gap to previous rank: need ${leaderboardData.personalSummary.gapToPrevious} more points`;
+    const targetRank =
+      personalRank != null && personalRank > 1 ? personalRank - 1 : null;
+    const rankLabel = targetRank != null ? `#${targetRank}` : 'the next rank';
+    personalHint = `Gap to ${rankLabel}: You need ${leaderboardData.personalSummary.gapToPrevious} more points to reach the next position`;
   }
 
   return (
@@ -193,10 +200,6 @@ export default function StudentLeaderboardPage() {
       </section>
 
       <section className={styles.tableCard}>
-        <div className={styles.tableHeader}>
-          <div className={styles.tableTitle}>Rankings</div>
-          <div className={styles.tableHint}>Top performers this challenge</div>
-        </div>
         <div className={styles.table}>
           <div className={styles.tableRowHead}>
             <div>Rank</div>
@@ -206,48 +209,56 @@ export default function StudentLeaderboardPage() {
             <div>Review</div>
             <div>Badges</div>
           </div>
-          {pagedRows.map((row) => (
-            <div
-              key={row.studentId}
-              className={`${styles.tableRow} ${
-                row.isCurrentUser ? styles.tableRowActive : ''
-              }`}
-            >
-              <div className={styles.rankCell}>#{row.rank}</div>
-              <div className={styles.studentCell}>
-                <div className={styles.studentName}>{row.username}</div>
-                <div className={styles.studentRole}>
-                  {row.skillTitle || 'Student'}
+          {pagedRows.map((row) => {
+            const isActiveRow =
+              studentId != null && Number(row.studentId) === Number(studentId);
+            const displayTitle =
+              row.skillTitle && row.skillTitle !== 'Student'
+                ? row.skillTitle
+                : '';
+            return (
+              <div
+                key={row.studentId}
+                className={`${styles.tableRow} ${
+                  isActiveRow ? styles.tableRowActive : ''
+                }`}
+              >
+                <div className={styles.rankCell}>#{row.rank}</div>
+                <div className={styles.studentCell}>
+                  <div className={styles.studentName}>{row.username}</div>
+                  <div className={styles.studentRole}>{displayTitle}</div>
+                </div>
+                <div className={styles.scoreCell}>
+                  <div className={styles.scoreValue}>{row.totalScore}</div>
+                  <div className={styles.scoreMax}>/ 100</div>
+                </div>
+                <div className={styles.scoreCell}>
+                  <div className={styles.scoreValue}>
+                    {row.implementationScore}
+                  </div>
+                  <div className={styles.scoreMax}>/ 50</div>
+                </div>
+                <div className={styles.scoreCell}>
+                  <div className={styles.scoreValue}>{row.codeReviewScore}</div>
+                  <div className={styles.scoreMax}>/ 50</div>
+                </div>
+                <div className={styles.badgesCell}>
+                  {Array.isArray(row.badges) && row.badges.length > 0
+                    ? row.badges.map((badge) => (
+                        <img
+                          key={`${row.studentId}-${badge.key ?? badge.name}`}
+                          className={styles.badgeIcon}
+                          src={`/badge/${badge.iconKey}.png`}
+                          alt={badge.name}
+                          title={badge.name}
+                          loading='lazy'
+                        />
+                      ))
+                    : '-'}
                 </div>
               </div>
-              <div className={styles.scoreCell}>
-                <div className={styles.scoreValue}>{row.totalScore}</div>
-                <div className={styles.scoreMax}>/ 100</div>
-              </div>
-              <div className={styles.scoreCell}>
-                <div className={styles.scoreValue}>
-                  {row.implementationScore}
-                </div>
-                <div className={styles.scoreMax}>/ 50</div>
-              </div>
-              <div className={styles.scoreCell}>
-                <div className={styles.scoreValue}>{row.codeReviewScore}</div>
-                <div className={styles.scoreMax}>/ 50</div>
-              </div>
-              <div className={styles.badgesCell}>
-                {Array.isArray(row.badges) && row.badges.length > 0
-                  ? row.badges.map((badge) => (
-                      <span
-                        key={`${row.studentId}-${badge.key ?? badge.name}`}
-                        className={styles.badgePill}
-                      >
-                        {badge.name}
-                      </span>
-                    ))
-                  : '-'}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {!loading && leaderboardData.leaderboard.length === 0 && (
             <div className={styles.tableEmpty}>
               No leaderboard data available for this challenge.
