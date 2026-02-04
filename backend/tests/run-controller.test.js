@@ -6,7 +6,9 @@ import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
 import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
-const mockExecuteCodeTests = vi.fn();
+const { mockExecuteCodeTests } = vi.hoisted(() => ({
+  mockExecuteCodeTests: vi.fn(),
+}));
 vi.mock('#root/services/execute-code-tests.js', () => ({
   executeCodeTests: (...args) => mockExecuteCodeTests(...args),
 }));

@@ -8,6 +8,7 @@ const initialState = {
   challengeCountdowns: {},
   peerReviewExits: {},
   solutionFeedbackVisibility: {},
+  codeReviewVotesVisibility: {},
 };
 
 const getDraftEntry = (userDrafts, key) =>
@@ -241,6 +242,19 @@ const uiSlice = createSlice({
         ),
       };
     },
+    setCodeReviewVotesVisibility: (state, action) => {
+      const { userId, challengeId, value } = action.payload || {};
+      if (!userId || !challengeId || typeof value !== 'boolean') return state;
+      return {
+        ...state,
+        codeReviewVotesVisibility: upsertUserValue(
+          state.codeReviewVotesVisibility || {},
+          userId,
+          challengeId,
+          value
+        ),
+      };
+    },
     clearPeerReviewExit: (state, action) => {
       const { userId, challengeId } = action.payload || {};
       if (!userId || !challengeId) return state;
@@ -262,6 +276,7 @@ const uiSlice = createSlice({
         challengeCountdowns: {},
         peerReviewExits: {},
         solutionFeedbackVisibility: {},
+        codeReviewVotesVisibility: {},
       }))
       .addCase(clearUser, (state) => ({
         ...state,
@@ -269,6 +284,7 @@ const uiSlice = createSlice({
         challengeCountdowns: {},
         peerReviewExits: {},
         solutionFeedbackVisibility: {},
+        codeReviewVotesVisibility: {},
       }));
   },
 });
@@ -281,12 +297,10 @@ export const {
   migrateChallengeKey,
   clearChallengeDraft,
   setChallengeStartTime,
-  clearChallengeTimer,
   setChallengeCountdown,
-  clearChallengeCountdown,
   setPeerReviewExit,
-  clearPeerReviewExit,
   setSolutionFeedbackVisibility,
+  setCodeReviewVotesVisibility,
 } = uiSlice.actions;
 
 export const uiReducer = uiSlice.reducer;

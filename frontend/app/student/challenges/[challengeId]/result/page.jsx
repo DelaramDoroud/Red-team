@@ -12,7 +12,10 @@ import {
 } from '#components/common/card';
 import useChallenge from '#js/useChallenge';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
-import { setSolutionFeedbackVisibility } from '#js/store/slices/ui';
+import {
+  setCodeReviewVotesVisibility,
+  setSolutionFeedbackVisibility,
+} from '#js/store/slices/ui';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
@@ -20,6 +23,7 @@ import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import { useDuration } from '../(context)/DurationContext';
+import styles from './peer-review-votes.module.css';
 
 const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
@@ -60,6 +64,18 @@ const getResultStatusClasses = (passed) =>
     ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15'
     : 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
 
+const getVoteLabel = (vote) => {
+  if (vote === 'correct') return 'Correct';
+  if (vote === 'incorrect') return 'Incorrect';
+  return 'Abstain';
+};
+
+const getEvaluationLabel = (evaluation) => {
+  if (evaluation === 'correct') return 'Correct';
+  if (evaluation === 'incorrect') return 'Incorrect';
+  return 'Unknown';
+};
+
 const getTestFailureDetails = (result) => {
   if (!result || result.passed) return null;
   if (result.error) return result.error;
@@ -98,15 +114,24 @@ export default function ChallengeResultPage() {
   const solutionFeedbackVisibility = useAppSelector(
     (state) => state.ui.solutionFeedbackVisibility
   );
+  const codeReviewVotesVisibility = useAppSelector(
+    (state) => state.ui.codeReviewVotesVisibility
+  );
   const studentId = user?.id;
   const challengeId = params?.challengeId;
   const solutionFeedbackKey = challengeId ? String(challengeId) : null;
+  const codeReviewVotesKey = challengeId ? String(challengeId) : null;
   const isSolutionFeedbackOpen = Boolean(
     studentId &&
     solutionFeedbackKey &&
     solutionFeedbackVisibility?.[studentId]?.[solutionFeedbackKey]
   );
-  const { getChallengeResults } = useChallenge();
+  const isCodeReviewVotesOpen = Boolean(
+    studentId &&
+    codeReviewVotesKey &&
+    codeReviewVotesVisibility?.[studentId]?.[codeReviewVotesKey]
+  );
+  const { getChallengeResults, getStudentVotes } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
   const [loading, setLoading] = useState(true);
@@ -115,6 +140,9 @@ export default function ChallengeResultPage() {
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
+  const [reviewVotes, setReviewVotes] = useState(null);
+  const [reviewVotesLoading, setReviewVotesLoading] = useState(false);
+  const [reviewVotesError, setReviewVotesError] = useState('');
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -167,6 +195,30 @@ export default function ChallengeResultPage() {
     redirectOnError,
   ]);
 
+  const loadReviewVotes = useCallback(async () => {
+    if (!challengeId || !studentId || !isLoggedIn) return;
+    setReviewVotesError('');
+    setReviewVotesLoading(true);
+    try {
+      const res = await getStudentVotes(challengeId);
+      if (res?.success) {
+        setReviewVotes(Array.isArray(res.votes) ? res.votes : []);
+      } else {
+        setReviewVotes([]);
+        setReviewVotesError(
+          getApiErrorMessage(res, 'Unable to load peer review votes.')
+        );
+      }
+    } catch (err) {
+      setReviewVotes([]);
+      setReviewVotesError(
+        getApiErrorMessage(err, 'Unable to load peer review votes.')
+      );
+    } finally {
+      setReviewVotesLoading(false);
+    }
+  }, [challengeId, studentId, isLoggedIn, getStudentVotes]);
+
   useEffect(() => {
     let cancelled = false;
     if (durationContext && hasChallengeStatus && !isChallengeEnded) {
@@ -202,7 +254,26 @@ export default function ChallengeResultPage() {
     return () => clearTimeout(timeoutId);
   }, [canLoadResults, isFinalizationPending, loadResults]);
 
-  if (authLoading)
+  useEffect(() => {
+    if (!resultData?.challenge) return;
+    const phaseTwoEndValue = resultData.challenge.endPhaseTwoDateTime;
+    const phaseTwoEnded =
+      phaseTwoEndValue &&
+      new Date(phaseTwoEndValue).getTime() <= Date.now() &&
+      resultData.challenge.status === ChallengeStatus.ENDED_PHASE_TWO;
+
+    if (!phaseTwoEnded || !isCodeReviewVotesOpen) return;
+    if (reviewVotes !== null || reviewVotesLoading) return;
+    loadReviewVotes();
+  }, [
+    isCodeReviewVotesOpen,
+    loadReviewVotes,
+    resultData,
+    reviewVotes,
+    reviewVotesLoading,
+  ]);
+
+  if (authLoading) {
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
         <Card>
@@ -212,6 +283,7 @@ export default function ChallengeResultPage() {
         </Card>
       </div>
     );
+  }
   if (!isLoggedIn || !studentId) return null;
   if (durationContext && !hasChallengeStatus && loading)
     return (
@@ -377,6 +449,83 @@ export default function ChallengeResultPage() {
       })
     );
   };
+
+  const handleTogglePeerReviewVotes = () => {
+    if (!studentId || !codeReviewVotesKey) return;
+    dispatch(
+      setCodeReviewVotesVisibility({
+        userId: studentId,
+        challengeId: codeReviewVotesKey,
+        value: !isCodeReviewVotesOpen,
+      })
+    );
+  };
+
+  const getIncorrectTestStatus = (item) => {
+    if (item.vote !== 'incorrect') return null;
+    const hasExpectedFlag = typeof item.isExpectedOutputCorrect === 'boolean';
+    const hasVoteFlag = typeof item.isVoteCorrect === 'boolean';
+    if (hasExpectedFlag && item.isExpectedOutputCorrect === false) {
+      return {
+        tone: 'incorrect',
+        label: 'Test is incorrect for the reference solution.',
+      };
+    }
+    if (hasVoteFlag && item.isVoteCorrect === false) {
+      return {
+        tone: 'incorrect',
+        label: 'Reviewed solution was correct.',
+      };
+    }
+    if (hasExpectedFlag && hasVoteFlag) {
+      return {
+        tone: 'correct',
+        label: 'Test is correct and exposes a bug.',
+      };
+    }
+    return {
+      tone: 'neutral',
+      label: 'Test evaluation pending.',
+    };
+  };
+
+  const formatEvaluationStatus = (status) => {
+    if (!status) return null;
+    return status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const getTestBadgeClass = (tone, stylesRef) => {
+    if (tone === 'correct') return stylesRef.voteTestBadgeCorrect;
+    if (tone === 'incorrect') return stylesRef.voteTestBadgeIncorrect;
+    return stylesRef.voteTestBadgeNeutral;
+  };
+
+  const voteItems = (Array.isArray(reviewVotes) ? reviewVotes : []).map(
+    (voteItem, index) => {
+      const revieweeName =
+        voteItem.reviewedSubmission?.student?.username || 'Submission';
+      const submissionLabel = voteItem.reviewedSubmission?.problemTitle
+        ? `${voteItem.reviewedSubmission.problemTitle} • ${revieweeName}`
+        : `Solution ${index + 1} • ${revieweeName}`;
+      const expectedEvaluation = voteItem.expectedEvaluation || 'unknown';
+      return {
+        id: voteItem.assignmentId || voteItem.submissionId || `vote-${index}`,
+        submissionLabel,
+        vote: voteItem.vote,
+        expectedEvaluation,
+        isCorrect: Boolean(voteItem.isCorrect),
+        testCaseInput: voteItem.testCaseInput,
+        expectedOutput: voteItem.expectedOutput,
+        referenceOutput: voteItem.referenceOutput,
+        actualOutput: voteItem.actualOutput,
+        isExpectedOutputCorrect: voteItem.isExpectedOutputCorrect,
+        isVoteCorrect: voteItem.isVoteCorrect,
+        evaluationStatus: voteItem.evaluationStatus,
+      };
+    }
+  );
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -593,60 +742,335 @@ export default function ChallengeResultPage() {
         </Card>
       )}
 
-      {/* --- PEER REVIEW RECEIVED TESTS (VISIBLE) --- */}
-      {isFullyEnded && hasPeerReviewTests && (
+      {isFullyEnded && (
         <Card>
-          <CardHeader>
-            <CardTitle>Received Peer Tests</CardTitle>
-            <CardDescription>
-              Test cases created by other students that your code was evaluated
-              against.
-            </CardDescription>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <div className='space-y-1'>
+              <CardTitle>Peer Review Results</CardTitle>
+              <CardDescription>
+                Overview of your performance in the peer review phase.
+              </CardDescription>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className='space-y-4'>
-              {peerReviewTests.map((review) => {
-                const tests = review.tests || [];
-                if (tests.length === 0) return null;
-                return (
-                  <div
-                    key={`review-${review.id}`}
-                    className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
-                  >
-                    <p className='text-sm font-semibold'>
-                      Reviewer: {review.reviewer?.username || 'Anonymous'}
+          <CardContent className='space-y-6 pt-4'>
+            {scoreBreakdown && (
+              <div className='grid gap-4 md:grid-cols-3'>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    total score
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.totalScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Coding Phase
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.implementationScore}
+                  </div>
+                </div>
+                <div className='rounded-xl border border-border bg-muted/40 p-4'>
+                  <div className='text-sm font-medium text-muted-foreground'>
+                    Peer review phase
+                  </div>
+                  <div className='text-2xl font-bold'>
+                    {scoreBreakdown.codeReviewScore}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Button
+                variant='outline'
+                onClick={handleTogglePeerReviewVotes}
+                aria-expanded={isCodeReviewVotesOpen}
+              >
+                {isCodeReviewVotesOpen
+                  ? 'Hide Peer Review Votes'
+                  : 'View Your Peer Review Votes'}
+              </Button>
+
+              {isCodeReviewVotesOpen && (
+                <div className={styles.votesPanel}>
+                  <div className={styles.votesHeader}>
+                    <div className={styles.votesTitle}>
+                      <span className={styles.votesIcon}>✓</span>
+                      Your Peer Review Votes
+                    </div>
+                  </div>
+                  {reviewVotesLoading ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Loading your peer review votes...
                     </p>
-                    <div className='space-y-3'>
-                      {tests.map((test) => {
-                        const testKey = JSON.stringify({
-                          input: test.input,
-                          expectedOutput: test.expectedOutput,
-                          notes: test.notes,
-                        });
+                  ) : null}
+                  {reviewVotesError ? (
+                    <p className='text-sm text-destructive'>
+                      {reviewVotesError}
+                    </p>
+                  ) : null}
+                  {!reviewVotesLoading &&
+                  !reviewVotesError &&
+                  voteItems.length === 0 ? (
+                    <p className='text-sm text-muted-foreground'>
+                      No peer review votes available.
+                    </p>
+                  ) : null}
+                  {!reviewVotesLoading &&
+                  !reviewVotesError &&
+                  voteItems.length > 0 ? (
+                    <div className={styles.votesList}>
+                      {voteItems.map((item) => {
+                        const expectedLabel = getEvaluationLabel(
+                          item.expectedEvaluation
+                        );
+                        const voteLabel = getVoteLabel(item.vote);
+                        const voteStatusLabel = item.isCorrect
+                          ? 'Correct'
+                          : 'Incorrect';
+                        const hasTestCase =
+                          item.vote === 'incorrect' &&
+                          (item.testCaseInput ||
+                            item.expectedOutput ||
+                            item.referenceOutput ||
+                            item.actualOutput);
+                        const testStatus = hasTestCase
+                          ? getIncorrectTestStatus(item)
+                          : null;
+                        const evaluationStatusText = formatEvaluationStatus(
+                          item.evaluationStatus
+                        );
                         return (
                           <div
-                            key={testKey}
-                            className='rounded-lg border border-border bg-background p-3 text-xs space-y-2'
+                            key={item.id}
+                            className={`rounded-xl border p-4 ${getResultCardClasses(
+                              item.isCorrect
+                            )}`}
                           >
-                            <p>
-                              <span className='font-semibold'>Input:</span>{' '}
-                              {renderValue(test.input)}
-                            </p>
-                            <p>
-                              <span className='font-semibold'>Expected:</span>{' '}
-                              {renderValue(test.expectedOutput)}
-                            </p>
+                            <div className='flex flex-wrap items-center justify-between gap-2'>
+                              <p className='text-sm font-semibold text-foreground'>
+                                {item.submissionLabel}
+                              </p>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
+                                  item.isCorrect
+                                )}`}
+                              >
+                                {voteStatusLabel}
+                              </span>
+                            </div>
+                            <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                              <p>
+                                <span className='font-semibold'>
+                                  Your vote:
+                                </span>{' '}
+                                {voteLabel}
+                              </p>
+                              <p>
+                                <span className='font-semibold'>
+                                  Expected evaluation:
+                                </span>{' '}
+                                {expectedLabel}
+                              </p>
+                            </div>
+                            {hasTestCase && (
+                              <div className={styles.voteTestPanel}>
+                                <div className={styles.voteTestHeader}>
+                                  <span className={styles.voteTestTitle}>
+                                    Test provided
+                                  </span>
+                                  {testStatus && (
+                                    <span
+                                      className={`${styles.voteTestBadge} ${getTestBadgeClass(
+                                        testStatus.tone,
+                                        styles
+                                      )}`}
+                                    >
+                                      {testStatus.label}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={styles.voteTestGrid}>
+                                  <div className={styles.voteTestItem}>
+                                    <span className={styles.voteTestLabel}>
+                                      Input
+                                    </span>
+                                    <span className={styles.voteTestValue}>
+                                      {renderValue(item.testCaseInput)}
+                                    </span>
+                                  </div>
+                                  <div className={styles.voteTestItem}>
+                                    <span className={styles.voteTestLabel}>
+                                      Expected output
+                                    </span>
+                                    <span className={styles.voteTestValue}>
+                                      {renderValue(item.expectedOutput)}
+                                    </span>
+                                  </div>
+                                  <div className={styles.voteTestItem}>
+                                    <span className={styles.voteTestLabel}>
+                                      Reference output
+                                    </span>
+                                    <span className={styles.voteTestValue}>
+                                      {renderValue(item.referenceOutput)}
+                                    </span>
+                                  </div>
+                                  <div className={styles.voteTestItem}>
+                                    <span className={styles.voteTestLabel}>
+                                      Reviewed output
+                                    </span>
+                                    <span className={styles.voteTestValue}>
+                                      {renderValue(item.actualOutput)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {evaluationStatusText && (
+                                  <p className={styles.voteTestNote}>
+                                    Status: {evaluationStatusText}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                );
-              })}
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
+              <h3 className='text-sm font-semibold'>Received Tests</h3>
+              {!hasPeerReviewTests && (
+                <p className='text-sm text-muted-foreground'>
+                  No peer review tests were submitted for your solution.
+                </p>
+              )}
+              {hasPeerReviewTests &&
+                peerReviewTests.map((review) => {
+                  const reviewerName = review.reviewer?.username || 'Anonymous';
+                  const tests = Array.isArray(review.tests) ? review.tests : [];
+                  if (tests.length === 0) return null;
+                  return (
+                    <div
+                      key={`review-${review.id}`}
+                      className='rounded-xl border border-border bg-muted/40 p-4 space-y-3'
+                    >
+                      <p className='text-sm font-semibold'>
+                        Reviewer: {reviewerName}
+                      </p>
+                      <div className='space-y-3'>
+                        {tests.map((test, index) => {
+                          const testKey = JSON.stringify({
+                            input: test.input,
+                            expectedOutput: test.expectedOutput,
+                            notes: test.notes,
+                          });
+                          const displayIndex = index + 1;
+                          return (
+                            <div
+                              key={testKey}
+                              className='rounded-xl border border-border bg-background/80 p-4 dark:bg-slate-950/40'
+                            >
+                              <div className='flex flex-wrap items-center justify-between gap-2'>
+                                <p className='text-sm font-semibold text-foreground'>
+                                  Test {displayIndex}
+                                </p>
+                                <span
+                                  className={buildResultBadge(0, 'neutral')}
+                                >
+                                  Peer Review Test
+                                </span>
+                              </div>
+                              <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
+                                <p>
+                                  <span className='font-semibold'>Input:</span>{' '}
+                                  {renderValue(test.input)}
+                                </p>
+                                <p>
+                                  <span className='font-semibold'>
+                                    Expected output:
+                                  </span>{' '}
+                                  {renderValue(test.expectedOutput)}
+                                </p>
+                                {test.notes && (
+                                  <p className='text-amber-700 dark:text-amber-200'>
+                                    <span className='font-semibold'>
+                                      Notes:
+                                    </span>{' '}
+                                    {test.notes}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* /!* --- parte che mi sono trovato sul main ma non so se è meglio dell amia oppure no *!/ */}
+      {/* {isFullyEnded && hasPeerReviewTests && ( */}
+      {/*  <Card> */}
+      {/*    <CardHeader> */}
+      {/*      <CardTitle>Received Peer Tests</CardTitle> */}
+      {/*      <CardDescription> */}
+      {/*        Test cases created by other students that your code was evaluated */}
+      {/*        against. */}
+      {/*      </CardDescription> */}
+      {/*    </CardHeader> */}
+      {/*    <CardContent> */}
+      {/*      <div className='space-y-4'> */}
+      {/*        {peerReviewTests.map((review) => { */}
+      {/*          const tests = review.tests || []; */}
+      {/*          if (tests.length === 0) return null; */}
+      {/*          return ( */}
+      {/*            <div */}
+      {/*              key={`review-${review.id}`} */}
+      {/*              className='rounded-xl border border-border bg-muted/40 p-4 space-y-3' */}
+      {/*            > */}
+      {/*              <p className='text-sm font-semibold'> */}
+      {/*                Reviewer: {review.reviewer?.username || 'Anonymous'} */}
+      {/*              </p> */}
+      {/*              <div className='space-y-3'> */}
+      {/*                {tests.map((test) => { */}
+      {/*                  const testKey = JSON.stringify({ */}
+      {/*                    input: test.input, */}
+      {/*                    expectedOutput: test.expectedOutput, */}
+      {/*                    notes: test.notes, */}
+      {/*                  }); */}
+      {/*                  return ( */}
+      {/*                    <div */}
+      {/*                      key={testKey} */}
+      {/*                      className='rounded-lg border border-border bg-background p-3 text-xs space-y-2' */}
+      {/*                    > */}
+      {/*                      <p> */}
+      {/*                        <span className='font-semibold'>Input:</span>{' '} */}
+      {/*                        {renderValue(test.input)} */}
+      {/*                      </p> */}
+      {/*                      <p> */}
+      {/*                        <span className='font-semibold'>Expected:</span>{' '} */}
+      {/*                        {renderValue(test.expectedOutput)} */}
+      {/*                      </p> */}
+      {/*                    </div> */}
+      {/*                  ); */}
+      {/*                })} */}
+      {/*              </div> */}
+      {/*            </div> */}
+      {/*          ); */}
+      {/*        })} */}
+      {/*      </div> */}
+      {/*    </CardContent> */}
+      {/*  </Card> */}
+      {/* )} */}
 
       {isFullyEnded && (
         <Card>
@@ -662,19 +1086,27 @@ export default function ChallengeResultPage() {
                 No other submissions available.
               </p>
             )}
-            {otherSubmissions.map((submission) => (
-              <div
-                key={`submission-${submission.id}`}
-                className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'
-              >
-                <p className='text-sm font-semibold'>
-                  {submission.student?.username || 'Student'}
-                </p>
-                <pre className='max-h-[240px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-xs'>
-                  {submission.code || ''}
-                </pre>
-              </div>
-            ))}
+            {otherSubmissions.map((submission) => {
+              const authorName = submission.student?.username || 'Student';
+              return (
+                <div
+                  key={`submission-${submission.id}`}
+                  className='rounded-xl border border-border bg-muted/40 p-4 space-y-2'
+                >
+                  <div className='flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between'>
+                    <p className='text-sm font-semibold'>{authorName}</p>
+                    {submission.createdAt && (
+                      <p className='text-xs text-muted-foreground'>
+                        {formatDateTime(submission.createdAt)}
+                      </p>
+                    )}
+                  </div>
+                  <pre className='max-h-[240px] w-full overflow-auto rounded-lg border border-border bg-background p-4 text-xs'>
+                    {submission.code || ''}
+                  </pre>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

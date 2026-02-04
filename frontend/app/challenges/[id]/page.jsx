@@ -45,6 +45,295 @@ const peerReviewTones = {
   error: 'border-destructive/30 bg-destructive/5 text-destructive',
 };
 
+const isEndedChallengeStatus = (status) =>
+  status === ChallengeStatus.ENDED_PHASE_ONE ||
+  status === ChallengeStatus.ENDED_PHASE_TWO;
+
+const normalizeMultilineValue = (value) =>
+  typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
+
+const formatValue = (value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'string') return normalizeMultilineValue(value);
+  try {
+    return normalizeMultilineValue(JSON.stringify(value));
+  } catch {
+    return normalizeMultilineValue(String(value));
+  }
+};
+
+const renderValue = (value) => (
+  <span className='whitespace-pre-wrap'>{formatValue(value)}</span>
+);
+
+const buildResultBadge = (count, tone) => {
+  const base =
+    'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold';
+  if (tone === 'success') {
+    return `${base} bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200`;
+  }
+  if (tone === 'danger') {
+    return `${base} bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200`;
+  }
+  return `${base} bg-muted text-muted-foreground`;
+};
+
+const getResultCardClasses = (passed) =>
+  passed
+    ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-400/40 dark:bg-emerald-500/10'
+    : 'border-rose-200 bg-rose-50/70 dark:border-rose-400/40 dark:bg-rose-500/10';
+
+const getResultStatusClasses = (passed) =>
+  passed
+    ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15'
+    : 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
+
+const getVoteLabel = (vote) => {
+  if (vote === 'correct') return 'Correct';
+  if (vote === 'incorrect') return 'Incorrect';
+  if (vote === 'abstain') return 'Abstain';
+  return 'Not voted';
+};
+
+const getVoteTone = (vote) => {
+  if (vote === 'correct') return 'border-emerald-500/30 bg-emerald-500/10';
+  if (vote === 'incorrect') return 'border-rose-500/30 bg-rose-500/10';
+  if (vote === 'abstain') return 'border-slate-400/30 bg-slate-200/40';
+  return 'border-border bg-muted/40';
+};
+
+const parseJsonValue = (value) => {
+  if (value === null || value === undefined) return { ok: false, value: null };
+  if (typeof value !== 'string') return { ok: true, value };
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch {
+    return { ok: false, value: null };
+  }
+};
+
+const getTestFailureDetails = (result) => {
+  if (!result || result.passed) return null;
+  if (result.error) return result.error;
+  if (result.stderr) return result.stderr;
+  if (typeof result.exitCode === 'number' && result.exitCode !== 0) {
+    return `Execution failed with exit code ${result.exitCode}.`;
+  }
+  return 'Output did not match the expected result.';
+};
+
+const buildTestKey = (result) => {
+  if (Number.isInteger(result?.testIndex)) {
+    return `test-${result.testIndex}`;
+  }
+  return JSON.stringify({
+    expectedOutput: result?.expectedOutput,
+    actualOutput: result?.actualOutput,
+    passed: result?.passed,
+  });
+};
+
+function TestResultsSection({ title, results, emptyMessage }) {
+  const safeResults = Array.isArray(results) ? results : [];
+  const passedCount = safeResults.filter((result) => result.passed).length;
+  const failedCount = safeResults.length - passedCount;
+  const emptyText = emptyMessage || 'No test results available.';
+
+  return (
+    <div className='space-y-2'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <p className='text-sm font-semibold text-foreground'>{title}</p>
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className={buildResultBadge(passedCount, 'success')}>
+            {passedCount} Passed
+          </span>
+          <span className={buildResultBadge(failedCount, 'danger')}>
+            {failedCount} Failed
+          </span>
+        </div>
+      </div>
+      {safeResults.length === 0 ? (
+        <p className='text-xs text-muted-foreground'>{emptyText}</p>
+      ) : (
+        <div className='space-y-2'>
+          {safeResults.map((result) => {
+            const failureDetails = getTestFailureDetails(result);
+            return (
+              <div
+                key={buildTestKey(result)}
+                className={`rounded-lg border p-3 ${getResultCardClasses(
+                  result.passed
+                )}`}
+              >
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <p className='text-xs font-semibold text-foreground'>
+                    Test{' '}
+                    {Number.isInteger(result.testIndex)
+                      ? result.testIndex + 1
+                      : ''}
+                  </p>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${getResultStatusClasses(
+                      result.passed
+                    )}`}
+                  >
+                    {result.passed ? 'Passed' : 'Failed'}
+                  </span>
+                </div>
+                <div className='mt-2 rounded-md border border-border/60 bg-background/80 p-2 text-[0.7rem] text-foreground space-y-1 dark:bg-slate-950/40'>
+                  <p>
+                    <span className='font-semibold'>Expected:</span>{' '}
+                    {renderValue(result.expectedOutput)}
+                  </p>
+                  <p>
+                    <span className='font-semibold'>Actual:</span>{' '}
+                    {renderValue(result.actualOutput)}
+                  </p>
+                  {failureDetails ? (
+                    <p className='text-rose-700 dark:text-rose-200'>
+                      <span className='font-semibold'>Feedback:</span>{' '}
+                      {renderValue(failureDetails)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PeerReviewVoteCard({
+  assignment,
+  onAddPrivateTest,
+  actionState,
+  matchSettingId,
+}) {
+  const reviewerName = buildStudentName(
+    assignment.reviewer,
+    assignment.reviewer?.id
+  );
+  const voteValue = assignment.vote?.vote;
+  const voteLabel = getVoteLabel(voteValue);
+  const voteTone = getVoteTone(voteValue);
+  const hasTestCase =
+    Boolean(assignment.vote?.testCaseInput) &&
+    Boolean(assignment.vote?.expectedOutput);
+  const showAddButton =
+    voteValue === 'incorrect' && hasTestCase && matchSettingId;
+  const expectedOutputStatus = assignment.vote?.isExpectedOutputCorrect;
+  let addButtonMessage = '';
+  if (showAddButton && expectedOutputStatus === false) {
+    addButtonMessage = 'Expected output does not match the reference solution.';
+  } else if (showAddButton && expectedOutputStatus == null) {
+    addButtonMessage = 'Expected output has not been validated yet.';
+  }
+  const canAddTest = showAddButton && expectedOutputStatus === true;
+  const { testExecution } = assignment;
+
+  return (
+    <div className={`rounded-lg border p-3 space-y-3 ${voteTone}`}>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <div className='flex flex-col gap-0.5'>
+          <p className='text-sm font-semibold text-foreground'>
+            {reviewerName}
+          </p>
+          {assignment.isExtra ? (
+            <span className='text-[0.7rem] text-muted-foreground'>
+              Extra assignment
+            </span>
+          ) : null}
+        </div>
+        <span className='text-xs font-semibold text-foreground'>
+          {voteLabel}
+        </span>
+      </div>
+      {hasTestCase ? (
+        <div className='rounded-md border border-border/60 bg-background/80 p-2 text-[0.7rem] text-foreground space-y-1 dark:bg-slate-950/40'>
+          <p>
+            <span className='font-semibold'>Input:</span>{' '}
+            {renderValue(assignment.vote?.testCaseInput)}
+          </p>
+          <p>
+            <span className='font-semibold'>Expected:</span>{' '}
+            {renderValue(assignment.vote?.expectedOutput)}
+          </p>
+          {testExecution ? (
+            <>
+              <p>
+                <span className='font-semibold'>Actual:</span>{' '}
+                {renderValue(testExecution.actualOutput)}
+              </p>
+              <p>
+                <span className='font-semibold'>Result:</span>{' '}
+                {testExecution.passed ? 'Passed' : 'Failed'}
+              </p>
+              {testExecution.error ? (
+                <p className='text-rose-700 dark:text-rose-200'>
+                  <span className='font-semibold'>Feedback:</span>{' '}
+                  {renderValue(testExecution.error)}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className='text-muted-foreground'>No execution result.</p>
+          )}
+          {showAddButton ? (
+            <div className='pt-2'>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() =>
+                  onAddPrivateTest({
+                    matchSettingId,
+                    assignmentId: assignment.id,
+                    testCaseInput: assignment.vote?.testCaseInput,
+                    expectedOutput: assignment.vote?.expectedOutput,
+                  })
+                }
+                disabled={
+                  actionState?.status === 'saving' ||
+                  actionState?.status === 'saved' ||
+                  !canAddTest
+                }
+              >
+                {actionState?.status === 'saving'
+                  ? 'Adding...'
+                  : 'Add to private tests'}
+              </Button>
+              {addButtonMessage ? (
+                <p className='mt-1 text-[0.7rem] text-muted-foreground'>
+                  {addButtonMessage}
+                </p>
+              ) : null}
+              {actionState?.message ? (
+                <p
+                  className={`mt-1 text-[0.7rem] ${
+                    actionState.status === 'error'
+                      ? 'text-rose-700 dark:text-rose-200'
+                      : 'text-emerald-700 dark:text-emerald-200'
+                  }`}
+                >
+                  {actionState.message}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className='text-xs text-muted-foreground'>
+          No test case was provided with this vote.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const PEER_REVIEW_STARTED_MESSAGE = 'Peer review started successfully.';
+
 const formatTimer = (seconds) => {
   if (seconds == null) return '—';
   const safeSeconds = Math.max(0, seconds);
@@ -95,7 +384,7 @@ const titleizeValue = (value) => {
     .join(' ');
 };
 
-const buildStudentName = (student, fallbackId) => {
+function buildStudentName(student, fallbackId) {
   const directFirst = normalizeNameValue(student?.firstName);
   const directLast = normalizeNameValue(student?.lastName);
   if (directFirst || directLast) {
@@ -129,7 +418,7 @@ const buildStudentName = (student, fallbackId) => {
   }
 
   return 'Student';
-};
+}
 
 export default function ChallengeDetailPage() {
   const params = useParams();
@@ -146,6 +435,8 @@ export default function ChallengeDetailPage() {
     endPeerReview,
     unpublishChallenge,
     endChallenge,
+    getTeacherChallengeResults,
+    addMatchSettingPrivateTest,
   } = useChallenge();
   const challengeId = params?.id;
   const redirectOnError = useApiErrorRedirect();
@@ -172,6 +463,11 @@ export default function ChallengeDetailPage() {
   const [phaseNow, setPhaseNow] = useState(Date.now());
   const [dangerAction, setDangerAction] = useState(null);
   const [dangerPending, setDangerPending] = useState(false);
+  const [teacherResultsOpen, setTeacherResultsOpen] = useState(false);
+  const [teacherResultsLoading, setTeacherResultsLoading] = useState(false);
+  const [teacherResultsError, setTeacherResultsError] = useState('');
+  const [teacherResults, setTeacherResults] = useState(null);
+  const [privateTestActions, setPrivateTestActions] = useState({});
   const getChallengeParticipantsRef = useRef(getChallengeParticipants);
 
   useEffect(() => {
@@ -233,6 +529,117 @@ export default function ChallengeDetailPage() {
     load();
   }, [load]);
 
+  const canShowTeacherResults =
+    isTeacher && isEndedChallengeStatus(challenge?.status);
+
+  const loadTeacherResults = useCallback(async () => {
+    if (!challengeId) return;
+    setTeacherResultsError('');
+    setTeacherResultsLoading(true);
+    try {
+      const res = await getTeacherChallengeResults(challengeId, true);
+      if (res?.success) {
+        setTeacherResults(res?.data || null);
+      } else {
+        setTeacherResults(null);
+        setTeacherResultsError(
+          getApiErrorMessage(res, 'Unable to load student results.')
+        );
+      }
+    } catch (err) {
+      setTeacherResults(null);
+      setTeacherResultsError(
+        getApiErrorMessage(err, 'Unable to load student results.')
+      );
+    } finally {
+      setTeacherResultsLoading(false);
+    }
+  }, [challengeId, getTeacherChallengeResults]);
+
+  const handleToggleTeacherResults = useCallback(() => {
+    const nextOpen = !teacherResultsOpen;
+    setTeacherResultsOpen(nextOpen);
+    if (nextOpen && !teacherResults && !teacherResultsLoading) {
+      loadTeacherResults();
+    }
+  }, [
+    loadTeacherResults,
+    teacherResults,
+    teacherResultsLoading,
+    teacherResultsOpen,
+  ]);
+
+  const handleAddPrivateTest = useCallback(
+    async ({ matchSettingId, assignmentId, testCaseInput, expectedOutput }) => {
+      if (!challengeId || !matchSettingId || !assignmentId) return;
+      const actionKey = `assignment-${assignmentId}`;
+      if (privateTestActions[actionKey]?.status === 'saving') return;
+
+      const parsedInput = parseJsonValue(testCaseInput);
+      const parsedOutput = parseJsonValue(expectedOutput);
+      if (!parsedInput.ok || !parsedOutput.ok) {
+        setPrivateTestActions((prev) => ({
+          ...prev,
+          [actionKey]: {
+            status: 'error',
+            message: 'Input and output must be valid JSON values.',
+          },
+        }));
+        return;
+      }
+
+      setPrivateTestActions((prev) => ({
+        ...prev,
+        [actionKey]: { status: 'saving', message: '' },
+      }));
+
+      try {
+        const res = await addMatchSettingPrivateTest({
+          challengeId,
+          matchSettingId,
+          assignmentId,
+          input: parsedInput.value,
+          output: parsedOutput.value,
+        });
+
+        if (res?.success) {
+          setPrivateTestActions((prev) => ({
+            ...prev,
+            [actionKey]: {
+              status: 'saved',
+              message: res?.data?.added
+                ? 'Added to private tests.'
+                : 'Already in private tests.',
+            },
+          }));
+        } else {
+          setPrivateTestActions((prev) => ({
+            ...prev,
+            [actionKey]: {
+              status: 'error',
+              message: getApiErrorMessage(
+                res,
+                'Unable to add this test to private tests.'
+              ),
+            },
+          }));
+        }
+      } catch (err) {
+        setPrivateTestActions((prev) => ({
+          ...prev,
+          [actionKey]: {
+            status: 'error',
+            message: getApiErrorMessage(
+              err,
+              'Unable to add this test to private tests.'
+            ),
+          },
+        }));
+      }
+    },
+    [addMatchSettingPrivateTest, challengeId, privateTestActions]
+  );
+
   useEffect(() => {
     if (!challengeId || typeof EventSource === 'undefined') return undefined;
     const source = new EventSource(`${API_REST_BASE}/events`, {
@@ -263,15 +670,33 @@ export default function ChallengeDetailPage() {
       }
     };
 
+    const handleChallengeUpdated = (event) => {
+      if (!event?.data) {
+        load();
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data);
+        const payloadId = Number(payload?.challengeId);
+        if (payloadId === Number(challengeId)) {
+          load();
+        }
+      } catch {
+        load();
+      }
+    };
+
     source.addEventListener(
       'challenge-participant-joined',
       handleParticipantJoined
     );
+    source.addEventListener('challenge-updated', handleChallengeUpdated);
+    source.addEventListener('finalization-updated', handleChallengeUpdated);
 
     return () => {
       source.close();
     };
-  }, [challengeId]);
+  }, [challengeId, load]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return undefined;
@@ -280,6 +705,19 @@ export default function ChallengeDetailPage() {
     }, 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!challenge?.status) return;
+    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) {
+      setPeerReviewMessages([]);
+      return;
+    }
+    if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+      setPeerReviewMessages((prev) =>
+        prev.filter((message) => message.text !== PEER_REVIEW_STARTED_MESSAGE)
+      );
+    }
+  }, [challenge?.status]);
 
   const handleAssign = useCallback(async () => {
     if (!challengeId) return;
@@ -437,7 +875,7 @@ export default function ChallengeDetailPage() {
       setPeerReviewMessages([
         {
           tone: 'success',
-          text: 'Peer review started successfully.',
+          text: PEER_REVIEW_STARTED_MESSAGE,
         },
       ]);
       await load();
@@ -562,10 +1000,47 @@ export default function ChallengeDetailPage() {
     hasMatches &&
     canStartNow;
   const peerReviewReady = Boolean(challenge?.peerReviewReady);
+  const totalMatches = useMemo(() => {
+    if (Number.isInteger(challenge?.totalMatches)) {
+      return challenge.totalMatches;
+    }
+    if (!assignments.length) return 0;
+    return assignments.reduce(
+      (sum, group) => sum + (group.matches?.length || 0),
+      0
+    );
+  }, [assignments, challenge?.totalMatches]);
+  const finalSubmissionCount = useMemo(() => {
+    if (typeof challenge?.finalSubmissionCount === 'number') {
+      return challenge.finalSubmissionCount;
+    }
+    if (typeof challenge?.totalSubmissionsCount === 'number') {
+      return challenge.totalSubmissionsCount;
+    }
+    return null;
+  }, [challenge?.finalSubmissionCount, challenge?.totalSubmissionsCount]);
+  const pendingFinalCount = useMemo(() => {
+    if (typeof challenge?.pendingFinalCount === 'number') {
+      return challenge.pendingFinalCount;
+    }
+    if (
+      typeof finalSubmissionCount === 'number' &&
+      typeof totalMatches === 'number'
+    ) {
+      return Math.max(0, totalMatches - finalSubmissionCount);
+    }
+    return null;
+  }, [challenge?.pendingFinalCount, finalSubmissionCount, totalMatches]);
+  const hasPendingFinalizations =
+    typeof pendingFinalCount === 'number' && pendingFinalCount > 0;
   const showAssignReviewsButton =
-    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && !peerReviewReady;
+    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE &&
+    !peerReviewReady &&
+    !hasPendingFinalizations;
   const showStartPeerReviewButton =
-    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE && peerReviewReady;
+    challenge?.status === ChallengeStatus.ENDED_PHASE_ONE &&
+    peerReviewReady &&
+    !hasPendingFinalizations;
   const showPeerReviewInProgress =
     challenge?.status === ChallengeStatus.STARTED_PHASE_TWO;
   const showEndCodingPhaseButton =
@@ -797,6 +1272,12 @@ export default function ChallengeDetailPage() {
     ),
   }));
   const showParticipantList = !assignments.length && !error && isTeacher;
+  const teacherMatchSettings = useMemo(() => {
+    if (!teacherResults?.matchSettings) return [];
+    return Array.isArray(teacherResults.matchSettings)
+      ? teacherResults.matchSettings
+      : [];
+  }, [teacherResults]);
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 space-y-6'>
@@ -1001,6 +1482,33 @@ export default function ChallengeDetailPage() {
                   </span>
                   <span>{challenge?.totalSubmissionsCount ?? 0}</span>
                 </div>
+              ) : null}
+              {typeof finalSubmissionCount === 'number' &&
+              typeof totalMatches === 'number' ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-muted-foreground'>
+                    Finalized submissions
+                  </span>
+                  <span>
+                    {finalSubmissionCount} / {totalMatches}
+                  </span>
+                </div>
+              ) : null}
+              {typeof pendingFinalCount === 'number' &&
+              pendingFinalCount > 0 ? (
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <span className='font-semibold text-muted-foreground'>
+                    Pending finalizations
+                  </span>
+                  <span>{pendingFinalCount}</span>
+                </div>
+              ) : null}
+              {hasPendingFinalizations &&
+              phaseStatus === ChallengeStatus.ENDED_PHASE_ONE ? (
+                <p className='text-sm text-amber-700'>
+                  Finalizing submissions. You can assign peer reviews once all
+                  submissions are ready.
+                </p>
               ) : null}
               {isPhaseTwoActive ? (
                 <div className='space-y-1 mt-3'>
@@ -1223,6 +1731,177 @@ export default function ChallengeDetailPage() {
           </Card>
         ))}
       </div>
+
+      {canShowTeacherResults ? (
+        <Card className='border border-border bg-card text-card-foreground shadow-sm'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-lg font-semibold text-foreground'>
+              Student results
+            </CardTitle>
+            <CardDescription className='text-sm text-muted-foreground'>
+              Review submissions and peer review outcomes by match setting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={handleToggleTeacherResults}
+              aria-expanded={teacherResultsOpen}
+            >
+              {teacherResultsOpen
+                ? 'Hide student results'
+                : 'View student results'}
+            </Button>
+
+            {teacherResultsOpen ? (
+              <div className='mt-4 space-y-4'>
+                {teacherResultsLoading ? (
+                  <p className='text-sm text-muted-foreground'>
+                    Loading student results...
+                  </p>
+                ) : null}
+                {teacherResultsError ? (
+                  <p className='text-sm text-destructive'>
+                    {teacherResultsError}
+                  </p>
+                ) : null}
+                {!teacherResultsLoading &&
+                !teacherResultsError &&
+                teacherMatchSettings.length === 0 ? (
+                  <p className='text-sm text-muted-foreground'>
+                    No student results available yet.
+                  </p>
+                ) : null}
+                {!teacherResultsLoading &&
+                !teacherResultsError &&
+                teacherMatchSettings.length > 0 ? (
+                  <div className='space-y-3'>
+                    {teacherMatchSettings.map((group) => (
+                      <details
+                        key={group.challengeMatchSettingId}
+                        className='rounded-xl border border-border/60 bg-muted/30 p-3'
+                      >
+                        <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                          {group.matchSetting?.problemTitle ||
+                            'Match setting results'}
+                        </summary>
+                        <div className='mt-3 space-y-3'>
+                          {group.matches?.map((match) => {
+                            const studentName = buildStudentName(
+                              match.student,
+                              match.student?.id ?? match.id
+                            );
+                            const { submission } = match;
+                            const peerAssignments =
+                              match.peerReviewAssignments || [];
+                            return (
+                              <details
+                                key={match.id}
+                                className='rounded-lg border border-border/60 bg-background/80 p-3'
+                              >
+                                <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                  {studentName}
+                                </summary>
+                                <div className='mt-3 space-y-3'>
+                                  <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
+                                    <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                      Coding phase
+                                    </summary>
+                                    <div className='mt-3 space-y-3'>
+                                      {!submission ? (
+                                        <p className='text-sm text-muted-foreground'>
+                                          No submission was recorded for this
+                                          student.
+                                        </p>
+                                      ) : (
+                                        <>
+                                          <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
+                                            <span>
+                                              Status: {submission.status || '—'}
+                                            </span>
+                                            <span>
+                                              Submitted:{' '}
+                                              {submission.updatedAt
+                                                ? formatDateTime(
+                                                    submission.updatedAt
+                                                  )
+                                                : '—'}
+                                            </span>
+                                          </div>
+                                          <pre className='w-full overflow-auto rounded-lg border border-slate-900/80 bg-slate-900 p-3 text-xs text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
+                                            {normalizeMultilineValue(
+                                              submission.code || ''
+                                            )}
+                                          </pre>
+                                          <div className='grid gap-3 lg:grid-cols-2'>
+                                            <TestResultsSection
+                                              title='Public tests'
+                                              results={
+                                                submission.publicTestResults
+                                              }
+                                              emptyMessage='No public test results.'
+                                            />
+                                            <TestResultsSection
+                                              title='Private tests'
+                                              results={
+                                                submission.privateTestResults
+                                              }
+                                              emptyMessage='No private test results.'
+                                            />
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </details>
+
+                                  <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
+                                    <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                      Peer review
+                                    </summary>
+                                    <div className='mt-3 space-y-3'>
+                                      {peerAssignments.length === 0 ? (
+                                        <p className='text-sm text-muted-foreground'>
+                                          No peer review votes were recorded for
+                                          this submission.
+                                        </p>
+                                      ) : (
+                                        peerAssignments.map((assignment) => {
+                                          const actionKey = `assignment-${assignment.id}`;
+                                          return (
+                                            <PeerReviewVoteCard
+                                              key={assignment.id}
+                                              assignment={assignment}
+                                              matchSettingId={
+                                                group.matchSetting?.id
+                                              }
+                                              onAddPrivateTest={
+                                                handleAddPrivateTest
+                                              }
+                                              actionState={
+                                                privateTestActions[actionKey]
+                                              }
+                                            />
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </details>
+                                </div>
+                              </details>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <AlertDialog
         open={editDialogOpen}
         title='Unpublish to edit'

@@ -132,13 +132,15 @@ afterEach(async () => {
 
 afterAll(async () => {
   if (!sequelize) return;
-  await Promise.race([
-    sequelize.close(),
-    new Promise((resolve) => {
-      setTimeout(resolve, 5000);
-    }),
-  ]);
-});
+  try {
+    await Promise.race([
+      sequelize.close(),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
+  } catch {
+    // Best-effort close to avoid hanging test teardown in CI.
+  }
+}, 20000);
 
 describe('Peer Review Finalization', () => {
   const createChallengeAndParticipants = async (

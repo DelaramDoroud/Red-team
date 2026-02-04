@@ -179,6 +179,7 @@ export default function ChallengeList({ scope = 'main' }) {
     };
 
     source.addEventListener('challenge-updated', handleChallengeUpdated);
+    source.addEventListener('finalization-updated', handleChallengeUpdated);
     source.addEventListener(
       'challenge-participant-joined',
       handleParticipantJoined
@@ -653,6 +654,16 @@ export default function ChallengeList({ scope = 'main' }) {
     const now = new Date();
     const canStartNow =
       challenge.startDatetime && new Date(challenge.startDatetime) <= now;
+    let pendingFinalizations = false;
+    if (typeof challenge.pendingFinalCount === 'number') {
+      pendingFinalizations = challenge.pendingFinalCount > 0;
+    } else if (
+      typeof challenge.totalMatches === 'number' &&
+      typeof challenge.finalSubmissionCount === 'number'
+    ) {
+      pendingFinalizations =
+        challenge.totalMatches > challenge.finalSubmissionCount;
+    }
 
     if (challenge.status === ChallengeStatus.PUBLIC && canStartNow) {
       return (
@@ -700,6 +711,7 @@ export default function ChallengeList({ scope = 'main' }) {
     }
 
     if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE) {
+      if (pendingFinalizations) return null;
       if (challenge.peerReviewReady) {
         return (
           <Button
