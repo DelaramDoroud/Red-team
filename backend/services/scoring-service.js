@@ -150,12 +150,13 @@ export async function calculateChallengeScores(challengeId) {
             expectedOutput = JSON.stringify(expectedOutput);
           expectedOutput = (expectedOutput || '').trim();
 
-          const isOutputCorrect = producedOutput === expectedOutput;
+          //const isOutputCorrect = producedOutput === expectedOutput;
 
-          await vote.update({
-            referenceOutput: producedOutput,
-            isExpectedOutputCorrect: isOutputCorrect,
-          });
+          // NOTE: vote evaluation persistence happens in finalize service only.
+          // await vote.update({
+          //   referenceOutput: producedOutput,
+          //   isExpectedOutputCorrect: isOutputCorrect,
+          // });
         })
       );
     }
@@ -226,7 +227,7 @@ export async function calculateChallengeScores(challengeId) {
 
       if (execResult.isCompiled) {
         await Promise.all(
-          killerVotes.map(async (vote, index) => {
+          killerVotes.map(async (index) => {
             const result = execResult.testResults[index];
             const passed = result.passed;
 
@@ -236,11 +237,12 @@ export async function calculateChallengeScores(challengeId) {
 
             if (!passed) failedPeerTestCount++;
 
-            await vote.update({
-              actualOutput: actualOutputToSave,
-              isBugProven: !passed,
-              isVoteCorrect: !passed,
-            });
+            // NOTE: vote evaluation persistence happens in finalize service only.
+            // await vote.update({
+            //   actualOutput: actualOutputToSave,
+            //   isBugProven: !passed,
+            //   isVoteCorrect: !passed,
+            // });
           })
         );
       }
@@ -258,23 +260,24 @@ export async function calculateChallengeScores(challengeId) {
   }
 
   // Update Endorsements
-  const endorsementVotes = assignments
-    .map((a) => a.vote)
-    .filter((v) => v && v.vote === VoteType.CORRECT);
+  // const endorsementVotes = assignments
+  //   .map((a) => a.vote)
+  //   .filter((v) => v && v.vote === VoteType.CORRECT);
 
-  await Promise.all(
-    endorsementVotes.map(async (vote) => {
-      const assignment = assignments.find(
-        (a) => a.id === vote.peerReviewAssignmentId
-      );
-      if (assignment) {
-        const isSubmissionCorrect = submissionTruthMap.get(
-          assignment.submissionId
-        );
-        await vote.update({ isVoteCorrect: isSubmissionCorrect });
-      }
-    })
-  );
+  // NOTE: vote evaluation persistence happens in finalize service only.
+  // await Promise.all(
+  //   endorsementVotes.map(async (vote) => {
+  //     const assignment = assignments.find(
+  //       (a) => a.id === vote.peerReviewAssignmentId
+  //     );
+  //     if (assignment) {
+  //       const isSubmissionCorrect = submissionTruthMap.get(
+  //         assignment.submissionId
+  //       );
+  //       await vote.update({ isVoteCorrect: isSubmissionCorrect });
+  //     }
+  //   })
+  // );
 
   // ---------------------------------------------------------
   // PHASE C: FINAL SCORE CALCULATION AND SAVING
