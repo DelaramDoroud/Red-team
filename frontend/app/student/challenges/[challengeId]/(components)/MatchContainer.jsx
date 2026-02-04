@@ -57,7 +57,10 @@ const MESSAGE_SUBMISSION_PRIVATE_FAIL =
   'Thanks for your submission. You passed all public test cases, but you missed some edge cases. Read the problem again and try to improve your code.';
 const MESSAGE_PEER_REVIEW_PENDING =
   "Wait for the peer review phase to start so you can review your classmates' code.";
+const MESSAGE_FINALIZING_SUBMISSION =
+  'The coding phase has ended. We are finalizing your submission. Please wait.';
 const DRAFT_SAVE_DELAY_MS = 600;
+const FINALIZATION_POLL_DELAY_MS = 1500;
 
 const createCustomTestId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -240,6 +243,28 @@ const getUserFacingErrorMessage = (result, fallback) => {
   return parsed;
 };
 
+const resolveCodingPhaseMessage = (summary) => {
+  if (!summary) return MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+
+  const hasManual = summary?.hasManualSubmission;
+  const hasAutomatic = summary?.hasAutomaticSubmission;
+  const automaticValid =
+    summary?.automaticStatus && summary.automaticStatus !== 'wrong';
+
+  if (!hasManual) {
+    if (hasAutomatic && automaticValid) {
+      return MESSAGE_PHASE1_NO_SUBMISSION_VALID;
+    }
+    return MESSAGE_PHASE1_NO_SUBMISSION_INVALID;
+  }
+
+  if (summary?.finalIsAutomatic) {
+    return MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER;
+  }
+
+  return MESSAGE_PHASE1_SUBMITTED;
+};
+
 export default function MatchContainer({ challengeId, studentId }) {
   const dispatch = useAppDispatch();
   const durationContext = useDuration();
@@ -270,6 +295,7 @@ export default function MatchContainer({ challengeId, studentId }) {
   const {
     getStudentAssignedMatchSetting,
     getStudentAssignedMatch,
+    getChallengeResults,
     submitSubmission,
     getLastSubmission,
     runCode,
@@ -301,11 +327,13 @@ export default function MatchContainer({ challengeId, studentId }) {
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [isCompiled, setIsCompiled] = useState(null);
   const [isChallengeFinished, setIsChallengeFinished] = useState(false);
+  const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [draftSaveState, setDraftSaveState] = useState('saved');
   const hasLoadedFromStorage = useRef(false);
   const lastSuccessRef = useRef(null);
   const autoSubmitTriggeredRef = useRef(false);
   const draftSaveTimerRef = useRef(null);
+  const finalizationPollTimerRef = useRef(null);
   const lastSavedSnapshotRef = useRef({ imports: '', studentCode: '' });
   const storageKeyBase = useMemo(
     () => (matchId ? `match-${matchId}` : `challenge-${challengeId}`),
@@ -346,11 +374,19 @@ export default function MatchContainer({ challengeId, studentId }) {
         clearTimeout(draftSaveTimerRef.current);
         draftSaveTimerRef.current = null;
       }
+      if (finalizationPollTimerRef.current) {
+        clearTimeout(finalizationPollTimerRef.current);
+        finalizationPollTimerRef.current = null;
+      }
     },
     []
   );
 
   const resetMatchStateForWaiting = useCallback(() => {
+    if (finalizationPollTimerRef.current) {
+      clearTimeout(finalizationPollTimerRef.current);
+      finalizationPollTimerRef.current = null;
+    }
     setMessage(null);
     setError(null);
     setRunResult(null);
@@ -366,6 +402,7 @@ export default function MatchContainer({ challengeId, studentId }) {
     setCanSubmit(false);
     setIsCompiled(null);
     setIsTimeUp(false);
+    setIsFinalizationPending(false);
     setMatchData(null);
     setMatchId(null);
     lastSuccessRef.current = null;
@@ -584,6 +621,10 @@ export default function MatchContainer({ challengeId, studentId }) {
     let cancelled = false;
 
     async function fetchMatch() {
+      if (finalizationPollTimerRef.current) {
+        clearTimeout(finalizationPollTimerRef.current);
+        finalizationPollTimerRef.current = null;
+      }
       setMessage(null);
       setLoading(true);
       setError(null);
@@ -600,6 +641,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       setCanSubmit(false);
       setIsCompiled(null);
       setIsTimeUp(false);
+      setIsFinalizationPending(false);
       setMatchData(null);
       setMatchId(null);
       lastSuccessRef.current = null;
@@ -677,6 +719,64 @@ export default function MatchContainer({ challengeId, studentId }) {
     isStatusKnown,
     isWaitingForStart,
     resetMatchStateForWaiting,
+  ]);
+
+  useEffect(() => {
+    if (!isFinalizationPending) return undefined;
+    if (!challengeId || !studentId) return undefined;
+
+    let cancelled = false;
+
+    const pollFinalization = async () => {
+      try {
+        const res = await getChallengeResults(challengeId, studentId);
+        if (cancelled) return;
+
+        if (res?.success) {
+          const payload = res?.data || res;
+          const finalizationInfo = payload?.finalization || null;
+          const resultsReady = finalizationInfo?.resultsReady !== false;
+
+          if (resultsReady) {
+            setMessage(resolveCodingPhaseMessage(payload?.submissionSummary));
+            setIsFinalizationPending(false);
+            return;
+          }
+        } else {
+          const apiMessage = getApiErrorMessage(res, '');
+          const isNotEndedError =
+            typeof apiMessage === 'string' &&
+            apiMessage.toLowerCase().includes('has not ended yet');
+          if (!isNotEndedError) {
+            if (redirectOnError(res)) return;
+          }
+        }
+      } catch {
+        // Keep polling until finalization is ready.
+      }
+
+      if (cancelled) return;
+
+      finalizationPollTimerRef.current = setTimeout(() => {
+        pollFinalization();
+      }, FINALIZATION_POLL_DELAY_MS);
+    };
+
+    pollFinalization();
+
+    return () => {
+      cancelled = true;
+      if (finalizationPollTimerRef.current) {
+        clearTimeout(finalizationPollTimerRef.current);
+        finalizationPollTimerRef.current = null;
+      }
+    };
+  }, [
+    challengeId,
+    getChallengeResults,
+    isFinalizationPending,
+    redirectOnError,
+    studentId,
   ]);
 
   // handlers: run
@@ -1046,16 +1146,21 @@ export default function MatchContainer({ challengeId, studentId }) {
       message: 'Time is up. You can no longer run or submit code.',
     });
 
-    const finishWithMessage = (nextMessage) => {
-      setMessage(nextMessage);
+    const finishWithPendingFinalization = () => {
+      if (finalizationPollTimerRef.current) {
+        clearTimeout(finalizationPollTimerRef.current);
+        finalizationPollTimerRef.current = null;
+      }
+      setMessage(MESSAGE_FINALIZING_SUBMISSION);
       setIsChallengeFinished(true);
+      setIsFinalizationPending(true);
     };
 
     try {
       const res = await getStudentAssignedMatch(challengeId, studentId);
 
       if (!res?.success || !res?.data?.id) {
-        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+        finishWithPendingFinalization();
         return false;
       }
 
@@ -1092,10 +1197,10 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!studentCode.trim()) {
         if (hasManualSubmission) {
-          finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
+          finishWithPendingFinalization();
           return true;
         }
-        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+        finishWithPendingFinalization();
         return false;
       }
 
@@ -1126,10 +1231,10 @@ export default function MatchContainer({ challengeId, studentId }) {
 
       if (!runSuccess || runCompiled === false || !runPassed) {
         if (hasManualSubmission) {
-          finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
+          finishWithPendingFinalization();
           return true;
         }
-        finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+        finishWithPendingFinalization();
         return false;
       }
 
@@ -1140,17 +1245,7 @@ export default function MatchContainer({ challengeId, studentId }) {
       });
 
       if (submissionRes?.success) {
-        const isFinalSubmission =
-          submissionRes?.data?.submission?.isFinal === true;
-        if (hasManualSubmission) {
-          finishWithMessage(
-            isFinalSubmission
-              ? MESSAGE_PHASE1_SUBMITTED_AUTO_BETTER
-              : MESSAGE_PHASE1_SUBMITTED
-          );
-        } else {
-          finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_VALID);
-        }
+        finishWithPendingFinalization();
         lastSuccessRef.current = assembledCode;
         if (studentId) {
           dispatch(
@@ -1167,14 +1262,14 @@ export default function MatchContainer({ challengeId, studentId }) {
       }
 
       if (hasManualSubmission) {
-        finishWithMessage(MESSAGE_PHASE1_SUBMITTED);
+        finishWithPendingFinalization();
         return true;
       }
 
-      finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+      finishWithPendingFinalization();
       return false;
     } catch (err) {
-      finishWithMessage(MESSAGE_PHASE1_NO_SUBMISSION_INVALID);
+      finishWithPendingFinalization();
       return false;
     } finally {
       setIsSubmitting(false);

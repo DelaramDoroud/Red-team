@@ -22,6 +22,7 @@ import { ChallengeStatus } from '#js/constants';
 import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
+import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
 
@@ -54,26 +55,18 @@ const buildResultBadge = (count, tone) => {
   return `${base} bg-muted text-muted-foreground`;
 };
 
-const getResultCardClasses = (passed) =>
-  passed
-    ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-400/40 dark:bg-emerald-500/10'
-    : 'border-rose-200 bg-rose-50/70 dark:border-rose-400/40 dark:bg-rose-500/10';
-
-const getResultStatusClasses = (passed) =>
-  passed
-    ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15'
-    : 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
-
-const getVoteLabel = (vote) => {
-  if (vote === 'correct') return 'Correct';
-  if (vote === 'incorrect') return 'Incorrect';
-  return 'Abstain';
+const getResultCardClasses = (passed) => {
+  if (passed) {
+    return 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-400/40 dark:bg-emerald-500/10';
+  }
+  return 'border-rose-200 bg-rose-50/70 dark:border-rose-400/40 dark:bg-rose-500/10';
 };
 
-const getEvaluationLabel = (evaluation) => {
-  if (evaluation === 'correct') return 'Correct';
-  if (evaluation === 'incorrect') return 'Incorrect';
-  return 'Unknown';
+const getResultStatusClasses = (passed) => {
+  if (passed) {
+    return 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15';
+  }
+  return 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
 };
 
 const getTestFailureDetails = (result) => {
@@ -461,47 +454,6 @@ export default function ChallengeResultPage() {
     );
   };
 
-  const getIncorrectTestStatus = (item) => {
-    if (item.vote !== 'incorrect') return null;
-    const hasExpectedFlag = typeof item.isExpectedOutputCorrect === 'boolean';
-    const hasVoteFlag = typeof item.isVoteCorrect === 'boolean';
-    if (hasExpectedFlag && item.isExpectedOutputCorrect === false) {
-      return {
-        tone: 'incorrect',
-        label: 'Test is incorrect for the reference solution.',
-      };
-    }
-    if (hasVoteFlag && item.isVoteCorrect === false) {
-      return {
-        tone: 'incorrect',
-        label: 'Reviewed solution was correct.',
-      };
-    }
-    if (hasExpectedFlag && hasVoteFlag) {
-      return {
-        tone: 'correct',
-        label: 'Test is correct and exposes a bug.',
-      };
-    }
-    return {
-      tone: 'neutral',
-      label: 'Test evaluation pending.',
-    };
-  };
-
-  const formatEvaluationStatus = (status) => {
-    if (!status) return null;
-    return status
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  };
-
-  const getTestBadgeClass = (tone, stylesRef) => {
-    if (tone === 'correct') return stylesRef.voteTestBadgeCorrect;
-    if (tone === 'incorrect') return stylesRef.voteTestBadgeIncorrect;
-    return stylesRef.voteTestBadgeNeutral;
-  };
-
   const voteItems = (Array.isArray(reviewVotes) ? reviewVotes : []).map(
     (voteItem, index) => {
       const revieweeName =
@@ -822,120 +774,22 @@ export default function ChallengeResultPage() {
                   !reviewVotesError &&
                   voteItems.length > 0 ? (
                     <div className={styles.votesList}>
-                      {voteItems.map((item) => {
-                        const expectedLabel = getEvaluationLabel(
-                          item.expectedEvaluation
-                        );
-                        const voteLabel = getVoteLabel(item.vote);
-                        const voteStatusLabel = item.isCorrect
-                          ? 'Correct'
-                          : 'Incorrect';
-                        const hasTestCase =
-                          item.vote === 'incorrect' &&
-                          (item.testCaseInput ||
-                            item.expectedOutput ||
-                            item.referenceOutput ||
-                            item.actualOutput);
-                        const testStatus = hasTestCase
-                          ? getIncorrectTestStatus(item)
-                          : null;
-                        const evaluationStatusText = formatEvaluationStatus(
-                          item.evaluationStatus
-                        );
-                        return (
-                          <div
-                            key={item.id}
-                            className={`rounded-xl border p-4 ${getResultCardClasses(
-                              item.isCorrect
-                            )}`}
-                          >
-                            <div className='flex flex-wrap items-center justify-between gap-2'>
-                              <p className='text-sm font-semibold text-foreground'>
-                                {item.submissionLabel}
-                              </p>
-                              <span
-                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getResultStatusClasses(
-                                  item.isCorrect
-                                )}`}
-                              >
-                                {voteStatusLabel}
-                              </span>
-                            </div>
-                            <div className='mt-3 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-foreground space-y-1 dark:bg-slate-950/40'>
-                              <p>
-                                <span className='font-semibold'>
-                                  Your vote:
-                                </span>{' '}
-                                {voteLabel}
-                              </p>
-                              <p>
-                                <span className='font-semibold'>
-                                  Expected evaluation:
-                                </span>{' '}
-                                {expectedLabel}
-                              </p>
-                            </div>
-                            {hasTestCase && (
-                              <div className={styles.voteTestPanel}>
-                                <div className={styles.voteTestHeader}>
-                                  <span className={styles.voteTestTitle}>
-                                    Test provided
-                                  </span>
-                                  {testStatus && (
-                                    <span
-                                      className={`${styles.voteTestBadge} ${getTestBadgeClass(
-                                        testStatus.tone,
-                                        styles
-                                      )}`}
-                                    >
-                                      {testStatus.label}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className={styles.voteTestGrid}>
-                                  <div className={styles.voteTestItem}>
-                                    <span className={styles.voteTestLabel}>
-                                      Input
-                                    </span>
-                                    <span className={styles.voteTestValue}>
-                                      {renderValue(item.testCaseInput)}
-                                    </span>
-                                  </div>
-                                  <div className={styles.voteTestItem}>
-                                    <span className={styles.voteTestLabel}>
-                                      Expected output
-                                    </span>
-                                    <span className={styles.voteTestValue}>
-                                      {renderValue(item.expectedOutput)}
-                                    </span>
-                                  </div>
-                                  <div className={styles.voteTestItem}>
-                                    <span className={styles.voteTestLabel}>
-                                      Reference output
-                                    </span>
-                                    <span className={styles.voteTestValue}>
-                                      {renderValue(item.referenceOutput)}
-                                    </span>
-                                  </div>
-                                  <div className={styles.voteTestItem}>
-                                    <span className={styles.voteTestLabel}>
-                                      Reviewed output
-                                    </span>
-                                    <span className={styles.voteTestValue}>
-                                      {renderValue(item.actualOutput)}
-                                    </span>
-                                  </div>
-                                </div>
-                                {evaluationStatusText && (
-                                  <p className={styles.voteTestNote}>
-                                    Status: {evaluationStatusText}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {voteItems.map((item) => (
+                        <PeerReviewVoteResultCard
+                          key={item.id}
+                          title={item.submissionLabel}
+                          vote={item.vote}
+                          expectedEvaluation={item.expectedEvaluation}
+                          isCorrect={item.isCorrect}
+                          testCaseInput={item.testCaseInput}
+                          expectedOutput={item.expectedOutput}
+                          referenceOutput={item.referenceOutput}
+                          actualOutput={item.actualOutput}
+                          isExpectedOutputCorrect={item.isExpectedOutputCorrect}
+                          isVoteCorrect={item.isVoteCorrect}
+                          evaluationStatus={item.evaluationStatus}
+                        />
+                      ))}
                     </div>
                   ) : null}
                 </div>

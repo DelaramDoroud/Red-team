@@ -17,6 +17,7 @@ import {
   ChallengeStatus,
   getChallengeStatusLabel,
 } from '#js/constants';
+import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
 import useChallenge from '#js/useChallenge';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
@@ -87,20 +88,6 @@ const getResultStatusClasses = (passed) =>
   passed
     ? 'text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-500/15'
     : 'text-rose-700 bg-rose-100 dark:text-rose-200 dark:bg-rose-500/15';
-
-const getVoteLabel = (vote) => {
-  if (vote === 'correct') return 'Correct';
-  if (vote === 'incorrect') return 'Incorrect';
-  if (vote === 'abstain') return 'Abstain';
-  return 'Not voted';
-};
-
-const getVoteTone = (vote) => {
-  if (vote === 'correct') return 'border-emerald-500/30 bg-emerald-500/10';
-  if (vote === 'incorrect') return 'border-rose-500/30 bg-rose-500/10';
-  if (vote === 'abstain') return 'border-slate-400/30 bg-slate-200/40';
-  return 'border-border bg-muted/40';
-};
 
 const parseJsonValue = (value) => {
   if (value === null || value === undefined) return { ok: false, value: null };
@@ -205,133 +192,6 @@ function TestResultsSection({ title, results, emptyMessage }) {
   );
 }
 
-function PeerReviewVoteCard({
-  assignment,
-  onAddPrivateTest,
-  actionState,
-  matchSettingId,
-}) {
-  const reviewerName = buildStudentName(
-    assignment.reviewer,
-    assignment.reviewer?.id
-  );
-  const voteValue = assignment.vote?.vote;
-  const voteLabel = getVoteLabel(voteValue);
-  const voteTone = getVoteTone(voteValue);
-  const hasTestCase =
-    Boolean(assignment.vote?.testCaseInput) &&
-    Boolean(assignment.vote?.expectedOutput);
-  const showAddButton =
-    voteValue === 'incorrect' && hasTestCase && matchSettingId;
-  const expectedOutputStatus = assignment.vote?.isExpectedOutputCorrect;
-  let addButtonMessage = '';
-  if (showAddButton && expectedOutputStatus === false) {
-    addButtonMessage = 'Expected output does not match the reference solution.';
-  } else if (showAddButton && expectedOutputStatus == null) {
-    addButtonMessage = 'Expected output has not been validated yet.';
-  }
-  const canAddTest = showAddButton && expectedOutputStatus === true;
-  const { testExecution } = assignment;
-
-  return (
-    <div className={`rounded-lg border p-3 space-y-3 ${voteTone}`}>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <div className='flex flex-col gap-0.5'>
-          <p className='text-sm font-semibold text-foreground'>
-            {reviewerName}
-          </p>
-          {assignment.isExtra ? (
-            <span className='text-[0.7rem] text-muted-foreground'>
-              Extra assignment
-            </span>
-          ) : null}
-        </div>
-        <span className='text-xs font-semibold text-foreground'>
-          {voteLabel}
-        </span>
-      </div>
-      {hasTestCase ? (
-        <div className='rounded-md border border-border/60 bg-background/80 p-2 text-[0.7rem] text-foreground space-y-1 dark:bg-slate-950/40'>
-          <p>
-            <span className='font-semibold'>Input:</span>{' '}
-            {renderValue(assignment.vote?.testCaseInput)}
-          </p>
-          <p>
-            <span className='font-semibold'>Expected:</span>{' '}
-            {renderValue(assignment.vote?.expectedOutput)}
-          </p>
-          {testExecution ? (
-            <>
-              <p>
-                <span className='font-semibold'>Actual:</span>{' '}
-                {renderValue(testExecution.actualOutput)}
-              </p>
-              <p>
-                <span className='font-semibold'>Result:</span>{' '}
-                {testExecution.passed ? 'Passed' : 'Failed'}
-              </p>
-              {testExecution.error ? (
-                <p className='text-rose-700 dark:text-rose-200'>
-                  <span className='font-semibold'>Feedback:</span>{' '}
-                  {renderValue(testExecution.error)}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className='text-muted-foreground'>No execution result.</p>
-          )}
-          {showAddButton ? (
-            <div className='pt-2'>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() =>
-                  onAddPrivateTest({
-                    matchSettingId,
-                    assignmentId: assignment.id,
-                    testCaseInput: assignment.vote?.testCaseInput,
-                    expectedOutput: assignment.vote?.expectedOutput,
-                  })
-                }
-                disabled={
-                  actionState?.status === 'saving' ||
-                  actionState?.status === 'saved' ||
-                  !canAddTest
-                }
-              >
-                {actionState?.status === 'saving'
-                  ? 'Adding...'
-                  : 'Add to private tests'}
-              </Button>
-              {addButtonMessage ? (
-                <p className='mt-1 text-[0.7rem] text-muted-foreground'>
-                  {addButtonMessage}
-                </p>
-              ) : null}
-              {actionState?.message ? (
-                <p
-                  className={`mt-1 text-[0.7rem] ${
-                    actionState.status === 'error'
-                      ? 'text-rose-700 dark:text-rose-200'
-                      : 'text-emerald-700 dark:text-emerald-200'
-                  }`}
-                >
-                  {actionState.message}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <p className='text-xs text-muted-foreground'>
-          No test case was provided with this vote.
-        </p>
-      )}
-    </div>
-  );
-}
-
 const PEER_REVIEW_STARTED_MESSAGE = 'Peer review started successfully.';
 
 const formatTimer = (seconds) => {
@@ -419,6 +279,54 @@ function buildStudentName(student, fallbackId) {
 
   return 'Student';
 }
+
+const normalizeSubmissionStatus = (status) => {
+  if (typeof status !== 'string') return '';
+  return status.toLowerCase();
+};
+
+const getExpectedEvaluationFromSubmissionStatus = (status) => {
+  const normalizedStatus = normalizeSubmissionStatus(status);
+  if (normalizedStatus === 'probably_correct') return 'correct';
+  if (normalizedStatus === 'improvable' || normalizedStatus === 'wrong') {
+    return 'incorrect';
+  }
+  return 'unknown';
+};
+
+const getEarnedCreditFromVote = (voteRecord, submissionStatus) => {
+  if (!voteRecord) return false;
+
+  const voteType = voteRecord.vote;
+  const normalizedStatus = normalizeSubmissionStatus(submissionStatus);
+  const isSubmissionValid = normalizedStatus === 'probably_correct';
+
+  if (voteType === 'correct') {
+    if (typeof voteRecord.isVoteCorrect === 'boolean') {
+      return voteRecord.isVoteCorrect;
+    }
+    return isSubmissionValid;
+  }
+
+  if (voteType === 'incorrect') {
+    let baseCorrect = false;
+    if (typeof voteRecord.isVoteCorrect === 'boolean') {
+      baseCorrect = voteRecord.isVoteCorrect;
+    } else if (normalizedStatus) {
+      baseCorrect = !isSubmissionValid;
+    }
+
+    if (typeof voteRecord.isExpectedOutputCorrect === 'boolean') {
+      return baseCorrect && voteRecord.isExpectedOutputCorrect;
+    }
+    if (typeof voteRecord.isBugProven === 'boolean') {
+      return baseCorrect && voteRecord.isBugProven;
+    }
+    return baseCorrect;
+  }
+
+  return false;
+};
 
 export default function ChallengeDetailPage() {
   const params = useParams();
@@ -1777,123 +1685,287 @@ export default function ChallengeDetailPage() {
                 !teacherResultsError &&
                 teacherMatchSettings.length > 0 ? (
                   <div className='space-y-3'>
-                    {teacherMatchSettings.map((group) => (
-                      <details
-                        key={group.challengeMatchSettingId}
-                        className='rounded-xl border border-border/60 bg-muted/30 p-3'
-                      >
-                        <summary className='cursor-pointer text-sm font-semibold text-foreground'>
-                          {group.matchSetting?.problemTitle ||
-                            'Match setting results'}
-                        </summary>
-                        <div className='mt-3 space-y-3'>
-                          {group.matches?.map((match) => {
-                            const studentName = buildStudentName(
-                              match.student,
-                              match.student?.id ?? match.id
-                            );
-                            const { submission } = match;
-                            const peerAssignments =
-                              match.peerReviewAssignments || [];
-                            return (
-                              <details
-                                key={match.id}
-                                className='rounded-lg border border-border/60 bg-background/80 p-3'
-                              >
-                                <summary className='cursor-pointer text-sm font-semibold text-foreground'>
-                                  {studentName}
-                                </summary>
-                                <div className='mt-3 space-y-3'>
-                                  <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
-                                    <summary className='cursor-pointer text-sm font-semibold text-foreground'>
-                                      Coding phase
-                                    </summary>
-                                    <div className='mt-3 space-y-3'>
-                                      {!submission ? (
-                                        <p className='text-sm text-muted-foreground'>
-                                          No submission was recorded for this
-                                          student.
-                                        </p>
-                                      ) : (
-                                        <>
-                                          <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
-                                            <span>
-                                              Status: {submission.status || '—'}
-                                            </span>
-                                            <span>
-                                              Submitted:{' '}
-                                              {submission.updatedAt
-                                                ? formatDateTime(
-                                                    submission.updatedAt
-                                                  )
-                                                : '—'}
-                                            </span>
-                                          </div>
-                                          <pre className='w-full overflow-auto rounded-lg border border-slate-900/80 bg-slate-900 p-3 text-xs text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
-                                            {normalizeMultilineValue(
-                                              submission.code || ''
-                                            )}
-                                          </pre>
-                                          <div className='grid gap-3 lg:grid-cols-2'>
-                                            <TestResultsSection
-                                              title='Public tests'
-                                              results={
-                                                submission.publicTestResults
-                                              }
-                                              emptyMessage='No public test results.'
-                                            />
-                                            <TestResultsSection
-                                              title='Private tests'
-                                              results={
-                                                submission.privateTestResults
-                                              }
-                                              emptyMessage='No private test results.'
-                                            />
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  </details>
+                    {teacherMatchSettings.map((group) => {
+                      const reviewerVotesByStudentId = new Map();
+                      const reviewedMatches = Array.isArray(group.matches)
+                        ? group.matches
+                        : [];
 
-                                  <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
-                                    <summary className='cursor-pointer text-sm font-semibold text-foreground'>
-                                      Peer review
-                                    </summary>
-                                    <div className='mt-3 space-y-3'>
-                                      {peerAssignments.length === 0 ? (
-                                        <p className='text-sm text-muted-foreground'>
-                                          No peer review votes were recorded for
-                                          this submission.
-                                        </p>
-                                      ) : (
-                                        peerAssignments.map((assignment) => {
-                                          const actionKey = `assignment-${assignment.id}`;
-                                          return (
-                                            <PeerReviewVoteCard
-                                              key={assignment.id}
-                                              assignment={assignment}
-                                              matchSettingId={
-                                                group.matchSetting?.id
-                                              }
-                                              onAddPrivateTest={
-                                                handleAddPrivateTest
-                                              }
-                                              actionState={
-                                                privateTestActions[actionKey]
-                                              }
-                                            />
-                                          );
-                                        })
-                                      )}
-                                    </div>
-                                  </details>
-                                </div>
-                              </details>
-                            );
-                          })}
-                        </div>
-                      </details>
-                    ))}
+                      reviewedMatches.forEach((reviewedMatch) => {
+                        const reviewedStudentName = buildStudentName(
+                          reviewedMatch.student,
+                          reviewedMatch.student?.id ?? reviewedMatch.id
+                        );
+                        const expectedEvaluation =
+                          getExpectedEvaluationFromSubmissionStatus(
+                            reviewedMatch.submission?.status
+                          );
+                        const assignmentsList = Array.isArray(
+                          reviewedMatch.peerReviewAssignments
+                        )
+                          ? reviewedMatch.peerReviewAssignments
+                          : [];
+
+                        assignmentsList.forEach((assignment) => {
+                          const reviewerId = assignment.reviewer?.id;
+                          if (!reviewerId) return;
+
+                          if (!reviewerVotesByStudentId.has(reviewerId)) {
+                            reviewerVotesByStudentId.set(reviewerId, []);
+                          }
+
+                          const voteRecord = assignment.vote || null;
+                          reviewerVotesByStudentId.get(reviewerId).push({
+                            id: assignment.id,
+                            assignmentId: assignment.id,
+                            title: `Vote for ${reviewedStudentName}`,
+                            vote: voteRecord?.vote || 'abstain',
+                            expectedEvaluation,
+                            isCorrect: getEarnedCreditFromVote(
+                              voteRecord,
+                              reviewedMatch.submission?.status
+                            ),
+                            testCaseInput: voteRecord?.testCaseInput || null,
+                            expectedOutput: voteRecord?.expectedOutput || null,
+                            referenceOutput:
+                              voteRecord?.referenceOutput || null,
+                            actualOutput: voteRecord?.actualOutput || null,
+                            isExpectedOutputCorrect:
+                              voteRecord?.isExpectedOutputCorrect,
+                            isVoteCorrect: voteRecord?.isVoteCorrect,
+                            evaluationStatus: voteRecord?.evaluationStatus,
+                            matchSettingId: group.matchSetting?.id,
+                          });
+                        });
+                      });
+
+                      reviewerVotesByStudentId.forEach((votes) => {
+                        votes.sort((leftVote, rightVote) => {
+                          if (leftVote.id === rightVote.id) return 0;
+                          return leftVote.id > rightVote.id ? 1 : -1;
+                        });
+                      });
+
+                      return (
+                        <details
+                          key={group.challengeMatchSettingId}
+                          className='rounded-xl border border-border/60 bg-muted/30 p-3'
+                        >
+                          <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                            {group.matchSetting?.problemTitle ||
+                              'Match setting results'}
+                          </summary>
+                          <div className='mt-3 space-y-3'>
+                            {group.matches?.map((match) => {
+                              const studentName = buildStudentName(
+                                match.student,
+                                match.student?.id ?? match.id
+                              );
+                              const { submission } = match;
+                              const studentVotes =
+                                reviewerVotesByStudentId.get(
+                                  match.student?.id
+                                ) || [];
+                              return (
+                                <details
+                                  key={match.id}
+                                  className='rounded-lg border border-border/60 bg-background/80 p-3'
+                                >
+                                  <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                    {studentName}
+                                  </summary>
+                                  <div className='mt-3 space-y-3'>
+                                    <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
+                                      <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                        Coding phase
+                                      </summary>
+                                      <div className='mt-3 space-y-3'>
+                                        {!submission ? (
+                                          <p className='text-sm text-muted-foreground'>
+                                            No submission was recorded for this
+                                            student.
+                                          </p>
+                                        ) : (
+                                          <>
+                                            <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
+                                              <span>
+                                                Status:{' '}
+                                                {submission.status || '—'}
+                                              </span>
+                                              <span>
+                                                Submitted:{' '}
+                                                {submission.updatedAt
+                                                  ? formatDateTime(
+                                                      submission.updatedAt
+                                                    )
+                                                  : '—'}
+                                              </span>
+                                            </div>
+                                            <pre className='w-full overflow-auto rounded-lg border border-slate-900/80 bg-slate-900 p-3 text-xs text-slate-100 shadow-inner whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950'>
+                                              {normalizeMultilineValue(
+                                                submission.code || ''
+                                              )}
+                                            </pre>
+                                            <div className='grid gap-3 lg:grid-cols-2'>
+                                              <TestResultsSection
+                                                title='Public tests'
+                                                results={
+                                                  submission.publicTestResults
+                                                }
+                                                emptyMessage='No public test results.'
+                                              />
+                                              <TestResultsSection
+                                                title='Private tests'
+                                                results={
+                                                  submission.privateTestResults
+                                                }
+                                                emptyMessage='No private test results.'
+                                              />
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    </details>
+
+                                    <details className='rounded-lg border border-border/60 bg-muted/40 p-3'>
+                                      <summary className='cursor-pointer text-sm font-semibold text-foreground'>
+                                        Peer review
+                                      </summary>
+                                      <div className='mt-3 space-y-3'>
+                                        {studentVotes.length === 0 ? (
+                                          <p className='text-sm text-muted-foreground'>
+                                            No peer review votes were recorded
+                                            for this student.
+                                          </p>
+                                        ) : (
+                                          studentVotes.map((voteItem) => {
+                                            const actionKey = `assignment-${voteItem.assignmentId}`;
+                                            const hasTestCase =
+                                              Boolean(voteItem.testCaseInput) &&
+                                              Boolean(voteItem.expectedOutput);
+                                            const showAddButton =
+                                              voteItem.vote === 'incorrect' &&
+                                              hasTestCase &&
+                                              voteItem.matchSettingId;
+                                            const expectedOutputStatus =
+                                              voteItem.isExpectedOutputCorrect;
+                                            let addButtonMessage = '';
+                                            if (
+                                              showAddButton &&
+                                              expectedOutputStatus === false
+                                            ) {
+                                              addButtonMessage =
+                                                'Expected output does not match the reference solution.';
+                                            } else if (
+                                              showAddButton &&
+                                              expectedOutputStatus == null
+                                            ) {
+                                              addButtonMessage =
+                                                'Expected output has not been validated yet.';
+                                            }
+                                            const canAddTest =
+                                              showAddButton &&
+                                              expectedOutputStatus === true;
+                                            const actionState =
+                                              privateTestActions[actionKey];
+                                            const voteActions =
+                                              showAddButton ? (
+                                                <div className='space-y-1'>
+                                                  <Button
+                                                    type='button'
+                                                    variant='outline'
+                                                    size='sm'
+                                                    onClick={() =>
+                                                      handleAddPrivateTest({
+                                                        matchSettingId:
+                                                          voteItem.matchSettingId,
+                                                        assignmentId:
+                                                          voteItem.assignmentId,
+                                                        testCaseInput:
+                                                          voteItem.testCaseInput,
+                                                        expectedOutput:
+                                                          voteItem.expectedOutput,
+                                                      })
+                                                    }
+                                                    disabled={
+                                                      actionState?.status ===
+                                                        'saving' ||
+                                                      actionState?.status ===
+                                                        'saved' ||
+                                                      !canAddTest
+                                                    }
+                                                  >
+                                                    {actionState?.status ===
+                                                    'saving'
+                                                      ? 'Adding...'
+                                                      : 'Add to private tests'}
+                                                  </Button>
+                                                  {addButtonMessage ? (
+                                                    <p className='text-[0.7rem] text-muted-foreground'>
+                                                      {addButtonMessage}
+                                                    </p>
+                                                  ) : null}
+                                                  {actionState?.message ? (
+                                                    <p
+                                                      className={`text-[0.7rem] ${
+                                                        actionState.status ===
+                                                        'error'
+                                                          ? 'text-rose-700 dark:text-rose-200'
+                                                          : 'text-emerald-700 dark:text-emerald-200'
+                                                      }`}
+                                                    >
+                                                      {actionState.message}
+                                                    </p>
+                                                  ) : null}
+                                                </div>
+                                              ) : null;
+
+                                            return (
+                                              <PeerReviewVoteResultCard
+                                                key={voteItem.id}
+                                                title={voteItem.title}
+                                                vote={voteItem.vote}
+                                                expectedEvaluation={
+                                                  voteItem.expectedEvaluation
+                                                }
+                                                isCorrect={voteItem.isCorrect}
+                                                testCaseInput={
+                                                  voteItem.testCaseInput
+                                                }
+                                                expectedOutput={
+                                                  voteItem.expectedOutput
+                                                }
+                                                referenceOutput={
+                                                  voteItem.referenceOutput
+                                                }
+                                                actualOutput={
+                                                  voteItem.actualOutput
+                                                }
+                                                isExpectedOutputCorrect={
+                                                  voteItem.isExpectedOutputCorrect
+                                                }
+                                                isVoteCorrect={
+                                                  voteItem.isVoteCorrect
+                                                }
+                                                evaluationStatus={
+                                                  voteItem.evaluationStatus
+                                                }
+                                                voteLabelText='Student vote'
+                                                actions={voteActions}
+                                              />
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    </details>
+                                  </div>
+                                </details>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
