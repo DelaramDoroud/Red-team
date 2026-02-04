@@ -1,66 +1,61 @@
-import { Op } from 'sequelize';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Submission from '#root/models/submission.js';
-import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import sequelize from '#root/services/sequelize.js';
 import Badge from '#root/models/badge.js';
 import StudentBadge from '#root/models/student-badges.js';
-import {
-  SubmissionStatus,
-  BadgeCategory,
-  BadgeMetric,
-} from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
+import { Op } from 'sequelize';
+import { BadgeCategory, BadgeMetric } from '#root/models/enum/enums.js';
 
 /**
  * Count the number of completed challenges for a student.
  *
- * A submission is considered valid if:
- * - status is PROBABLY_CORRECT or IMPROVABLE
- * - score breakdown exists (optionally filtered by totalScore)
+ * A challenge is considered completed if:
+ * - at least one final submission exists
+ * - submission status is 'probably_correct' or 'improvable'
+ * - score breakdown exists with totalScore > 25
+ *
+ * Each challenge is counted only once.
  */
-
 export async function countCompletedChallenges(studentId) {
-  const completedCount = await Submission.count({
-    distinct: true,
-    include: [
-      {
-        model: ChallengeParticipant,
-        as: 'challengeParticipant',
-        required: true,
-        where: { studentId },
-      },
-      {
-        model: SubmissionScoreBreakdown,
-        as: 'scoreBreakdown',
-        required: false,
-      },
-    ],
-    where: {
-      status: {
-        [Op.in]: [
-          SubmissionStatus.PROBABLY_CORRECT,
-          SubmissionStatus.IMPROVABLE,
-        ],
-      },
-    },
-  });
+  const sql = `
+    SELECT COUNT(DISTINCT S.id) AS "challengeCompleted"
+    FROM CHALLENGE_PARTICIPANT C
+    JOIN SUBMISSION S ON S.CHALLENGE_PARTICIPANT_ID = C.ID
+    JOIN SUBMISSION_SCORE_BREAKDOWN B ON B.SUBMISSION_ID = S.ID
+    WHERE S.STATUS IN ('probably_correct', 'improvable')
+    AND S.IS_FINAL = TRUE
+    AND B.TOTAL_SCORE > 25
+    AND C.STUDENT_ID = :studentId
+    GROUP BY C.STUDENT_ID
+    LIMIT 100;
+  `;
 
-  logger.info(
-    `Student ${studentId} completed submissions count: ${completedCount}`
-  );
+  try {
+    const [results] = await sequelize.query(sql, {
+      replacements: { studentId },
+      type: sequelize.QueryTypes.SELECT,
+    });
 
-  return completedCount;
+    const completedCount = Number(results?.challengeCompleted ?? 0);
+
+    logger.info(
+      `Student ${studentId} completed challenges count: ${completedCount}`
+    );
+
+    return completedCount;
+  } catch (error) {
+    logger.error('Error counting completed challenges:', error);
+    return 0;
+  }
 }
 
 /**
  * Award milestone badges if challenge completion thresholds are reached.
- * Returns only newly unlocked badges.
+ * Only newly unlocked badges are returned.
  */
-export async function awardBadgeIfEligible(studentId) {
+export async function awardChallengeMilestoneBadges(studentId) {
   const completedChallenges = await countCompletedChallenges(studentId);
 
-  logger.info(`completedChallenges: ${completedChallenges}`);
-  const milestoneBadges = await Badge.findAll({
+  const eligibleBadges = await Badge.findAll({
     where: {
       category: BadgeCategory.CHALLENGE_MILESTONE,
       metric: BadgeMetric.CHALLENGES_COMPLETED,
@@ -69,23 +64,36 @@ export async function awardBadgeIfEligible(studentId) {
     order: [['threshold', 'ASC']],
   });
 
-  logger.info(`milestoneBadges: ${milestoneBadges}`);
-  const unlockedBadges = [];
+  const newlyUnlocked = [];
 
-  for (const badge of milestoneBadges) {
+  for (const badge of eligibleBadges) {
     const [, created] = await StudentBadge.findOrCreate({
       where: { studentId, badgeId: badge.id },
       defaults: { earnedAt: new Date() },
     });
 
-    logger.info(`created: ${created}`);
     if (created) {
-      unlockedBadges.push(badge);
+      newlyUnlocked.push({
+        id: badge.id,
+        key: badge.key,
+        name: badge.name,
+        description: badge.description,
+        iconKey: badge.iconKey,
+        level: badge.level,
+        threshold: badge.threshold,
+        metric: badge.metric,
+        accuracyRequired: badge.accuracyRequired,
+        category: badge.category,
+        createdAt: badge.createdAt,
+        updatedAt: badge.updatedAt,
+      });
+
+      logger.info(`Badge ${badge.id} just unlocked for student ${studentId}`);
     }
   }
 
   return {
-    unlockedBadges,
+    newlyUnlocked,
     completedChallenges,
   };
 }

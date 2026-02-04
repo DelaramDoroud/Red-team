@@ -13,12 +13,14 @@ import {
 import useChallenge from '#js/useChallenge';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { setSolutionFeedbackVisibility } from '#js/store/slices/ui';
+import { markBadgeSeen } from '#js/store/slices/auth';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
 import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
+import BadgeModal from '#components/badge/BadgeModal';
 import { useDuration } from '../(context)/DurationContext';
 
 const normalizeMultilineValue = (value) =>
@@ -90,6 +92,7 @@ export default function ChallengeResultPage() {
   const isChallengeEnded = challengeStatus === ChallengeStatus.ENDED_PHASE_TWO;
   const canLoadResults =
     !durationContext || (hasChallengeStatus && isChallengeEnded);
+
   const {
     user,
     loading: authLoading,
@@ -98,6 +101,8 @@ export default function ChallengeResultPage() {
   const solutionFeedbackVisibility = useAppSelector(
     (state) => state.ui.solutionFeedbackVisibility
   );
+  const badgeSeen = useAppSelector((state) => state.auth.badgeSeen);
+
   const studentId = user?.id;
   const challengeId = params?.challengeId;
   const solutionFeedbackKey = challengeId ? String(challengeId) : null;
@@ -106,6 +111,7 @@ export default function ChallengeResultPage() {
     solutionFeedbackKey &&
     solutionFeedbackVisibility?.[studentId]?.[solutionFeedbackKey]
   );
+
   const { getChallengeResults } = useChallenge();
   const redirectOnError = useApiErrorRedirect();
 
@@ -115,6 +121,9 @@ export default function ChallengeResultPage() {
   const [finalization, setFinalization] = useState(null);
   const [isFinalizationPending, setIsFinalizationPending] = useState(false);
   const [awaitingChallengeEnd, setAwaitingChallengeEnd] = useState(false);
+  const [badgeQueue, setBadgeQueue] = useState([]);
+  const [activeBadge, setActiveBadge] = useState(null);
+  const [showBadge, setShowBadge] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -137,24 +146,34 @@ export default function ChallengeResultPage() {
         setFinalization(null);
         return;
       }
-      const payload = res?.data || res;
-      const finalizationInfo = payload?.finalization || null;
 
-      // BYPASS TO SHOW RESULTS IF SCORING IS DONE
+      const payload = res?.data || res;
+      setResultData(payload);
+
+      if (payload?.badges?.newlyUnlocked?.length > 0) {
+        const unseenBadges = payload.badges.newlyUnlocked.filter(
+          (badge) => !badgeSeen?.[studentId]?.[badge.id]
+        );
+        if (
+          unseenBadges.length > 0 &&
+          badgeQueue.length === 0 &&
+          !activeBadge
+        ) {
+          setBadgeQueue(unseenBadges);
+          setActiveBadge(unseenBadges[0]);
+          setShowBadge(true);
+        }
+      }
+
+      const finalizationInfo = payload?.finalization || null;
       const isScoringCompleted =
         payload?.challenge?.scoringStatus === 'completed';
       const resultsReady =
         finalizationInfo?.resultsReady !== false || isScoringCompleted;
 
       setFinalization(finalizationInfo);
-      setResultData(payload);
-
-      if (!resultsReady) {
-        setIsFinalizationPending(true);
-        return;
-      }
-      setIsFinalizationPending(false);
-    } catch {
+      setIsFinalizationPending(!resultsReady);
+    } catch (e) {
       setError('Unable to load results.');
     } finally {
       setLoading(false);
@@ -165,34 +184,38 @@ export default function ChallengeResultPage() {
     isLoggedIn,
     getChallengeResults,
     redirectOnError,
+    badgeQueue,
+    activeBadge,
+    badgeSeen,
   ]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (durationContext && hasChallengeStatus && !isChallengeEnded) {
-      setLoading(false);
-      return undefined;
+  const handleBadgeClose = () => {
+    if (activeBadge && studentId) {
+      dispatch(markBadgeSeen({ studentId, badgeId: activeBadge.id }));
     }
-    if (!canLoadResults) return undefined;
-    if (!challengeId || !studentId || !isLoggedIn) return undefined;
+    setBadgeQueue((prevQueue) => {
+      const [, ...rest] = prevQueue;
+      if (rest.length > 0) setActiveBadge(rest[0]);
+      else {
+        setActiveBadge(null);
+        setShowBadge(false);
+      }
+      return rest;
+    });
+  };
+
+  useEffect(() => {
+    if (!canLoadResults || !challengeId || !studentId || !isLoggedIn)
+      return undefined;
+    let cancelled = false;
     const run = async () => {
-      if (cancelled) return;
-      await loadResults();
+      if (!cancelled) await loadResults();
     };
     run();
     return () => {
       cancelled = true;
     };
-  }, [
-    canLoadResults,
-    challengeId,
-    durationContext,
-    hasChallengeStatus,
-    isChallengeEnded,
-    isLoggedIn,
-    loadResults,
-    studentId,
-  ]);
+  }, [canLoadResults, challengeId, studentId, isLoggedIn, loadResults]);
 
   useEffect(() => {
     if (!isFinalizationPending || !canLoadResults) return undefined;
@@ -685,6 +708,9 @@ export default function ChallengeResultPage() {
       >
         Back to challenges
       </Button>
+      {showBadge && (
+        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+      )}
     </div>
   );
 }

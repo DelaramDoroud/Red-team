@@ -1,4 +1,7 @@
+'use client';
+
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Star } from 'lucide-react';
 
 const FIREWORK_COUNT = 12;
@@ -10,39 +13,46 @@ const fireworkColors = [
   'text-purple-500',
 ];
 
-// Badge level styles
 const levelStyles = {
   bronze: { bg: 'bg-amber-600' },
   silver: { bg: 'bg-gray-400' },
   gold: { bg: 'bg-yellow-400' },
-  default: { bg: 'bg-gray-200' }, // no level
+  default: { bg: 'bg-gray-200' },
 };
 
 function BadgeModal({ badge, onClose }) {
+  const [mounted, setMounted] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
 
   useEffect(() => {
-    if (!badge) return;
+    setMounted(true);
+    if (!badge) return undefined;
+
+    const originalStyle = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
     setShowFireworks(true);
     const timer = setTimeout(() => setShowFireworks(false), 2500);
-    clearTimeout(timer);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = originalStyle;
+    };
   }, [badge]);
 
-  if (!badge) return null;
+  if (!mounted || !badge) return null;
 
   const level = badge.level?.toLowerCase() || 'default';
   const style = levelStyles[level];
 
-  // Icon image path
   const iconSrc = `/badge/${badge.iconKey}.png`;
 
-  return (
-    <div className='fixed inset-0 flex items-center justify-center z-50'>
-      {/* Background overlay */}
+  return createPortal(
+    <div className='fixed inset-0 z-[9999] flex items-center justify-center'>
+      {/* Background grigio */}
       <div className='absolute inset-0 bg-black/50' />
 
-      {/* Fireworks behind modal */}
+      {/* Fireworks */}
       {showFireworks && (
         <div className='absolute inset-0 pointer-events-none z-10'>
           {Array.from({ length: FIREWORK_COUNT }).map((_, i) => {
@@ -51,7 +61,7 @@ function BadgeModal({ badge, onClose }) {
             const y = Math.random() * 50 + 10;
             const color = fireworkColors[i % fireworkColors.length];
             const duration = 1000 + Math.random() * 1000;
-            const key = `firework-${i}-${Date.now()}-${color}`; // key unica
+            const key = `firework-${i}-${Date.now()}-${color}`;
 
             return (
               <Star
@@ -72,7 +82,7 @@ function BadgeModal({ badge, onClose }) {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modale */}
       <div className='relative bg-white rounded-2xl p-6 w-96 text-center shadow-xl z-20 animate-pop overflow-hidden'>
         {/* Header */}
         <div className='flex items-center justify-center gap-2 mb-6'>
@@ -83,12 +93,10 @@ function BadgeModal({ badge, onClose }) {
 
         {/* Badge circle */}
         <div className='mx-auto w-32 h-32 rounded-full flex items-center justify-center shadow-lg mb-4 relative'>
-          {/* Glow */}
           <span
             className={`absolute inset-0 rounded-full ${style.bg} opacity-40 animate-pulse`}
             style={{ filter: 'blur(12px)' }}
           />
-          {/* Icon image */}
           <img
             src={iconSrc}
             alt={badge.name}
@@ -99,7 +107,7 @@ function BadgeModal({ badge, onClose }) {
         {/* Badge info */}
         <h3 className='text-lg font-semibold'>{badge.name}</h3>
         <p className='text-gray-600 mt-1'>{badge.description}</p>
-        {badge.threshold && (
+        {badge.threshold && badge.metric && (
           <p className='text-gray-500 text-sm mt-2'>
             You&apos;ve completed {badge.threshold}{' '}
             {badge.metric.replace('_', ' ').toLowerCase()}!
@@ -118,23 +126,24 @@ function BadgeModal({ badge, onClose }) {
 
       {/* Keyframes */}
       <style>{`
-				@keyframes fireworkExplosion {
-				0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-				40% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
-				100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-				}
+        @keyframes fireworkExplosion {
+          0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+          40% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+        }
 
-				@keyframes popScale {
-				0% { transform: scale(0); opacity: 0; }
-				50% { transform: scale(1.3); opacity: 1; }
-				100% { transform: scale(1); opacity: 1; }
-				}
+        @keyframes popScale {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.3); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
 
-				.animate-pop-scale {
-				animation: popScale 0.6s ease-out forwards;
-				}
-			`}</style>
-    </div>
+        .animate-pop-scale {
+          animation: popScale 0.6s ease-out forwards;
+        }
+      `}</style>
+    </div>,
+    document.body
   );
 }
 

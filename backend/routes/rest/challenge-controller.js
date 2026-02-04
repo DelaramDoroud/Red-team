@@ -35,6 +35,8 @@ import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
+import logger from '#root/services/logger.js';
 
 const router = Router();
 
@@ -2087,7 +2089,8 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         tests: assignment.feedbackTests || [],
       }));
     }
-
+    const badgeStatus = await awardChallengeMilestoneBadges(studentId);
+    logger.info(`BadgeStatus for student ${studentId}: ${badgeStatus}`);
     return res.json({
       success: true,
       data: {
@@ -2130,6 +2133,10 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         otherSubmissions,
         peerReviewTests,
         scoreBreakdown,
+        badges: {
+          completedChallenges: badgeStatus.completedChallenges,
+          newlyUnlocked: badgeStatus.newlyUnlocked,
+        },
       },
     });
   } catch (error) {
