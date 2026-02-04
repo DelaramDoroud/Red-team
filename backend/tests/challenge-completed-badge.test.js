@@ -11,7 +11,7 @@ import Submission from '#root/models/submission.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import StudentBadge from '#root/models/student-badges.js';
 
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges.js';
+import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 
@@ -190,14 +190,18 @@ describe('Challenge milestone badge awarding (backend)', () => {
       await createCompletedChallenge(ineligibleStudent, i);
     }
 
-    const eligibleResult = await awardBadgeIfEligible(eligibleStudent.id);
-    const ineligibleResult = await awardBadgeIfEligible(ineligibleStudent.id);
+    const eligibleResult = await awardChallengeMilestoneBadges(
+      eligibleStudent.id
+    );
+    const ineligibleResult = await awardChallengeMilestoneBadges(
+      ineligibleStudent.id
+    );
 
     expect(eligibleResult.completedChallenges).toBe(5);
-    expect(eligibleResult.unlockedBadges.length).toBeGreaterThan(0);
+    expect(eligibleResult.newlyUnlocked.length).toBeGreaterThan(0);
 
     expect(ineligibleResult.completedChallenges).toBe(2);
-    expect(ineligibleResult.unlockedBadges).toHaveLength(0);
+    expect(ineligibleResult.newlyUnlocked).toHaveLength(0);
   });
 
   it('allows a single student to unlock multiple challenge badges in one evaluation', async () => {
@@ -212,10 +216,10 @@ describe('Challenge milestone badge awarding (backend)', () => {
       await createCompletedChallenge(student, i);
     }
 
-    const result = await awardBadgeIfEligible(student.id);
+    const result = await awardChallengeMilestoneBadges(student.id);
 
     expect(result.completedChallenges).toBe(5);
-    expect(result.unlockedBadges.length).toBeGreaterThan(1);
+    expect(result.newlyUnlocked.length).toBeGreaterThan(1);
   });
 
   it('returns only newly unlocked badges and does not return duplicates', async () => {
@@ -230,10 +234,10 @@ describe('Challenge milestone badge awarding (backend)', () => {
       await createCompletedChallenge(student, i);
     }
 
-    const first = await awardBadgeIfEligible(student.id);
-    expect(first.unlockedBadges.length).toBeGreaterThan(0);
+    const first = await awardChallengeMilestoneBadges(student.id);
+    expect(first.newlyUnlocked.length).toBeGreaterThan(0);
 
-    const second = await awardBadgeIfEligible(student.id);
-    expect(second.unlockedBadges).toHaveLength(0);
+    const second = await awardChallengeMilestoneBadges(student.id);
+    expect(second.newlyUnlocked).toHaveLength(0);
   });
 });
