@@ -60,10 +60,13 @@ const init = async () => {
         console.log(`${name}`);
       }
     }
+    process.exitCode = 0;
   } catch (e) {
     console.log(e);
     console.log(`\n\x1b[31mError message\x1b[0m: ${e.message}`);
+    process.exitCode = 1;
   } finally {
+    await sequelize.close();
     process.exit();
   }
 };

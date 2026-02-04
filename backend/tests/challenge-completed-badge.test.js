@@ -18,7 +18,7 @@ import { SubmissionStatus } from '#root/models/enum/enums.js';
 /* Helper: create one completed challenge for a student */
 async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
   const matchSetting = await MatchSetting.create({
-    problemTitle: `Problem ${suffix}`,
+    problemTitle: `Problem ${student.id}-${suffix}`,
     problemDescription: 'desc',
     referenceSolution: 'solution',
     publicTests: [],
@@ -29,7 +29,7 @@ async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
   const now = new Date();
 
   const challenge = await Challenge.create({
-    title: `Challenge ${suffix}`,
+    title: `Challenge ${student.id}-${suffix}`,
     duration: 30,
     startDatetime: new Date(now.getTime() - 2 * 60 * 60 * 1000),
     endDatetime: new Date(now.getTime() - 60 * 60 * 1000),
@@ -73,8 +73,7 @@ async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
 /* Test suite */
 describe('Challenge milestone badge awarding (backend)', () => {
   beforeAll(async () => {
-    // Create the full schema once
-    await sequelize.sync({ force: true });
+    await sequelize.truncate({ cascade: true, restartIdentity: true });
 
     // Seed challenge milestone badges (challenge_3, challenge_5, challenge_10)
     await Badge.seed();

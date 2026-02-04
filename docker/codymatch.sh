@@ -126,6 +126,17 @@ test)
     exit 1
   fi
 
+  echo "Running backend migrations on test DB..."
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
+    backend sh -c "npm run migrate"
+  MIGRATION_EXIT_CODE=$?
+
+  if [[ $MIGRATION_EXIT_CODE -ne 0 ]]; then
+    echo "Backend migration failed."
+    docker rm -f test-db >/dev/null 2>&1 || true
+    exit 1
+  fi
+
   echo "Running backend tests..."
 
   BACKEND_TEST_EXIT_CODE=0
