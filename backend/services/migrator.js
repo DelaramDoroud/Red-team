@@ -17,8 +17,7 @@ const up = async () => {
       `Migrated ${result.length} file${result.length === 1 ? '' : 's'}`
     );
   } catch (e) {
-    logger.error(e);
-    logger.error(e.message);
+    logger.error(`Migration failed: ${e.message}`);
     throw e;
   }
 };
@@ -31,8 +30,7 @@ const down = async () => {
       `Rolled back ${result.length} file${result.length === 1 ? '' : 's'}`
     );
   } catch (e) {
-    logger.error(e);
-    logger.error(e.message);
+    logger.error(`Rollback failed: ${e.message}`);
     throw e;
   }
 };
@@ -44,8 +42,7 @@ const downAll = async () => {
       `Rolled back ${result.length} file${result.length === 1 ? '' : 's'}`
     );
   } catch (e) {
-    logger.error(e);
-    logger.error(e.message);
+    logger.error(`Rollback all failed: ${e.message}`);
     throw e;
   }
 };

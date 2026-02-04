@@ -3,14 +3,14 @@ import { DataTypes } from 'sequelize';
 export async function up({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-        await queryInterface.addColumn(
-      'users',            
-      'title_id',    
+    await queryInterface.addColumn(
+      'users',
+      'title_id',
       {
         type: DataTypes.INTEGER,
-        allowNull: true,    
+        allowNull: true,
         references: {
-          model: 'titles',   
+          model: 'titles',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -28,11 +28,7 @@ export async function up({ context: queryInterface }) {
 export async function down({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-       await queryInterface.removeColumn(
-      'users',
-      'title_id',
-      { transaction }
-    );
+    await queryInterface.removeColumn('users', 'title_id', { transaction });
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();

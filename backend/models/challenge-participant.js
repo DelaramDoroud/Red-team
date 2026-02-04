@@ -63,6 +63,12 @@ ChallengeParticipant.initializeRelations = (models) => {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+  ChallengeParticipant.hasOne(models.SubmissionScoreBreakdown, {
+    as: 'scoreBreakdown',
+    foreignKey: 'challengeParticipantId',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
 };
 
 ChallengeParticipant.seed = async function () {
