@@ -35,6 +35,27 @@ describe('Skill Rules API', () => {
     expect(challenges.length).toBeGreaterThan(0);
     expect(challenges[0]).toHaveProperty('category', 'challenge_milestone');
     expect(challenges[0]).toHaveProperty('metric', 'challenges_completed');
+    expect(challenges[0]).toHaveProperty('iconKey');
+    expect(challenges[0]).toHaveProperty('threshold');
+
+    // Validate review_quality specifically for accuracy field
+    const quality = badgesByCategory.review_quality;
+    expect(Array.isArray(quality)).toBe(true);
+    expect(quality.length).toBeGreaterThan(0);
+    const rookieBadge = quality.find((b) => b.key === 'reviewer_rookie');
+    if (rookieBadge) {
+      expect(rookieBadge).toHaveProperty('accuracyRequired', 0.8);
+    }
+
+    // Verify Badge Sorting (Threshold ASC)
+    for (let i = 0; i < challenges.length - 1; i++) {
+      const current = challenges[i];
+      const next = challenges[i + 1];
+      // Badges should be sorted by threshold. If thresholds are equal, then by name (as per rules.js)
+      if (current.threshold !== next.threshold) {
+        expect(current.threshold).toBeLessThanOrEqual(next.threshold);
+      }
+    }
 
     // Validate review_milestone
     const reviews = badgesByCategory.review_milestone;
@@ -42,12 +63,6 @@ describe('Skill Rules API', () => {
     expect(reviews.length).toBeGreaterThan(0);
     expect(reviews[0]).toHaveProperty('category', 'review_milestone');
     expect(reviews[0]).toHaveProperty('metric', 'reviews_completed');
-
-    // Validate review_quality
-    const quality = badgesByCategory.review_quality;
-    expect(Array.isArray(quality)).toBe(true);
-    expect(quality.length).toBeGreaterThan(0);
-    expect(quality[0]).toHaveProperty('category', 'review_quality');
 
     // Check Titles
     expect(Array.isArray(titles)).toBe(true);
@@ -79,5 +94,26 @@ describe('Skill Rules API', () => {
     // Badge has 12 items, Title has 5 items
     expect(badgeCount).toBe(12);
     expect(titleCount).toBe(5);
+  });
+
+  describe('Empty Database State', () => {
+    beforeEach(async () => {
+      // Clear database with cascade to handle foreign keys
+      await Badge.destroy({ where: {}, cascade: true, force: true });
+      await Title.destroy({ where: {}, cascade: true, force: true });
+    });
+
+    it('returns empty structures when no data exists', async () => {
+      const res = await request(app).get('/api/rest/rules');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const { data } = res.body;
+
+      expect(data.titles).toEqual([]);
+      expect(data.badgesByCategory).toHaveProperty('challenge_milestone', []);
+      expect(data.badgesByCategory).toHaveProperty('review_milestone', []);
+      expect(data.badgesByCategory).toHaveProperty('review_quality', []);
+    });
   });
 });

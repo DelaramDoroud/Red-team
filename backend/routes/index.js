@@ -8,7 +8,7 @@ import submissionRouter from '#root/routes/rest/submission-controller.js';
 import runRouter from '#root/routes/rest/run-controller.js';
 import eventsRouter from '#root/routes/rest/events-controller.js';
 import peerReviewController from '#root/routes/rest/peer-review-controller.js';
-import rulesRouter from '#root/routes/rest/reward-conroller.js';
+import rulesRouter from '#root/routes/rest/reward-controller.js';
 import profileRouter from '#root/routes/rest/profile-controller.js';
 const router = Router();
 
