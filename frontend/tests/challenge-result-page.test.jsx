@@ -8,11 +8,13 @@ import { DurationProvider } from '../app/student/challenges/[challengeId]/(conte
 import { renderWithProviders } from './test-utils';
 
 const mockGetChallengeResults = vi.fn();
+const mockGetStudentVotes = vi.fn();
 
 vi.mock('#js/useChallenge', () => ({
   __esModule: true,
   default: () => ({
     getChallengeResults: mockGetChallengeResults,
+    getStudentVotes: mockGetStudentVotes,
   }),
 }));
 
@@ -58,6 +60,7 @@ describe('ChallengeResultPage', () => {
         challengeCountdowns: {},
         peerReviewExits: {},
         solutionFeedbackVisibility: {},
+        codeReviewVotesVisibility: {},
       },
     };
     const mergedState = {
@@ -133,7 +136,11 @@ describe('ChallengeResultPage', () => {
             id: 201,
             reviewer: { id: 2, username: 'peer' },
             tests: [
-              { input: '2 1', expectedOutput: '1 2', notes: 'Check ordering' },
+              {
+                input: '2 1',
+                expectedOutput: '1 2',
+                notes: 'Check ordering',
+              },
             ],
           },
         ],
@@ -175,7 +182,7 @@ describe('ChallengeResultPage', () => {
     expect(screen.getByText(/Public test results/i)).toBeInTheDocument();
     expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
     expect(screen.getAllByText('1 2').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Received Peer Tests/i)).toBeInTheDocument();
+    expect(screen.getByText(/Received Tests/i)).toBeInTheDocument();
     expect(screen.getByText(/Reviewer:\s*peer/i)).toBeInTheDocument();
     expect(screen.getByText(/2 1/)).toBeInTheDocument();
 
@@ -185,6 +192,82 @@ describe('ChallengeResultPage', () => {
 
     expect(screen.getAllByText('peer').length).toBeGreaterThan(0);
   });
+
+  it('toggles peer review votes and renders vote breakdown', async () => {
+    const user = userEvent.setup();
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        challenge: {
+          id: 42,
+          title: 'Sorting Challenge',
+          status: 'ended_phase_two',
+          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+        },
+        matchSetting: { id: 5, problemTitle: 'Sort an array' },
+        studentSubmission: {
+          id: 99,
+          code: 'int main() { return 0; }',
+          createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
+          publicTestResults: [],
+          privateTestResults: [],
+        },
+      },
+    });
+    mockGetStudentVotes.mockResolvedValue({
+      success: true,
+      votes: [
+        {
+          assignmentId: 901,
+          submissionId: 500,
+          reviewedSubmission: {
+            id: 500,
+            student: { id: 2, username: 'peer' },
+            problemTitle: 'Sort an array',
+          },
+          vote: 'incorrect',
+          expectedEvaluation: 'incorrect',
+          isCorrect: true,
+          testCaseInput: '[5]',
+          expectedOutput: '[10]',
+          referenceOutput: '[10]',
+          actualOutput: '[3]',
+          isExpectedOutputCorrect: true,
+          isVoteCorrect: true,
+        },
+      ],
+    });
+
+    renderPage({
+      durationValue: {
+        status: ChallengeStatus.ENDED_PHASE_TWO,
+      },
+    });
+
+    const votesToggle = await screen.findByRole('button', {
+      name: /View Your Peer Review Votes/i,
+    });
+    await user.click(votesToggle);
+
+    expect(
+      screen.getByRole('button', { name: /Hide Peer Review Votes/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Your Peer Review Votes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your vote:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Expected evaluation:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Test provided/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reference output/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewed output/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Correct/i).length).toBeGreaterThan(0);
+
+    await user.click(
+      screen.getByRole('button', { name: /Hide Peer Review Votes/i })
+    );
+    expect(
+      screen.queryByText(/Your Peer Review Votes/i, { selector: 'div' })
+    ).not.toBeInTheDocument();
+  });
+
   it('respects persisted solution feedback visibility', async () => {
     mockGetChallengeResults.mockResolvedValue({
       success: true,

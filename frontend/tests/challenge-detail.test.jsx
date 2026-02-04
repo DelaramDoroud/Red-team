@@ -166,6 +166,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 1,
         peerReviewReady: false,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -195,6 +198,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 2,
         peerReviewReady: true,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -220,6 +226,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 2,
         peerReviewReady: true,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -236,6 +245,34 @@ describe('ChallengeDetailPage', () => {
     await waitFor(() =>
       expect(mockStartPeerReview).toHaveBeenCalledWith('123')
     );
+  });
+
+  it('hides Assign button while submissions are still being finalized', async () => {
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
+        totalMatches: 3,
+        finalSubmissionCount: 1,
+        pendingFinalCount: 2,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
+
+    expect(
+      screen.queryByRole('button', { name: /^assign$/i })
+    ).not.toBeInTheDocument();
   });
 
   it('unpublishes then redirects to edit when Edit is confirmed', async () => {
