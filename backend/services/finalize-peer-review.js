@@ -179,7 +179,7 @@ export default async function finalizePeerReviewChallenge({
 
           const referenceSolution =
             assignment.submission.match.challengeMatchSetting.matchSetting
-              .dataValues.referenceSo;
+              .dataValues.referenceSolution;
 
           if (!referenceSolution) {
             logger.warn('No reference solution found for vote', {

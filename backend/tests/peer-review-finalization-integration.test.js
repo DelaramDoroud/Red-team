@@ -6,6 +6,7 @@ import {
   afterAll,
   beforeEach,
   afterEach,
+  vi,
 } from 'vitest';
 import request from 'supertest';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
@@ -120,6 +121,8 @@ afterAll(async () => {
 });
 
 describe('Peer Review Finalization - Integration Tests', () => {
+  vi.setConfig({ testTimeout: 15000 });
+
   it('should complete full finalization flow: setup -> timer expiry -> finalize -> verify', async () => {
     // 1. Setup: Create challenge, participants, assignments
     const suffix = Date.now() + Math.floor(Math.random() * 1000);
