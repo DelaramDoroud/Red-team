@@ -147,12 +147,6 @@ const markPhaseTwoEnded = async (challengeId) => {
         { where: { id: challengeId } }
       );
 
-      // --- AGGIUNGI QUESTO BLOCCO PER IL TEST ---
-      logger.info(
-        '[Scheduler] TEST MODE: Pausing for 15 seconds to test Spinner...'
-      );
-      await new Promise((resolve) => setTimeout(resolve, 15000));
-
       broadcastEvent({
         event: 'challenge-updated',
         data: {

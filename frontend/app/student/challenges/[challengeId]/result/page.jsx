@@ -125,7 +125,6 @@ export default function ChallengeResultPage() {
     try {
       const res = await getChallengeResults(challengeId, studentId);
       if (res?.success === false) {
-        // ... (codice errore esistente, lascialo uguale) ...
         const apiMessage = res?.error?.message || getApiErrorMessage(res, null);
         if (apiMessage?.toLowerCase().includes('has not ended yet')) {
           setAwaitingChallengeEnd(true);
@@ -140,18 +139,14 @@ export default function ChallengeResultPage() {
         return;
       }
 
-      // --- INIZIO MODIFICA CRITICA ---
       const payload = res?.data || res;
       const finalizationInfo = payload?.finalization || null;
       const scoringStatus = payload?.challenge?.scoringStatus;
 
-      // 1. Controlliamo se stiamo ancora calcolando
       const isComputing = scoringStatus === 'computing';
 
-      // 2. Controlliamo se mancano sottomissioni
       const areSubmissionsPending = finalizationInfo?.resultsReady === false;
 
-      // Se stiamo calcolando O mancano sottomissioni -> MOSTRA SPINNER
       const shouldShowSpinner = isComputing || areSubmissionsPending;
 
       setFinalization(finalizationInfo);
@@ -162,7 +157,6 @@ export default function ChallengeResultPage() {
         return;
       }
       setIsFinalizationPending(false);
-      // --- FINE MODIFICA CRITICA ---
     } catch {
       setError('Unable to load results.');
     } finally {
