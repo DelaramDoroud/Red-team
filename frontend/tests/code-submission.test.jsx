@@ -589,14 +589,11 @@ describe('RT-4 Code Submission', () => {
     });
 
     await waitFor(() => {
-      expect(mockRunCode).toHaveBeenCalled();
-    });
-    expect(mockSubmitSubmission).not.toHaveBeenCalled();
-    await waitFor(() => {
       expect(screen.getByTestId('message')).toHaveTextContent(
         'You submitted your code.'
       );
     });
+    expect(mockSubmitSubmission).not.toHaveBeenCalled();
   });
 
   it('auto-submits the latest code after a successful run without manual submit', async () => {

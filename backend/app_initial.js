@@ -49,7 +49,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(morgan('combined', { stream: accessLogStream }));
+if (!isTestEnv) app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.json());
 app.use(
   session({

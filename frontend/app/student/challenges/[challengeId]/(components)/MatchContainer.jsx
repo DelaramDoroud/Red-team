@@ -735,7 +735,30 @@ export default function MatchContainer({ challengeId, studentId }) {
         if (res?.success) {
           const payload = res?.data || res;
           const finalizationInfo = payload?.finalization || null;
-          const resultsReady = finalizationInfo?.resultsReady !== false;
+          const resultsReadyFlag =
+            typeof finalizationInfo?.resultsReady === 'boolean'
+              ? finalizationInfo.resultsReady
+              : null;
+          const pendingFinalCount =
+            typeof finalizationInfo?.pendingFinalCount === 'number'
+              ? finalizationInfo.pendingFinalCount
+              : null;
+          const totalMatches =
+            typeof finalizationInfo?.totalMatches === 'number'
+              ? finalizationInfo.totalMatches
+              : null;
+          const finalSubmissionCount =
+            typeof finalizationInfo?.finalSubmissionCount === 'number'
+              ? finalizationInfo.finalSubmissionCount
+              : null;
+          let resultsReady = false;
+          if (resultsReadyFlag !== null) {
+            resultsReady = resultsReadyFlag;
+          } else if (pendingFinalCount !== null) {
+            resultsReady = pendingFinalCount === 0;
+          } else if (totalMatches !== null && finalSubmissionCount !== null) {
+            resultsReady = finalSubmissionCount >= totalMatches;
+          }
 
           if (resultsReady) {
             setMessage(resolveCodingPhaseMessage(payload?.submissionSummary));

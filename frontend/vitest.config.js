@@ -3,10 +3,13 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    IS_REACT_ACT_ENVIRONMENT: true,
+  },
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './vitest.setup.js',
+    setupFiles: ['./vitest.globals.js', './vitest.setup.js'],
     pool: 'forks',
     maxThreads: 1,
     minThreads: 1,
