@@ -245,7 +245,7 @@ describe('ChallengeResultPage', () => {
     });
 
     const votesToggle = await screen.findByRole('button', {
-      name: /View Your Peer Review Votes/i,
+      name: /View Your Code Review Votes/i,
     });
     await user.click(votesToggle);
 
@@ -352,10 +352,14 @@ describe('ChallengeResultPage', () => {
         status: ChallengeStatus.STARTED_PHASE_TWO,
       },
     });
-
     expect(
-      await screen.findByText(/Peer review in progress/i)
+      await screen.findByText(/Scoring is not available yet/i)
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Please wait until the peer review phase has ended/i)
+    ).toBeInTheDocument();
+
+    // Lo snake c'è ancora
     expect(screen.getByText(/Snake break/i)).toBeInTheDocument();
   });
 
@@ -368,6 +372,7 @@ describe('ChallengeResultPage', () => {
           title: 'Sorting Challenge',
           status: 'ended_phase_two',
           endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+          scoringStatus: 'computing', // Importante simulare lo stato computing
         },
         finalization: {
           totalMatches: 4,
@@ -385,8 +390,12 @@ describe('ChallengeResultPage', () => {
     });
 
     expect(
-      await screen.findByText(/Preparing your results/i)
+      await screen.findByText(/Scoring is not available yet/i)
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Please wait until scoring is computed/i)
+    ).toBeInTheDocument();
+
     expect(screen.getByText(/Snake break/i)).toBeInTheDocument();
     expect(screen.getByText(/Finalized submissions/i)).toBeInTheDocument();
   });
