@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 import { Button } from '#components/common/Button';
-import SnakeGame from '#components/common/SnakeGame';
 import {
   Card,
   CardContent,
@@ -27,6 +26,7 @@ import {
   formatCodeWithNewlines,
   resolveCodingPhaseMessage,
 } from './peerReviewHelpers';
+import FinalizationWaitCard from './FinalizationWaitCard';
 import PeerReviewContent from './PeerReviewContent';
 import { useDuration } from '../(context)/DurationContext';
 
@@ -111,7 +111,7 @@ export default function PeerReviewPage() {
     }
     const payload = res?.data || res;
     const finalizationInfo = payload?.finalization || null;
-    const resultsReady = finalizationInfo?.resultsReady !== false;
+    const resultsReady = finalizationInfo?.resultsReady === true;
     setFinalization(finalizationInfo);
     setSubmissionSummary(payload?.submissionSummary || null);
     setIsFinalizationPending(!resultsReady);
@@ -175,14 +175,6 @@ export default function PeerReviewPage() {
         setVoteMap(initialVoteMap);
 
         const challengeStatus = assignmentsRes?.challenge?.status;
-        if (challengeStatus === ChallengeStatus.ENDED_PHASE_ONE) {
-          await loadFinalization();
-        } else {
-          setSubmissionSummary(null);
-          setFinalization(null);
-          setFinalizationError(null);
-          setIsFinalizationPending(false);
-        }
 
         if (nextAssignments.length > 0) {
           setSelectedIndex(0);
@@ -321,11 +313,34 @@ export default function PeerReviewPage() {
     }
   }, [timeLeft, challengeId, finalizePeerReview, fetchPeerReviewSummary]);
 
+  const effectiveStatus = durationStatus || challengeInfo?.status;
   const isPeerReviewActive =
-    challengeInfo?.status === ChallengeStatus.STARTED_PHASE_TWO ||
-    challengeInfo?.status === ChallengeStatus.ENDED_PHASE_TWO;
+    effectiveStatus === ChallengeStatus.STARTED_PHASE_TWO ||
+    effectiveStatus === ChallengeStatus.ENDED_PHASE_TWO;
   const isCodingPhaseComplete =
-    challengeInfo?.status === ChallengeStatus.ENDED_PHASE_ONE;
+    effectiveStatus === ChallengeStatus.ENDED_PHASE_ONE;
+
+  useEffect(() => {
+    if (!challengeId || !studentId || !isStudentUser) return undefined;
+
+    if (!isCodingPhaseComplete) {
+      setSubmissionSummary(null);
+      setFinalization(null);
+      setFinalizationError(null);
+      setIsFinalizationPending(false);
+      return undefined;
+    }
+
+    setIsFinalizationPending(true);
+    loadFinalization();
+    return undefined;
+  }, [
+    challengeId,
+    studentId,
+    isStudentUser,
+    isCodingPhaseComplete,
+    loadFinalization,
+  ]);
 
   useEffect(() => {
     if (!challengeId || !studentId || !isStudentUser) return undefined;
@@ -692,7 +707,9 @@ export default function PeerReviewPage() {
   if ((!isLoggedIn && !isAuthorized) || !studentId || !isStudentUser)
     return null;
 
-  if (!loading && !isPeerReviewActive) {
+  if (isCodingPhaseComplete && !isPeerReviewActive) {
+    const showFinalizationPending =
+      isFinalizationPending || finalization === null;
     const progressText =
       typeof finalization?.totalMatches === 'number' &&
       typeof finalization?.finalSubmissionCount === 'number'
@@ -702,70 +719,37 @@ export default function PeerReviewPage() {
       typeof finalization?.pendingFinalCount === 'number'
         ? `${finalization.pendingFinalCount}`
         : null;
-    const codingPhaseMessage = isCodingPhaseComplete
-      ? resolveCodingPhaseMessage(submissionSummary)
-      : null;
-    const finalizationTitle = isFinalizationPending
-      ? 'Finalizing submissions'
-      : 'Coding phase complete';
-    const finalizationDescription = isFinalizationPending
-      ? 'We are reviewing submissions before peer review begins.'
-      : 'Wait for your teacher to start the peer review phase.';
+    const codingPhaseMessage = resolveCodingPhaseMessage(submissionSummary);
 
-    if (isCodingPhaseComplete) {
+    if (showFinalizationPending) {
       return (
-        <div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{finalizationTitle}</CardTitle>
-              <CardDescription>{finalizationDescription}</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-2 text-sm text-muted-foreground'>
-              {isFinalizationPending ? (
-                <p>We are reviewing your submission, please wait.</p>
-              ) : (
-                <>
-                  <p>{codingPhaseMessage}</p>
-                  <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {isFinalizationPending && (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preparing submissions</CardTitle>
-                  <CardDescription>
-                    We are finalizing submissions before peer review begins.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-2 text-sm text-muted-foreground'>
-                  {progressText && (
-                    <p>
-                      Finalized submissions:{' '}
-                      <span className='font-semibold'>{progressText}</span>
-                    </p>
-                  )}
-                  {pendingText && (
-                    <p>
-                      Pending calculations:{' '}
-                      <span className='font-semibold'>{pendingText}</span>
-                    </p>
-                  )}
-                  {finalizationError && (
-                    <p className='text-amber-700'>{finalizationError}</p>
-                  )}
-                </CardContent>
-              </Card>
-              <SnakeGame />
-            </>
-          )}
-        </div>
+        <FinalizationWaitCard
+          progressText={progressText}
+          pendingText={pendingText}
+          errorText={finalizationError}
+        />
       );
     }
 
+    return (
+      <div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
+        <Card>
+          <CardHeader>
+            <CardTitle>Coding phase complete</CardTitle>
+            <CardDescription>
+              Wait for your teacher to start the peer review phase.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-2 text-sm text-muted-foreground'>
+            <p>{codingPhaseMessage}</p>
+            <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!loading && !isPeerReviewActive) {
     return (
       <div className='max-w-3xl mx-auto px-4 py-8 space-y-4'>
         <Card>

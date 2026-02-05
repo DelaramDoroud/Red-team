@@ -9,13 +9,10 @@ export default function useFinalizationPolling({
   challengeId,
   studentId,
   isFinalizationPending,
-  clearFinalizationTimer,
-  setFinalizationTimer,
   getChallengeResults,
   redirectOnError,
   setMessage,
   setIsFinalizationPending,
-  pollDelayMs,
 }) {
   const resolveFinalizationStatus = useCallback(async () => {
     try {
@@ -80,35 +77,13 @@ export default function useFinalizationPolling({
   useEffect(() => {
     if (!isFinalizationPending) return undefined;
     if (!challengeId || !studentId) return undefined;
-
-    let cancelled = false;
-
-    const pollFinalization = async () => {
-      const isReady = await resolveFinalizationStatus();
-      if (cancelled || isReady) return;
-
-      clearFinalizationTimer();
-      setFinalizationTimer(
-        setTimeout(() => {
-          pollFinalization();
-        }, pollDelayMs)
-      );
-    };
-
-    pollFinalization();
-
-    return () => {
-      cancelled = true;
-      clearFinalizationTimer();
-    };
+    resolveFinalizationStatus();
+    return undefined;
   }, [
     challengeId,
     isFinalizationPending,
-    pollDelayMs,
     resolveFinalizationStatus,
     studentId,
-    clearFinalizationTimer,
-    setFinalizationTimer,
   ]);
 
   useEffect(() => {
@@ -121,7 +96,10 @@ export default function useFinalizationPolling({
     });
 
     const handleUpdate = async (event) => {
-      if (!event?.data) return;
+      if (!event?.data) {
+        await resolveFinalizationStatus();
+        return;
+      }
       try {
         const payload = JSON.parse(event.data);
         const payloadId = Number(payload?.challengeId);

@@ -16,7 +16,6 @@ import MatchView from './MatchView';
 import useMatchActions from './useMatchActions';
 import {
   DRAFT_SAVE_DELAY_MS,
-  FINALIZATION_POLL_DELAY_MS,
   MESSAGE_PEER_REVIEW_PENDING,
   analyzeImports,
   assembleCode,
@@ -116,9 +115,6 @@ export default function MatchContainer({ challengeId, studentId }) {
   );
   const markAutoSubmitTriggered = useCallback(() => {
     autoSubmitTriggeredRef.current = true;
-  }, []);
-  const setFinalizationTimer = useCallback((timerId) => {
-    finalizationPollTimerRef.current = timerId;
   }, []);
   const clearFinalizationTimer = useCallback(() => {
     if (finalizationPollTimerRef.current) {
@@ -517,13 +513,10 @@ export default function MatchContainer({ challengeId, studentId }) {
     challengeId,
     studentId,
     isFinalizationPending,
-    clearFinalizationTimer,
     getChallengeResults,
     redirectOnError,
     setMessage,
     setIsFinalizationPending,
-    pollDelayMs: FINALIZATION_POLL_DELAY_MS,
-    setFinalizationTimer,
   });
 
   const {
