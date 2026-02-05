@@ -15,7 +15,31 @@ import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
 // Mock executeCodeTests service
-const mockExecuteCodeTests = vi.fn();
+const { mockExecuteCodeTests } = vi.hoisted(() => ({
+  mockExecuteCodeTests: vi.fn().mockImplementation(async ({ testCases }) => ({
+    testResults: Array.isArray(testCases)
+      ? testCases.map((testCase, index) => ({
+          testIndex: index,
+          passed: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+          expectedOutput: testCase?.expectedOutput ?? '',
+          actualOutput: testCase?.expectedOutput ?? '',
+          executionTime: 0,
+        }))
+      : [],
+    summary: {
+      total: Array.isArray(testCases) ? testCases.length : 0,
+      passed: Array.isArray(testCases) ? testCases.length : 0,
+      failed: 0,
+      allPassed: true,
+    },
+    isCompiled: true,
+    isPassed: true,
+    errors: [],
+  })),
+}));
 vi.mock('#root/services/execute-code-tests.js', () => ({
   executeCodeTests: (...args) => mockExecuteCodeTests(...args),
 }));

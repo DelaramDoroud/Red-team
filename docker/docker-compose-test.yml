@@ -24,6 +24,7 @@ services:
         DB_USER: codymatch
         DB_PASSWORD: ${DB_PASSWORD:-codymatch}
         NODE_ENV: test
+        DISABLE_HTTP_LOGS: 'true'
         CODE_RUNNER_TEMP_DIR: /tmp/code-runner
         USERID: ${USERID}
         GROUPID: ${GROUPID}

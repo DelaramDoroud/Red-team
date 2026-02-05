@@ -18,6 +18,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isTestEnv =
   process.env.NODE_ENV === 'test' || process.env.ENVIRONMENT === 'test';
+const disableAccessLogs = isTestEnv || process.env.DISABLE_HTTP_LOGS === 'true';
 
 const app = express();
 
@@ -49,7 +50,8 @@ app.use(
     credentials: true,
   })
 );
-if (!isTestEnv) app.use(morgan('combined', { stream: accessLogStream }));
+if (!disableAccessLogs)
+  app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.json());
 app.use(
   session({

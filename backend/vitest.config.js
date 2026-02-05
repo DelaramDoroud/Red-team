@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.js'],
+    setupFiles: ['./vitest.setup.js'],
     bail: 1,
     coverage: {
       reporter: ['text', 'lcov'],
