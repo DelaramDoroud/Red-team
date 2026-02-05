@@ -257,7 +257,7 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
 // ----------------------------- FINALIZE CHALLENGE -----------------------------
 router.post('/peer-review/finalize-challenge', async (req, res) => {
   try {
-    const { challengeId, allowEarly = false } = req.body;
+    const { challengeId, allowEarly = true } = req.body;
     if (!challengeId) {
       return res.status(400).json({
         success: false,
