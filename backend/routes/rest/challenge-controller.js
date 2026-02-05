@@ -2096,6 +2096,7 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
           title: challenge.title,
           status: challenge.status,
           endPhaseTwoDateTime: challenge.endPhaseTwoDateTime,
+          scoringStatus: challenge.scoringStatus,
         },
         matchSetting: match.challengeMatchSetting?.matchSetting
           ? {

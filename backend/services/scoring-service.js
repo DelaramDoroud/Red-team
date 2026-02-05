@@ -293,7 +293,6 @@ export async function calculateChallengeScores(challengeId) {
     const reviewerId = participant.id;
     const revAssignments = reviewerAssignmentsMap.get(reviewerId) || [];
 
-    // FIX: Accesso tramite array (submissions[0])
     const reviewerSubmission =
       participant.submissions && participant.submissions.length > 0
         ? participant.submissions[0]

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
+import Spinner from '#components/common/Spinner';
 import {
   Card,
   CardContent,
@@ -124,6 +125,7 @@ export default function ChallengeResultPage() {
     try {
       const res = await getChallengeResults(challengeId, studentId);
       if (res?.success === false) {
+        // ... (codice errore esistente, lascialo uguale) ...
         const apiMessage = res?.error?.message || getApiErrorMessage(res, null);
         if (apiMessage?.toLowerCase().includes('has not ended yet')) {
           setAwaitingChallengeEnd(true);
@@ -137,23 +139,30 @@ export default function ChallengeResultPage() {
         setFinalization(null);
         return;
       }
+
+      // --- INIZIO MODIFICA CRITICA ---
       const payload = res?.data || res;
       const finalizationInfo = payload?.finalization || null;
+      const scoringStatus = payload?.challenge?.scoringStatus;
 
-      // BYPASS TO SHOW RESULTS IF SCORING IS DONE
-      const isScoringCompleted =
-        payload?.challenge?.scoringStatus === 'completed';
-      const resultsReady =
-        finalizationInfo?.resultsReady !== false || isScoringCompleted;
+      // 1. Controlliamo se stiamo ancora calcolando
+      const isComputing = scoringStatus === 'computing';
+
+      // 2. Controlliamo se mancano sottomissioni
+      const areSubmissionsPending = finalizationInfo?.resultsReady === false;
+
+      // Se stiamo calcolando O mancano sottomissioni -> MOSTRA SPINNER
+      const shouldShowSpinner = isComputing || areSubmissionsPending;
 
       setFinalization(finalizationInfo);
       setResultData(payload);
 
-      if (!resultsReady) {
+      if (shouldShowSpinner) {
         setIsFinalizationPending(true);
         return;
       }
       setIsFinalizationPending(false);
+      // --- FINE MODIFICA CRITICA ---
     } catch {
       setError('Unable to load results.');
     } finally {
@@ -169,12 +178,9 @@ export default function ChallengeResultPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (durationContext && hasChallengeStatus && !isChallengeEnded) {
-      setLoading(false);
-      return undefined;
-    }
-    if (!canLoadResults) return undefined;
+
     if (!challengeId || !studentId || !isLoggedIn) return undefined;
+
     const run = async () => {
       if (cancelled) return;
       await loadResults();
@@ -184,7 +190,6 @@ export default function ChallengeResultPage() {
       cancelled = true;
     };
   }, [
-    canLoadResults,
     challengeId,
     durationContext,
     hasChallengeStatus,
@@ -227,27 +232,6 @@ export default function ChallengeResultPage() {
   const isWaitingForResults =
     awaitingChallengeEnd ||
     (durationContext && hasChallengeStatus && !isChallengeEnded);
-
-  if (isWaitingForResults) {
-    return (
-      <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
-        <Card>
-          <CardHeader>
-            <CardTitle>Peer review in progress</CardTitle>
-            <CardDescription>
-              Your review is complete. Results will be available once the
-              challenge ends.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='text-sm text-muted-foreground'>
-            You can play a quick round of Snake while you wait.
-          </CardContent>
-        </Card>
-        <SnakeGame />
-      </div>
-    );
-  }
-
   if (isFinalizationPending) {
     const totalMatches = finalization?.totalMatches;
     const finalizedCount = finalization?.finalSubmissionCount;
@@ -258,14 +242,17 @@ export default function ChallengeResultPage() {
         : null;
     const pendingText =
       typeof pendingCount === 'number' ? `${pendingCount}` : null;
+
     return (
       <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
         <Card>
           <CardHeader>
-            <CardTitle>Preparing your results</CardTitle>
+            <div className='flex items-center gap-3'>
+              <Spinner className='h-6 w-6 text-primary animate-spin' />
+              <CardTitle>Scoring is not available yet</CardTitle>
+            </div>
             <CardDescription>
-              We are still finalizing submissions for the class. You can play a
-              quick round of Snake while we finish.
+              Please wait until scoring is computed.
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-2 text-sm text-muted-foreground'>
@@ -286,6 +273,25 @@ export default function ChallengeResultPage() {
                 Having trouble refreshing results. Retrying automatically...
               </p>
             )}
+          </CardContent>
+        </Card>
+        <SnakeGame />
+      </div>
+    );
+  }
+
+  if (isWaitingForResults) {
+    return (
+      <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
+        <Card className='border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/50'>
+          <CardHeader>
+            <CardTitle>Scoring is not available yet</CardTitle>
+            <CardDescription className='text-amber-800 dark:text-amber-200'>
+              Please wait until the peer review phase has ended.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='text-sm text-muted-foreground'>
+            You can play a quick round of Snake while you wait.
           </CardContent>
         </Card>
         <SnakeGame />

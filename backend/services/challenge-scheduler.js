@@ -120,7 +120,10 @@ const markPhaseTwoEnded = async (challengeId) => {
 
   // 1. Finalize Peer Review
   logger.info(`[Scheduler] Finalizing Peer Review for ${challengeId}...`);
-  const result = await finalizePeerReviewChallenge({ challengeId });
+  const result = await finalizePeerReviewChallenge({
+    challengeId,
+    allowEarly: true,
+  });
 
   if (result.status === 'ok' && result.challenge) {
     logger.info(
@@ -143,6 +146,12 @@ const markPhaseTwoEnded = async (challengeId) => {
         { scoringStatus: 'computing' },
         { where: { id: challengeId } }
       );
+
+      // --- AGGIUNGI QUESTO BLOCCO PER IL TEST ---
+      logger.info(
+        '[Scheduler] TEST MODE: Pausing for 15 seconds to test Spinner...'
+      );
+      await new Promise((resolve) => setTimeout(resolve, 15000));
 
       broadcastEvent({
         event: 'challenge-updated',
