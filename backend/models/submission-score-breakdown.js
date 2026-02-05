@@ -10,16 +10,16 @@ SubmissionScoreBreakdown.init(
       primaryKey: true,
       autoIncrement: true,
     },
-    // --- NUOVO CAMPO OBBLIGATORIO ---
+
     challengeParticipantId: {
       type: DataTypes.INTEGER,
-      allowNull: false, // Il voto appartiene sempre a un partecipante
+      allowNull: false,
       field: 'challenge_participant_id',
     },
-    // --- CAMPO MODIFICATO (ORA OPZIONALE) ---
+
     submissionId: {
       type: DataTypes.INTEGER,
-      allowNull: true, // Può essere NULL se lo studente non ha consegnato codice
+      allowNull: true,
       field: 'submission_id',
     },
     codeReviewScore: {
@@ -61,8 +61,7 @@ SubmissionScoreBreakdown.init(
     indexes: [
       {
         unique: true,
-        // L'indice univoco ora deve essere sul PARTECIPANTE
-        // Uno studente può avere solo un breakdown per challenge
+
         fields: ['challenge_participant_id'],
         name: 'uq_submission_score_breakdown_participant_id',
       },
@@ -71,7 +70,6 @@ SubmissionScoreBreakdown.init(
 );
 
 SubmissionScoreBreakdown.initializeRelations = (models) => {
-  // Relazione esistente (resa opzionale)
   SubmissionScoreBreakdown.belongsTo(models.Submission, {
     as: 'submission',
     foreignKey: 'submissionId',
@@ -79,7 +77,6 @@ SubmissionScoreBreakdown.initializeRelations = (models) => {
     onUpdate: 'CASCADE',
   });
 
-  // --- NUOVA RELAZIONE FONDAMENTALE ---
   SubmissionScoreBreakdown.belongsTo(models.ChallengeParticipant, {
     as: 'challengeParticipant',
     foreignKey: 'challengeParticipantId',

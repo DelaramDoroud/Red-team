@@ -1,4 +1,7 @@
 import Submission from '#root/models/submission.js';
+import Match from '#root/models/match.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import { Op } from 'sequelize';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 const submissionStatusRank = {
@@ -70,4 +73,84 @@ export const computeFinalSubmissionForMatch = async ({
   }
 
   return winner;
+};
+
+export const finalizeMissingSubmissionsForChallenge = async ({
+  challengeId,
+  transaction,
+}) => {
+  if (!challengeId) return [];
+
+  const matches = await Match.findAll({
+    attributes: ['id', 'challengeParticipantId'],
+    include: [
+      {
+        model: ChallengeMatchSetting,
+        as: 'challengeMatchSetting',
+        attributes: ['challengeId'],
+        where: { challengeId },
+      },
+    ],
+    transaction,
+  });
+
+  if (!matches.length) return [];
+
+  const matchIds = matches.map((matchRow) => matchRow.id);
+  const submissions = await Submission.findAll({
+    attributes: ['matchId', 'isFinal'],
+    where: { matchId: { [Op.in]: matchIds } },
+    transaction,
+    raw: true,
+  });
+
+  const matchHasSubmission = new Set();
+  const matchHasFinal = new Set();
+  submissions.forEach((row) => {
+    matchHasSubmission.add(row.matchId);
+    if (row.isFinal) {
+      matchHasFinal.add(row.matchId);
+    }
+  });
+
+  const finalizedMatches = [];
+
+  for (const matchRow of matches) {
+    const matchId = matchRow.id;
+    if (!matchHasSubmission.has(matchId)) {
+      const created = await Submission.create(
+        {
+          matchId,
+          challengeParticipantId: matchRow.challengeParticipantId,
+          code: '',
+          status: SubmissionStatus.WRONG,
+          isAutomaticSubmission: true,
+          isFinal: true,
+          publicTestResults: JSON.stringify([]),
+          privateTestResults: JSON.stringify([]),
+        },
+        { transaction }
+      );
+      finalizedMatches.push({
+        matchId,
+        submissionId: created.id,
+      });
+      continue;
+    }
+
+    if (!matchHasFinal.has(matchId)) {
+      const winner = await computeFinalSubmissionForMatch({
+        matchId,
+        transaction,
+      });
+      if (winner) {
+        finalizedMatches.push({
+          matchId,
+          submissionId: winner.id,
+        });
+      }
+    }
+  }
+
+  return finalizedMatches;
 };

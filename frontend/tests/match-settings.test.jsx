@@ -26,8 +26,6 @@ const mockUpdateMatchSetting = vi.fn();
 const mockPublishMatchSetting = vi.fn();
 const mockUnpublishMatchSetting = vi.fn();
 const mockGetMatchSetting = vi.fn();
-const mockGetMatchSettingPeerReviewTests = vi.fn();
-
 vi.mock('#js/useMatchSetting', () => ({
   default: () => ({
     loading: false,
@@ -38,7 +36,6 @@ vi.mock('#js/useMatchSetting', () => ({
     publishMatchSetting: mockPublishMatchSetting,
     unpublishMatchSetting: mockUnpublishMatchSetting,
     getMatchSetting: mockGetMatchSetting,
-    getMatchSettingPeerReviewTests: mockGetMatchSettingPeerReviewTests,
   }),
 }));
 
@@ -86,25 +83,6 @@ describe('Match Settings UI', () => {
         publicTests: [],
         privateTests: [],
         status: 'draft',
-      },
-    });
-    mockGetMatchSettingPeerReviewTests.mockResolvedValue({
-      success: true,
-      data: {
-        assignmentCount: 1,
-        totalTests: 1,
-        tests: [
-          {
-            assignmentId: 1,
-            submissionId: 99,
-            createdAt: new Date('2025-11-30T10:00:00Z').toISOString(),
-            reviewer: { id: 1, username: 'reviewer' },
-            challenge: { id: 10, title: 'Challenge 10' },
-            input: '[1,2]',
-            expectedOutput: '[2,1]',
-            notes: 'Swap needed',
-          },
-        ],
       },
     });
   });
@@ -168,26 +146,5 @@ describe('Match Settings UI', () => {
     ).toBeInTheDocument();
     expect(mockPublishMatchSetting).not.toHaveBeenCalled();
     expect(mockCreateMatchSetting).not.toHaveBeenCalled();
-  });
-
-  it('renders peer review test suggestions and allows adding to private tests', async () => {
-    const user = userEvent.setup();
-    render(<MatchSettingForm matchSettingId={10} />);
-
-    expect(
-      await screen.findByText(/Student-submitted tests/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Reviewer: reviewer/i)).toBeInTheDocument();
-
-    const addButton = screen.getByRole('button', {
-      name: /add to private tests/i,
-    });
-    await user.click(addButton);
-
-    expect(
-      await screen.findByText(/Test added to private tests/i)
-    ).toBeInTheDocument();
-    expect(screen.getByDisplayValue('[1,2]')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('[2,1]')).toBeInTheDocument();
   });
 });

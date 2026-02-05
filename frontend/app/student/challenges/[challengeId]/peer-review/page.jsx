@@ -17,7 +17,7 @@ import {
 import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
-import { ChallengeStatus } from '#js/constants';
+import { API_REST_BASE, ChallengeStatus } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
@@ -325,16 +325,6 @@ export default function PeerReviewPage() {
     router,
   ]);
 
-  useEffect(() => {
-    if (!isFinalizationPending) return undefined;
-    if (challengeInfo?.status !== ChallengeStatus.ENDED_PHASE_ONE)
-      return undefined;
-    const timeoutId = setTimeout(() => {
-      loadFinalization();
-    }, 4000);
-    return () => clearTimeout(timeoutId);
-  }, [challengeInfo?.status, isFinalizationPending, loadFinalization]);
-
   const phaseTwoStart = challengeInfo?.startPhaseTwoDateTime;
   const phaseTwoDuration = challengeInfo?.durationPeerReview;
   const phaseTwoEnd = challengeInfo?.endPhaseTwoDateTime;
@@ -412,6 +402,44 @@ export default function PeerReviewPage() {
     challengeInfo?.status === ChallengeStatus.ENDED_PHASE_TWO;
   const isCodingPhaseComplete =
     challengeInfo?.status === ChallengeStatus.ENDED_PHASE_ONE;
+
+  useEffect(() => {
+    if (!challengeId || !studentId || !isStudentUser) return undefined;
+    if (!isCodingPhaseComplete) return undefined;
+
+    const source = new EventSource(`${API_REST_BASE}/events`, {
+      withCredentials: true,
+    });
+
+    const handleUpdate = (event) => {
+      if (!event?.data) {
+        loadFinalization();
+        return;
+      }
+      try {
+        const payload = JSON.parse(event.data);
+        const payloadId = Number(payload?.challengeId);
+        if (payloadId === Number(challengeId)) {
+          loadFinalization();
+        }
+      } catch {
+        loadFinalization();
+      }
+    };
+
+    source.addEventListener('finalization-updated', handleUpdate);
+    source.addEventListener('challenge-updated', handleUpdate);
+
+    return () => {
+      source.close();
+    };
+  }, [
+    challengeId,
+    studentId,
+    isStudentUser,
+    isCodingPhaseComplete,
+    loadFinalization,
+  ]);
 
   const selectedAssignment = assignments[selectedIndex] || null;
   const selectedSubmissionId = selectedAssignment?.submissionId;
@@ -753,20 +781,30 @@ export default function PeerReviewPage() {
     const codingPhaseMessage = isCodingPhaseComplete
       ? resolveCodingPhaseMessage(submissionSummary)
       : null;
+    const finalizationTitle = isFinalizationPending
+      ? 'Finalizing submissions'
+      : 'Coding phase complete';
+    const finalizationDescription = isFinalizationPending
+      ? 'We are reviewing submissions before peer review begins.'
+      : 'Wait for your teacher to start the peer review phase.';
 
     if (isCodingPhaseComplete) {
       return (
         <div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
           <Card>
             <CardHeader>
-              <CardTitle>Coding phase complete</CardTitle>
-              <CardDescription>
-                Wait for your teacher to start the peer review phase.
-              </CardDescription>
+              <CardTitle>{finalizationTitle}</CardTitle>
+              <CardDescription>{finalizationDescription}</CardDescription>
             </CardHeader>
             <CardContent className='space-y-2 text-sm text-muted-foreground'>
-              <p>{codingPhaseMessage}</p>
-              <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
+              {isFinalizationPending ? (
+                <p>We are reviewing your submission, please wait.</p>
+              ) : (
+                <>
+                  <p>{codingPhaseMessage}</p>
+                  <p>{MESSAGE_PEER_REVIEW_WAIT}</p>
+                </>
+              )}
             </CardContent>
           </Card>
 

@@ -4,19 +4,14 @@ import { broadcastEvent } from '#root/services/event-stream.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
-import logger from '#root/services/logger.js';
+import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
 
 const phaseOneTimers = new Map();
 const phaseTwoTimers = new Map();
 
 const clearPhaseOneTimer = (challengeId) => {
   const timer = phaseOneTimers.get(challengeId);
-  if (timer) {
-    logger.info(
-      `[Scheduler] Clearing Phase 1 timer for challenge ${challengeId}`
-    );
-    clearTimeout(timer);
-  }
+  if (timer) clearTimeout(timer);
   phaseOneTimers.delete(challengeId);
 };
 
@@ -41,95 +36,70 @@ const computePhaseTwoEndMs = (challenge) => {
 };
 
 const markPhaseOneEnded = async (challengeId) => {
-  logger.info(`[Scheduler] TRIGGER: Phase 1 END for challenge ${challengeId}`);
   clearPhaseOneTimer(challengeId);
-
-  try {
-    const [updatedCount, updatedRows] = await Challenge.update(
-      {
-        status: ChallengeStatus.ENDED_PHASE_ONE,
-        endPhaseOneDateTime: new Date(),
+  const [updatedCount, updatedRows] = await Challenge.update(
+    {
+      status: ChallengeStatus.ENDED_PHASE_ONE,
+      endPhaseOneDateTime: new Date(),
+    },
+    {
+      where: {
+        id: challengeId,
+        status: ChallengeStatus.STARTED_PHASE_ONE,
       },
-      {
-        where: {
-          id: challengeId,
-          status: ChallengeStatus.STARTED_PHASE_ONE,
-        },
-        returning: true,
-      }
-    );
+      returning: true,
+    }
+  );
 
-    if (updatedCount > 0) {
-      const updatedChallenge = updatedRows?.[0];
-      logger.info(
-        `[Scheduler] Phase 1 ended successfully for ${challengeId}. Broadcasting update.`
-      );
-      broadcastEvent({
-        event: 'challenge-updated',
-        data: {
-          challengeId: updatedChallenge.id,
-          status: updatedChallenge.status,
-        },
+  if (updatedCount > 0) {
+    const updatedChallenge = updatedRows?.[0];
+    try {
+      const finalizedMatches = await finalizeMissingSubmissionsForChallenge({
+        challengeId: updatedChallenge.id,
       });
-    } else {
-      logger.warn(
-        `[Scheduler] Failed to mark Phase 1 ended for ${challengeId}. Wrong status or not found?`
+      finalizedMatches.forEach((finalized) => {
+        broadcastEvent({
+          event: 'finalization-updated',
+          data: {
+            challengeId: updatedChallenge.id,
+            matchId: finalized.matchId,
+          },
+        });
+      });
+    } catch (error) {
+      console.error(
+        `Error finalizing submissions for challenge ${updatedChallenge.id}:`,
+        error
       );
     }
-  } catch (err) {
-    logger.error(
-      `[Scheduler] Error ending Phase 1 for ${challengeId}: ${err.message}`
-    );
+    broadcastEvent({
+      event: 'challenge-updated',
+      data: {
+        challengeId: updatedChallenge.id,
+        status: updatedChallenge.status,
+      },
+    });
   }
 };
 
 const clearPhaseTwoTimer = (challengeId) => {
   const timer = phaseTwoTimers.get(challengeId);
-  if (timer) {
-    logger.info(
-      `[Scheduler] Clearing Phase 2 timer for challenge ${challengeId}`
-    );
-    clearTimeout(timer);
-  }
+  if (timer) clearTimeout(timer);
   phaseTwoTimers.delete(challengeId);
 };
 
 const markPhaseTwoEnded = async (challengeId) => {
-  logger.info(`[Scheduler] TRIGGER: Phase 2 END for challenge ${challengeId}`);
   clearPhaseTwoTimer(challengeId);
-
   const challenge = await Challenge.findByPk(challengeId);
 
-  if (!challenge) {
-    logger.error(
-      `[Scheduler] Challenge ${challengeId} not found during Phase 2 end.`
-    );
-    return;
-  }
-
-  logger.info(
-    `[Scheduler] Current status for ${challengeId} is: ${challenge.status}`
-  );
-
-  if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
-    logger.warn(
-      `[Scheduler] Challenge ${challengeId} is not in STARTED_PHASE_TWO. Skipping logic.`
-    );
+  if (!challenge || challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
     return;
   }
 
   // 1. Finalize Peer Review
-  logger.info(`[Scheduler] Finalizing Peer Review for ${challengeId}...`);
-  const result = await finalizePeerReviewChallenge({
-    challengeId,
-    allowEarly: true,
-  });
+  const result = await finalizePeerReviewChallenge({ challengeId });
 
   if (result.status === 'ok' && result.challenge) {
-    logger.info(
-      `[Scheduler] Peer Review Finalized. Transitioning to COMPUTING...`
-    );
-
     // Notify "Pending"
     broadcastEvent({
       event: 'challenge-updated',
@@ -156,23 +126,17 @@ const markPhaseTwoEnded = async (challengeId) => {
         },
       });
 
-      // 3. CALCULATION AND SAVING
-      logger.info(
-        `[Scheduler] Starting SCORE CALCULATION for ${challengeId}...`
-      );
+      // ----------------------------------------------------------------
+      // 3. CALCULATION AND SAVING (RT-215)
+      // ----------------------------------------------------------------
+
+      // Calculate scores in memory
       const scores = await calculateChallengeScores(challengeId);
-      logger.info(
-        `[Scheduler] Calculation done. Found scores for ${scores ? scores.length : 0} participants.`
-      );
 
       if (scores && scores.length > 0) {
         await Promise.all(
           scores.map(async (scoreItem) => {
             if (scoreItem.challengeParticipantId) {
-              logger.info(
-                `[Scheduler] Saving score for participant ${scoreItem.challengeParticipantId}: Total=${scoreItem.totalScore}`
-              );
-
               const [breakdown, created] =
                 await SubmissionScoreBreakdown.findOrCreate({
                   where: {
@@ -187,9 +151,6 @@ const markPhaseTwoEnded = async (challengeId) => {
                 });
 
               if (!created) {
-                logger.info(
-                  `[Scheduler] Updating existing breakdown for participant ${scoreItem.challengeParticipantId}`
-                );
                 await breakdown.update({
                   submissionId:
                     scoreItem.submissionId || breakdown.submissionId,
@@ -198,23 +159,13 @@ const markPhaseTwoEnded = async (challengeId) => {
                   totalScore: scoreItem.totalScore || 0,
                 });
               }
-            } else {
-              logger.warn(
-                `[Scheduler] Score item missing challengeParticipantId: ${JSON.stringify(scoreItem)}`
-              );
             }
           })
         );
-      } else {
-        logger.warn(
-          `[Scheduler] No scores returned from calculateChallengeScores.`
-        );
       }
+      // ----------------------------------------------------------------
 
       // 4. COMPLETED
-      logger.info(
-        `[Scheduler] Marking Scoring as COMPLETED for ${challengeId}`
-      );
       await Challenge.update(
         { scoringStatus: 'completed' },
         { where: { id: challengeId } }
@@ -228,19 +179,12 @@ const markPhaseTwoEnded = async (challengeId) => {
           scoringStatus: 'completed',
         },
       });
-      logger.info(
-        `[Scheduler] SUCCESS: Challenge ${challengeId} Phase 2 & Scoring fully completed.`
-      );
     } catch (error) {
-      logger.error(
-        `[Scheduler] CRITICAL ERROR during scoring for ${challengeId}: ${error.message}`
+      console.error(
+        `Error computing scores for challenge ${challengeId}:`,
+        error
       );
-      console.error(error);
     }
-  } else {
-    logger.error(
-      `[Scheduler] finalizePeerReviewChallenge failed: ${JSON.stringify(result)}`
-    );
   }
 };
 
@@ -249,24 +193,12 @@ export const schedulePhaseOneEndForChallenge = async (challenge) => {
     return;
 
   const endMs = computePhaseOneEndMs(challenge);
-  if (!endMs) {
-    logger.warn(
-      `[Scheduler] Could not compute Phase 1 end time for ${challenge.id}`
-    );
-    return;
-  }
+  if (!endMs) return;
 
   const delay = Math.max(0, endMs - Date.now());
-  logger.info(
-    `[Scheduler] Scheduled Phase 1 END for ${challenge.id} in ${delay}ms`
-  );
-
   clearPhaseOneTimer(challenge.id);
 
   if (delay === 0) {
-    logger.info(
-      `[Scheduler] Phase 1 end time passed. Executing immediately for ${challenge.id}`
-    );
     await markPhaseOneEnded(challenge.id);
     return;
   }
@@ -283,24 +215,12 @@ export const schedulePhaseTwoEndForChallenge = async (challenge) => {
   }
 
   const endMs = computePhaseTwoEndMs(challenge);
-  if (!endMs) {
-    logger.warn(
-      `[Scheduler] Could not compute Phase 2 end time for ${challenge.id}`
-    );
-    return;
-  }
+  if (!endMs) return;
 
   const delay = Math.max(0, endMs - Date.now());
-  logger.info(
-    `[Scheduler] Scheduled Phase 2 END for ${challenge.id} in ${delay}ms`
-  );
-
   clearPhaseTwoTimer(challenge.id);
 
   if (delay === 0) {
-    logger.info(
-      `[Scheduler] Phase 2 end time passed. Executing immediately for ${challenge.id}`
-    );
     await markPhaseTwoEnded(challenge.id);
     return;
   }
@@ -312,14 +232,9 @@ export const schedulePhaseTwoEndForChallenge = async (challenge) => {
 };
 
 export const scheduleActivePhaseOneChallenges = async () => {
-  logger.info(`[Scheduler] Init: Checking active Phase 1 challenges...`);
   const activeChallenges = await Challenge.findAll({
     where: { status: ChallengeStatus.STARTED_PHASE_ONE },
   });
-  logger.info(
-    `[Scheduler] Found ${activeChallenges.length} Phase 1 challenges.`
-  );
-
   await Promise.all(
     activeChallenges.map((challenge) =>
       schedulePhaseOneEndForChallenge(challenge)
@@ -328,14 +243,9 @@ export const scheduleActivePhaseOneChallenges = async () => {
 };
 
 export const scheduleActivePhaseTwoChallenges = async () => {
-  logger.info(`[Scheduler] Init: Checking active Phase 2 challenges...`);
   const activeChallenges = await Challenge.findAll({
     where: { status: ChallengeStatus.STARTED_PHASE_TWO },
   });
-  logger.info(
-    `[Scheduler] Found ${activeChallenges.length} Phase 2 challenges.`
-  );
-
   await Promise.all(
     activeChallenges.map((challenge) =>
       schedulePhaseTwoEndForChallenge(challenge)

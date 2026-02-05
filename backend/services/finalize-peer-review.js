@@ -10,12 +10,12 @@ import MatchSetting from '#root/models/match-setting.js';
 import {
   ChallengeStatus,
   EvaluationStatus,
-  VoteType,
   SubmissionStatus,
+  VoteType,
 } from '#root/models/enum/enums.js';
 import {
-  runReferenceSolution,
   normalizeOutputForComparison,
+  runReferenceSolution,
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import logger from '#root/services/logger.js';
@@ -179,7 +179,7 @@ export default async function finalizePeerReviewChallenge({
 
           const referenceSolution =
             assignment.submission.match.challengeMatchSetting.matchSetting
-              .dataValues.referenceSo;
+              .dataValues.referenceSolution;
 
           if (!referenceSolution) {
             logger.warn('No reference solution found for vote', {
@@ -238,10 +238,8 @@ export default async function finalizePeerReviewChallenge({
 
                 const testResult = submissionResult?.testResults?.[0];
                 const actualOutput = testResult?.actualOutput;
-                const actualOutputStored =
+                updatePayload.actualOutput =
                   normalizeOutputForComparison(actualOutput);
-
-                updatePayload.actualOutput = actualOutputStored;
 
                 if (!submissionResult?.isCompiled) {
                   updatePayload.evaluationStatus =

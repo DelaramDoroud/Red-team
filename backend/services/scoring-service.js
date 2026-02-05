@@ -14,7 +14,7 @@ import logger from '#root/services/logger.js';
 
 /**
  * FULL CALCULATION (RT-215 + RT-216)
- * Calculates Code Review Score, Implementation Score, and Total Score.
+ * Calculates Peer Review Score, Implementation Score, and Total Score.
  * Saves the results in the submission_score_breakdown table (linked to participant).
  */
 export async function calculateChallengeScores(challengeId) {
@@ -143,12 +143,12 @@ export async function calculateChallengeScores(challengeId) {
           let producedOutput = result.actualOutput;
           if (typeof producedOutput !== 'string')
             producedOutput = JSON.stringify(producedOutput);
-          producedOutput = (producedOutput || '').trim();
+          (producedOutput || '').trim();
 
           let expectedOutput = vote.expectedOutput;
           if (typeof expectedOutput !== 'string')
             expectedOutput = JSON.stringify(expectedOutput);
-          expectedOutput = (expectedOutput || '').trim();
+          (expectedOutput || '').trim();
 
           //const isOutputCorrect = producedOutput === expectedOutput;
 
@@ -233,7 +233,7 @@ export async function calculateChallengeScores(challengeId) {
 
             let actualOutputToSave = result.actualOutput;
             if (typeof actualOutputToSave !== 'string')
-              actualOutputToSave = JSON.stringify(actualOutputToSave);
+              JSON.stringify(actualOutputToSave);
 
             if (!passed) failedPeerTestCount++;
 

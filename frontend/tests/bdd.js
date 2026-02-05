@@ -2,6 +2,8 @@ import { act } from '@testing-library/react';
 
 async function runStep(step) {
   let result;
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  if (typeof window !== 'undefined') window.IS_REACT_ACT_ENVIRONMENT = true;
   await act(async () => {
     result = await step();
   });

@@ -17,6 +17,7 @@ import { getMockedStore, getMockedStoreWrapper } from './test-redux-provider';
 // Mocks
 const mockGetStudentAssignedMatchSetting = vi.fn();
 const mockGetStudentAssignedMatch = vi.fn();
+const mockGetChallengeResults = vi.fn();
 const mockSubmitSubmission = vi.fn();
 const mockRunCode = vi.fn();
 const mockGetLastSubmission = vi.fn();
@@ -26,6 +27,7 @@ vi.mock('#js/useChallenge', () => ({
   default: () => ({
     getStudentAssignedMatchSetting: mockGetStudentAssignedMatchSetting,
     getStudentAssignedMatch: mockGetStudentAssignedMatch,
+    getChallengeResults: mockGetChallengeResults,
     submitSubmission: mockSubmitSubmission,
     getLastSubmission: mockGetLastSubmission,
     runCode: mockRunCode,
@@ -218,6 +220,23 @@ describe('RT-4 Code Submission', () => {
     mockGetLastSubmission.mockResolvedValue({
       success: true,
       data: { submission: { code: 'int main() {}' } },
+    });
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        submissionSummary: {
+          hasManualSubmission: true,
+          hasAutomaticSubmission: false,
+          automaticStatus: null,
+          finalIsAutomatic: false,
+        },
+        finalization: {
+          resultsReady: true,
+          totalMatches: 1,
+          finalSubmissionCount: 1,
+          pendingFinalCount: 0,
+        },
+      },
     });
   });
 
@@ -570,14 +589,11 @@ describe('RT-4 Code Submission', () => {
     });
 
     await waitFor(() => {
-      expect(mockRunCode).toHaveBeenCalled();
-    });
-    expect(mockSubmitSubmission).not.toHaveBeenCalled();
-    await waitFor(() => {
       expect(screen.getByTestId('message')).toHaveTextContent(
         'You submitted your code.'
       );
     });
+    expect(mockSubmitSubmission).not.toHaveBeenCalled();
   });
 
   it('auto-submits the latest code after a successful run without manual submit', async () => {
@@ -655,6 +671,46 @@ describe('RT-4 Code Submission', () => {
       });
     });
   });
+
+  it('shows a waiting message until submission finalization is completed', async () => {
+    mockGetChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        submissionSummary: null,
+        finalization: {
+          resultsReady: false,
+          totalMatches: 1,
+          finalSubmissionCount: 0,
+          pendingFinalCount: 1,
+        },
+      },
+    });
+
+    await given(async () => {
+      renderMatchContainer();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('match-view')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setStudentCodeValue(sampleStudentCode);
+    });
+
+    await when(async () => {
+      fireEvent.click(screen.getByTestId('timer-finish-btn'));
+    });
+
+    await then(async () => {
+      await waitFor(() => {
+        expect(screen.getByTestId('message')).toHaveTextContent(
+          'The coding phase has ended. We are finalizing your submission. Please wait.'
+        );
+      });
+      expect(mockGetChallengeResults).toHaveBeenCalled();
+    });
+  }, 15000);
 
   // RT-4 AC: Automatic submission when timer reaches zero
   it('AC: should show submission message on automatic submission success', async () => {
