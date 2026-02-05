@@ -48,9 +48,12 @@ export default {
       models[Model.name] = Model;
     }
     const registeredModels = initRelations();
-    await migrator.up();
     const isTestEnv =
       process.env.NODE_ENV === 'test' || process.env.ENVIRONMENT === 'test';
+    const shouldRunMigrations =
+      !isTestEnv || process.env.RUN_MIGRATIONS_ON_BOOT === 'true';
+
+    if (shouldRunMigrations) await migrator.up();
     if (!isTestEnv) await seedModels(registeredModels);
     return registeredModels;
   },

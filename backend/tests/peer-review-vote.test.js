@@ -9,6 +9,7 @@ import Submission from '#root/models/submission.js';
 import User from '#root/models/user.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
+import sequelize from '#root/services/sequelize.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
@@ -90,29 +91,7 @@ const createVotingScenario = async () => {
 
 describe('PeerReviewVote Model', () => {
   beforeAll(async () => {
-    console.log('--- FORCING DB SCHEMA (RESILIENT MODE) ---');
-
-    const safeSync = async (model, name) => {
-      try {
-        await model.sync({ force: true });
-      } catch (e) {
-        console.warn(
-          `[WARN] Sync failed for ${name} (likely index bug), ignoring...`
-        );
-      }
-    };
-
-    await safeSync(User, 'User');
-    await safeSync(MatchSetting, 'MatchSetting');
-    await safeSync(Challenge, 'Challenge');
-    await safeSync(ChallengeMatchSetting, 'ChallengeMatchSetting');
-    await safeSync(ChallengeParticipant, 'ChallengeParticipant');
-    await safeSync(Match, 'Match');
-    await safeSync(Submission, 'Submission');
-    await safeSync(PeerReviewAssignment, 'PeerReviewAssignment');
-    await safeSync(PeerReviewVote, 'PeerReviewVote');
-
-    console.log('--- DB SCHEMA READY ---');
+    await sequelize.truncate({ cascade: true, restartIdentity: true });
   });
 
   beforeEach(async () => {

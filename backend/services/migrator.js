@@ -18,6 +18,7 @@ const up = async () => {
     );
   } catch (e) {
     logger.error(`Migration failed: ${e.message}`);
+    throw e;
   }
 };
 
@@ -30,6 +31,7 @@ const down = async () => {
     );
   } catch (e) {
     logger.error(`Rollback failed: ${e.message}`);
+    throw e;
   }
 };
 const downAll = async () => {
@@ -41,6 +43,7 @@ const downAll = async () => {
     );
   } catch (e) {
     logger.error(`Rollback all failed: ${e.message}`);
+    throw e;
   }
 };
 export { up, down, downAll };

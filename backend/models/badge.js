@@ -110,7 +110,7 @@ Badge.seed = async function () {
       {
         key: 'review_3',
         name: 'Getting Involved',
-        description: 'Complete 3 code reviews',
+        description: 'Complete 3 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.BRONZE,
         iconKey: 'review_bronze_3',
@@ -121,7 +121,7 @@ Badge.seed = async function () {
       {
         key: 'review_5',
         name: 'Review Enthusiast',
-        description: 'Complete 5 code reviews',
+        description: 'Complete 5 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.BRONZE,
         iconKey: 'review_bronze_5',
@@ -132,7 +132,7 @@ Badge.seed = async function () {
       {
         key: 'review_10',
         name: 'Review Regular',
-        description: 'Complete 10 code reviews',
+        description: 'Complete 10 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.SILVER,
         iconKey: 'review_silver_10',
@@ -143,7 +143,7 @@ Badge.seed = async function () {
       {
         key: 'review_15',
         name: 'Review Expert',
-        description: 'Complete 15 code reviews',
+        description: 'Complete 15 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.SILVER,
         iconKey: 'review_silver_15',
@@ -154,7 +154,7 @@ Badge.seed = async function () {
       {
         key: 'review_20',
         name: 'Review Professional',
-        description: 'Complete 20 code reviews',
+        description: 'Complete 20 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.GOLD,
         iconKey: 'review_gold_20',
@@ -165,7 +165,7 @@ Badge.seed = async function () {
       {
         key: 'review_25',
         name: 'Review Veteran',
-        description: 'Complete 25 code reviews',
+        description: 'Complete 25 peer reviews',
         category: BadgeCategory.REVIEW_MILESTONE,
         level: BadgeLevel.GOLD,
         iconKey: 'review_gold_25',

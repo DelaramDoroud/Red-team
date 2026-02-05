@@ -24,7 +24,7 @@ const STATIC_CONTENT = {
       {
         title: '🎯 What are achievements?',
         description:
-          'As you complete challenges and participate in code reviews, you’ll earn badges and progress through skill titles.',
+          'As you complete challenges and participate in peer reviews, you’ll earn badges and progress through skill titles.',
       },
       {
         title: '🏅 Badges',

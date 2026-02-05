@@ -298,7 +298,25 @@ export default function useChallenge() {
     },
     [fetchData]
   );
-
+  const getTeacherChallengeResults = useCallback(
+    async (challengeId, includePeerReviewResults = true) => {
+      const includeResultsParam = includePeerReviewResults ? 'true' : 'false';
+      const url = `${API_REST_BASE}/challenges/${challengeId}/teacher-results?includePeerReviewResults=${includeResultsParam}`;
+      return fetchData(url);
+    },
+    [fetchData]
+  );
+  const addMatchSettingPrivateTest = useCallback(
+    async ({ challengeId, matchSettingId, assignmentId, input, output }) => {
+      const url = `${API_REST_BASE}/challenges/${challengeId}/match-settings/${matchSettingId}/private-tests`;
+      return fetchData(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId, input, output }),
+      });
+    },
+    [fetchData]
+  );
   const getChallengeLeaderboard = useCallback(
     async (challengeId, studentId) => {
       const query = studentId != null ? `?studentId=${Number(studentId)}` : '';
@@ -368,6 +386,8 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      getTeacherChallengeResults,
+      addMatchSettingPrivateTest,
       getChallengeLeaderboard,
       endChallenge,
       getPeerReviewSummary,
@@ -405,6 +425,8 @@ export default function useChallenge() {
       runCustomTests,
       savePeerReviewTests,
       getChallengeResults,
+      getTeacherChallengeResults,
+      addMatchSettingPrivateTest,
       getChallengeLeaderboard,
       endChallenge,
       getPeerReviewSummary,

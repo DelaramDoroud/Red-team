@@ -12,6 +12,7 @@ import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
 import { getSubmissionStatus } from '#root/services/submission-evaluation.js';
 import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
+import { broadcastEvent } from '#root/services/event-stream.js';
 
 const router = Router();
 
@@ -199,6 +200,17 @@ router.post('/submissions', async (req, res) => {
     await transaction.commit();
 
     logger.info(`Submission ${submission.id} saved for match ${matchId}`);
+
+    const challengeId = match.challengeMatchSetting?.challengeId;
+    if (challengeId) {
+      broadcastEvent({
+        event: 'finalization-updated',
+        data: {
+          challengeId,
+          matchId,
+        },
+      });
+    }
 
     const submissionData = submission.get({ plain: true });
     delete submissionData.code;

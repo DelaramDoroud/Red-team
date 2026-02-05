@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { createStream } from 'rotating-file-stream';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
 import apiRouter from '#root/routes/index.js';
@@ -15,13 +16,31 @@ import {
 } from '#root/services/challenge-scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const isTestEnv =
+  process.env.NODE_ENV === 'test' || process.env.ENVIRONMENT === 'test';
 
 const app = express();
 
-const accessLogStream = createStream('access.log', {
-  interval: '1d', // rotate daily
-  path: path.join(__dirname, 'log'),
-});
+const createAccessLogStream = () => {
+  if (isTestEnv) return process.stdout;
+
+  try {
+    const logDirectory = path.join(__dirname, 'log');
+    fs.mkdirSync(logDirectory, { recursive: true });
+
+    return createStream('access.log', {
+      interval: '1d', // rotate daily
+      path: logDirectory,
+    });
+  } catch (error) {
+    console.error('Failed to initialize file access logger, using stdout.', {
+      error,
+    });
+    return process.stdout;
+  }
+};
+
+const accessLogStream = createAccessLogStream();
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
@@ -30,7 +49,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(morgan('combined', { stream: accessLogStream }));
+if (!isTestEnv) app.use(morgan('combined', { stream: accessLogStream }));
 app.use(express.json());
 app.use(
   session({

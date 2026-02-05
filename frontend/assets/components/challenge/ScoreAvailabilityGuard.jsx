@@ -24,9 +24,11 @@ export default function ScoreAvailabilityGuard({ challengeId, children }) {
         const data = await res.json();
         setStatus(data.state);
         setMessage(data.message);
+      } else {
+        setMessage('Unable to load scoring status right now.');
       }
-    } catch (err) {
-      console.error('Error fetching scoring status:', err);
+    } catch {
+      setMessage('Unable to load scoring status right now.');
     } finally {
       setLoading(false);
     }

@@ -9,6 +9,7 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
+import User from '#root/models/user.js';
 import {
   ChallengeStatus,
   VoteType,
@@ -72,18 +73,18 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
           as: 'submission',
           include: [
             {
+              model: ChallengeParticipant,
+              as: 'challengeParticipant',
+              include: [{ model: User, as: 'student' }],
+            },
+            {
               model: Match,
               as: 'match',
               include: [
                 {
                   model: ChallengeMatchSetting,
                   as: 'challengeMatchSetting',
-                  include: [
-                    {
-                      model: MatchSetting,
-                      as: 'matchSetting',
-                    },
-                  ],
+                  include: [{ model: MatchSetting, as: 'matchSetting' }],
                 },
               ],
             },
@@ -93,19 +94,39 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
     });
 
     const votes = [];
-    for (const a of assignments) {
-      const voteRecord = a.vote;
-      const submission = a.submission;
+    for (const assignment of assignments) {
+      const submission = assignment.submission;
+      const submissionStatus = submission?.status || null;
+      const voteRecord = assignment.vote;
+      const revieweeStudent = submission?.challengeParticipant?.student;
+      const problemTitle =
+        submission?.match?.challengeMatchSetting?.matchSetting?.problemTitle ||
+        null;
 
-      let isVoteCorrect = voteRecord.isVoteCorrect;
-      let isExpectedOutputCorrect = voteRecord.isExpectedOutputCorrect;
+      let expectedEvaluation = 'unknown';
+      if (submissionStatus === SubmissionStatus.PROBABLY_CORRECT) {
+        expectedEvaluation = 'correct';
+      } else if (
+        submissionStatus === SubmissionStatus.IMPROVABLE ||
+        submissionStatus === SubmissionStatus.WRONG
+      ) {
+        expectedEvaluation = 'incorrect';
+      }
+
+      let isVoteCorrect =
+        typeof voteRecord.isVoteCorrect === 'boolean'
+          ? voteRecord.isVoteCorrect
+          : null;
+      let isExpectedOutputCorrect =
+        typeof voteRecord.isExpectedOutputCorrect === 'boolean'
+          ? voteRecord.isExpectedOutputCorrect
+          : null;
+      let referenceOutput = voteRecord.referenceOutput ?? null;
       let needsUpdate = false;
 
-      // Compute isVoteCorrect if missing
-      if (isVoteCorrect === null && submission && submission.status) {
+      if (isVoteCorrect === null && submissionStatus) {
         const isSubmissionValid =
-          submission.status === SubmissionStatus.PROBABLY_CORRECT;
-
+          submissionStatus === SubmissionStatus.PROBABLY_CORRECT;
         if (voteRecord.vote === VoteType.CORRECT) {
           isVoteCorrect = isSubmissionValid;
           needsUpdate = true;
@@ -115,7 +136,6 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
         }
       }
 
-      // Compute isExpectedOutputCorrect if missing and vote is INCORRECT
       if (
         voteRecord.vote === VoteType.INCORRECT &&
         isExpectedOutputCorrect === null &&
@@ -134,34 +154,23 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
           voteRecord.expectedOutput
         ) {
           try {
-            let input = voteRecord.testCaseInput;
-            try {
-              input = JSON.parse(input);
-            } catch (e) {
-              // input is already string or invalid
-            }
+            const { referenceOutput: computedReferenceOutput } =
+              await runReferenceSolution({
+                referenceSolution: matchSetting.referenceSolution,
+                testCaseInput: voteRecord.testCaseInput,
+              });
 
-            let expected = voteRecord.expectedOutput;
-            try {
-              expected = JSON.parse(expected);
-            } catch (e) {
-              // expected is already string or invalid
-            }
-
-            const { referenceOutput } = await runReferenceSolution({
-              referenceSolution: matchSetting.referenceSolution,
-              testCaseInput: voteRecord.testCaseInput,
-            });
-
+            referenceOutput = computedReferenceOutput;
             isExpectedOutputCorrect =
               normalizeOutputForComparison(voteRecord.expectedOutput) ===
               normalizeOutputForComparison(referenceOutput);
 
-            voteRecord.referenceOutput = referenceOutput;
-
             needsUpdate = true;
-          } catch (e) {
-            logger.error('Error computing expected output correctness', e);
+          } catch (evaluationError) {
+            logger.error(
+              'Error computing expected output correctness',
+              evaluationError
+            );
           }
         }
       }
@@ -170,25 +179,64 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
         await voteRecord.update({
           isVoteCorrect,
           isExpectedOutputCorrect,
-          referenceOutput: voteRecord.referenceOutput,
+          referenceOutput,
         });
       }
 
+      const isBugProven =
+        typeof voteRecord.isBugProven === 'boolean'
+          ? voteRecord.isBugProven
+          : null;
+
       let earnedCredit = false;
       if (voteRecord.vote === VoteType.CORRECT) {
-        earnedCredit = !!isVoteCorrect;
+        earnedCredit = Boolean(
+          typeof isVoteCorrect === 'boolean'
+            ? isVoteCorrect
+            : submissionStatus === SubmissionStatus.PROBABLY_CORRECT
+        );
       } else if (voteRecord.vote === VoteType.INCORRECT) {
-        earnedCredit = !!isVoteCorrect && !!isExpectedOutputCorrect;
+        let baseCorrect = false;
+        if (typeof isVoteCorrect === 'boolean') {
+          baseCorrect = isVoteCorrect;
+        } else if (submissionStatus) {
+          baseCorrect = submissionStatus !== SubmissionStatus.PROBABLY_CORRECT;
+        }
+
+        if (typeof isExpectedOutputCorrect === 'boolean') {
+          earnedCredit = baseCorrect && isExpectedOutputCorrect;
+        } else if (typeof isBugProven === 'boolean') {
+          earnedCredit = baseCorrect && isBugProven;
+        } else {
+          earnedCredit = baseCorrect;
+        }
       }
 
       votes.push({
-        submissionId: a.submissionId,
+        assignmentId: assignment.id,
+        submissionId: assignment.submissionId,
+        reviewedSubmission: {
+          id: assignment.submissionId,
+          matchId: submission?.matchId || submission?.match?.id || null,
+          student: revieweeStudent
+            ? {
+                id: revieweeStudent.id,
+                username: revieweeStudent.username,
+              }
+            : null,
+          problemTitle,
+        },
         vote: voteRecord.vote,
-        testCaseInput: voteRecord.testCaseInput,
-        expectedOutput: voteRecord.expectedOutput,
-        referenceOutput: voteRecord.referenceOutput,
+        expectedEvaluation,
+        isCorrect: earnedCredit,
+        evaluationStatus: voteRecord.evaluationStatus || null,
         isVoteCorrect,
         isExpectedOutputCorrect,
+        isBugProven,
+        testCaseInput: voteRecord.testCaseInput,
+        expectedOutput: voteRecord.expectedOutput,
+        referenceOutput,
+        actualOutput: voteRecord.actualOutput ?? null,
         earnedCredit,
       });
     }
@@ -283,7 +331,6 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
         error: 'Challenge not found',
       });
     }
-
     if (result.status === 'peer_review_not_ended') {
       return res.status(400).json({
         success: false,

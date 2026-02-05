@@ -1,9 +1,21 @@
-/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable import/no-extraneous-dependencies, no-console */
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  const [firstArg] = args;
+  if (
+    typeof firstArg === 'string' &&
+    firstArg.includes(
+      'The current testing environment is not configured to support act(...)'
+    )
+  ) {
+    return;
+  }
+  originalConsoleError(...args);
+};
 
 const createMockEventSource = () => {
   const listeners = new Map();

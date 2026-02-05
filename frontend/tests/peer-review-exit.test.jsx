@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 
@@ -585,8 +585,10 @@ describe('Peer Review Exit Functionality', () => {
         );
       });
 
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1600);
+      await act(async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1600);
+        });
       });
 
       await waitFor(() => {
@@ -760,8 +762,10 @@ describe('Peer Review Exit Functionality', () => {
         );
       });
 
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1600);
+      await act(async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1600);
+        });
       });
 
       await waitFor(() => {

@@ -430,7 +430,7 @@ The project is organized into major epics:
 - **RT-27**: Student Challenge
 - **RT-30**: Student Challenge Enrollment
 - **RT-101**: Coding Phase
-- **RT-102**: Code Review Phase
+- **RT-102**: Peer Review Phase
 - **RT-103**: Scoring Phase
 - **RT-104**: Rewards
 - **RT-29**: Shop

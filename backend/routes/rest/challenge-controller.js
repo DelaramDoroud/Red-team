@@ -8,15 +8,17 @@ import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import StudentBadge from '#root/models/student-badges.js';
 import Badge from '#root/models/badge.js';
 import Title from '#root/models/title.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
+  VoteType,
   Scoring_Availability,
 } from '#root/models/enum/enums.js';
-import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { handleException } from '#root/services/error.js';
 import getValidator from '#root/services/validator.js';
 import {
@@ -34,10 +36,16 @@ import {
 } from '#root/services/challenge-scheduler.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import { validateImportsBlock } from '#root/services/import-validation.js';
+import {
+  normalizeOutputForComparison,
+  runReferenceSolution,
+} from '#root/services/reference-solution-evaluation.js';
+import logger from '#root/services/logger.js';
 import { Op } from 'sequelize';
 import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
+import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
 
 const router = Router();
 
@@ -97,6 +105,28 @@ const parseTestResults = (value) => {
   return [];
 };
 
+const parseJsonValue = (value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const parseJsonValueStrict = (value, label) => {
+  if (value === null || value === undefined) {
+    return { ok: false, error: `${label} is required.` };
+  }
+  if (typeof value !== 'string') return { ok: true, value };
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch {
+    return { ok: false, error: `${label} must be valid JSON.` };
+  }
+};
+
 router.get('/challenges', async (req, res) => {
   try {
     const where = shouldHidePrivate(req)
@@ -113,7 +143,82 @@ router.get('/challenges', async (req, res) => {
       ],
       order: Challenge.getDefaultOrder(),
     });
-    res.json({ success: true, data: challenges });
+
+    const challengeIds = challenges.map((challenge) => challenge.id);
+    const matchesCountByChallenge = {};
+    const finalMatchIdsByChallenge = {};
+
+    if (challengeIds.length > 0) {
+      const allMatches = await Match.findAll({
+        attributes: ['id'],
+        include: [
+          {
+            model: ChallengeMatchSetting,
+            as: 'challengeMatchSetting',
+            attributes: ['challengeId'],
+            where: { challengeId: { [Op.in]: challengeIds } },
+          },
+        ],
+      });
+
+      const allFinalSubmissions = await Submission.findAll({
+        attributes: ['matchId'],
+        where: { isFinal: true },
+        include: [
+          {
+            model: Match,
+            as: 'match',
+            attributes: ['id'],
+            required: true,
+            include: [
+              {
+                model: ChallengeMatchSetting,
+                as: 'challengeMatchSetting',
+                attributes: ['challengeId'],
+                required: true,
+                where: { challengeId: { [Op.in]: challengeIds } },
+              },
+            ],
+          },
+        ],
+      });
+
+      allMatches.forEach((matchRow) => {
+        const cId = matchRow.challengeMatchSetting?.challengeId;
+        if (cId) {
+          matchesCountByChallenge[cId] =
+            (matchesCountByChallenge[cId] || 0) + 1;
+        }
+      });
+
+      allFinalSubmissions.forEach((submission) => {
+        const cId = submission.match?.challengeMatchSetting?.challengeId;
+        if (!cId) return;
+        if (!finalMatchIdsByChallenge[cId]) {
+          finalMatchIdsByChallenge[cId] = new Set();
+        }
+        finalMatchIdsByChallenge[cId].add(submission.matchId);
+      });
+    }
+
+    const data = challenges.map((challenge) => {
+      const totalMatches = matchesCountByChallenge[challenge.id] || 0;
+      const finalSubmissionCount = finalMatchIdsByChallenge[challenge.id]
+        ? finalMatchIdsByChallenge[challenge.id].size
+        : 0;
+      const pendingFinalCount = Math.max(
+        0,
+        totalMatches - finalSubmissionCount
+      );
+      return {
+        ...challenge.toJSON(),
+        totalMatches,
+        finalSubmissionCount,
+        pendingFinalCount,
+        resultsReady: totalMatches > 0 && pendingFinalCount === 0,
+      };
+    });
+    res.json({ success: true, data });
   } catch (error) {
     handleException(res, error);
   }
@@ -589,12 +694,22 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
     const validSubmissionCounts = {};
     const validSubmissionIds = [];
     let totalSubmissionsCount = 0;
+    let finalSubmissionCount = 0;
+    const totalMatches = matches.length;
 
     if (matchIds.length > 0) {
+      finalSubmissionCount = await Submission.count({
+        where: {
+          matchId: { [Op.in]: matchIds },
+          isFinal: true,
+        },
+      });
+
       totalSubmissionsCount = await Submission.count({
         where: {
           matchId: { [Op.in]: matchIds },
           isFinal: true,
+          code: { [Op.ne]: '' },
         },
       });
 
@@ -736,6 +851,9 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
       });
     });
 
+    const pendingFinalCount = Math.max(0, totalMatches - finalSubmissionCount);
+    const resultsReady = pendingFinalCount === 0;
+
     return res.json({
       success: true,
       challenge: {
@@ -750,6 +868,10 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         duration: challenge.duration,
         durationPeerReview: challenge.durationPeerReview,
         allowedNumberOfReview: challenge.allowedNumberOfReview,
+        totalMatches,
+        finalSubmissionCount,
+        pendingFinalCount,
+        resultsReady,
         validSubmissionsCount: totalValidSubmissions,
         totalSubmissionsCount,
         peerReviewReady,
@@ -1361,6 +1483,22 @@ router.post('/challenges/:challengeId/end-coding', async (req, res) => {
     }
 
     const updatedChallenge = updatedRows?.[0] || challenge;
+    try {
+      const finalizedMatches = await finalizeMissingSubmissionsForChallenge({
+        challengeId: updatedChallenge.id,
+      });
+      finalizedMatches.forEach((finalized) => {
+        broadcastEvent({
+          event: 'finalization-updated',
+          data: {
+            challengeId: updatedChallenge.id,
+            matchId: finalized.matchId,
+          },
+        });
+      });
+    } catch (error) {
+      logger.error('Finalize missing submissions error:', error);
+    }
     emitChallengeUpdate(updatedChallenge);
 
     return res.json({
@@ -2140,6 +2278,471 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
     handleException(res, error);
   }
 });
+
+router.get('/challenges/:challengeId/teacher-results', async (req, res) => {
+  try {
+    const challengeId = Number(req.params.challengeId);
+    if (!Number.isInteger(challengeId) || challengeId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challengeId',
+      });
+    }
+
+    if (!isPrivilegedRole(getRequestRole(req))) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access teacher results.',
+      });
+    }
+
+    const challenge = await Challenge.findByPk(challengeId);
+    if (!challenge) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Challenge not found' });
+    }
+    if (!isEndedStatus(challenge.status)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Challenge has not ended yet.',
+      });
+    }
+
+    const includePeerReviewResults =
+      String(req.query.includePeerReviewResults).toLowerCase() === 'true';
+
+    const matches = await Match.findAll({
+      include: [
+        {
+          model: ChallengeMatchSetting,
+          as: 'challengeMatchSetting',
+          where: { challengeId },
+          include: [{ model: MatchSetting, as: 'matchSetting' }],
+        },
+        {
+          model: ChallengeParticipant,
+          as: 'challengeParticipant',
+          include: [{ model: User, as: 'student' }],
+        },
+      ],
+      order: [
+        [{ model: ChallengeMatchSetting, as: 'challengeMatchSetting' }, 'id'],
+        ['id', 'ASC'],
+      ],
+    });
+
+    const matchIds = matches.map((matchRow) => matchRow.id);
+    const submissions =
+      matchIds.length > 0
+        ? await Submission.findAll({
+            where: { matchId: { [Op.in]: matchIds } },
+            order: [
+              ['isFinal', 'DESC'],
+              ['updatedAt', 'DESC'],
+              ['id', 'DESC'],
+            ],
+          })
+        : [];
+
+    const submissionByMatchId = new Map();
+    submissions.forEach((submission) => {
+      if (!submissionByMatchId.has(submission.matchId)) {
+        submissionByMatchId.set(submission.matchId, submission);
+      }
+    });
+
+    const submissionsById = new Map(
+      Array.from(submissionByMatchId.values()).map((submission) => [
+        submission.id,
+        submission,
+      ])
+    );
+    const submissionIds = Array.from(submissionsById.keys());
+
+    const assignments =
+      submissionIds.length > 0
+        ? await PeerReviewAssignment.findAll({
+            where: { submissionId: { [Op.in]: submissionIds } },
+            include: [
+              {
+                model: ChallengeParticipant,
+                as: 'reviewer',
+                include: [{ model: User, as: 'student' }],
+              },
+              {
+                model: PeerReviewVote,
+                as: 'vote',
+              },
+            ],
+          })
+        : [];
+
+    const assignmentsBySubmissionId = new Map();
+    assignments.forEach((assignment) => {
+      const submissionId = assignment.submissionId;
+      if (!assignmentsBySubmissionId.has(submissionId)) {
+        assignmentsBySubmissionId.set(submissionId, []);
+      }
+      assignmentsBySubmissionId.get(submissionId).push(assignment);
+    });
+
+    const testResultsByAssignmentId = new Map();
+    if (includePeerReviewResults && assignments.length > 0) {
+      for (const [
+        submissionId,
+        submissionAssignments,
+      ] of assignmentsBySubmissionId) {
+        const submission = submissionsById.get(submissionId);
+        if (!submission?.code) continue;
+
+        const testCases = [];
+        const assignmentIds = [];
+
+        submissionAssignments.forEach((assignment) => {
+          const vote = assignment.vote;
+          if (!vote?.testCaseInput || !vote?.expectedOutput) return;
+          const inputValue = parseJsonValue(vote.testCaseInput);
+          const outputValue = parseJsonValue(vote.expectedOutput);
+          testCases.push({ input: inputValue, output: outputValue });
+          assignmentIds.push(assignment.id);
+        });
+
+        if (testCases.length === 0) continue;
+
+        try {
+          const executionResult = await executeCodeTests({
+            code: submission.code,
+            language: 'cpp',
+            testCases,
+            userId: getRequestUser(req)?.id,
+          });
+
+          executionResult?.testResults?.forEach((result, index) => {
+            const assignmentId = assignmentIds[index];
+            if (!assignmentId) return;
+            testResultsByAssignmentId.set(assignmentId, {
+              passed: result.passed,
+              actualOutput: result.actualOutput,
+              expectedOutput: result.expectedOutput,
+              error: result.error || result.stderr || null,
+              exitCode: result.exitCode,
+            });
+          });
+        } catch (error) {
+          assignmentIds.forEach((assignmentId) => {
+            testResultsByAssignmentId.set(assignmentId, {
+              passed: false,
+              actualOutput: null,
+              expectedOutput: null,
+              error:
+                error?.message ||
+                'Unable to run the submitted peer review test.',
+              exitCode: -1,
+            });
+          });
+        }
+      }
+    }
+
+    const grouped = {};
+    matches.forEach((matchRow) => {
+      const cmsId = matchRow.challengeMatchSettingId;
+      if (!grouped[cmsId]) {
+        grouped[cmsId] = {
+          challengeMatchSettingId: cmsId,
+          matchSetting: matchRow.challengeMatchSetting?.matchSetting
+            ? {
+                id: matchRow.challengeMatchSetting.matchSetting.id,
+                problemTitle:
+                  matchRow.challengeMatchSetting.matchSetting.problemTitle,
+              }
+            : null,
+          matches: [],
+        };
+      }
+
+      const submission = submissionByMatchId.get(matchRow.id);
+      const assignmentsForSubmission = submission
+        ? assignmentsBySubmissionId.get(submission.id) || []
+        : [];
+
+      grouped[cmsId].matches.push({
+        id: matchRow.id,
+        student: matchRow.challengeParticipant?.student
+          ? {
+              id: matchRow.challengeParticipant.student.id,
+              username: matchRow.challengeParticipant.student.username,
+              firstName: matchRow.challengeParticipant.student.firstName,
+              lastName: matchRow.challengeParticipant.student.lastName,
+              email: matchRow.challengeParticipant.student.email,
+            }
+          : null,
+        submission: submission
+          ? {
+              id: submission.id,
+              code: submission.code,
+              status: submission.status,
+              isFinal: submission.isFinal,
+              publicTestResults: parseTestResults(submission.publicTestResults),
+              privateTestResults: parseTestResults(
+                submission.privateTestResults
+              ),
+              createdAt: submission.createdAt,
+              updatedAt: submission.updatedAt,
+            }
+          : null,
+        peerReviewAssignments: assignmentsForSubmission.map((assignment) => ({
+          id: assignment.id,
+          isExtra: assignment.isExtra,
+          feedbackTests: assignment.feedbackTests || [],
+          reviewer: assignment.reviewer?.student
+            ? {
+                id: assignment.reviewer.student.id,
+                username: assignment.reviewer.student.username,
+                firstName: assignment.reviewer.student.firstName,
+                lastName: assignment.reviewer.student.lastName,
+                email: assignment.reviewer.student.email,
+              }
+            : null,
+          vote: assignment.vote
+            ? {
+                id: assignment.vote.id,
+                vote: assignment.vote.vote,
+                testCaseInput: assignment.vote.testCaseInput,
+                expectedOutput: assignment.vote.expectedOutput,
+                actualOutput: assignment.vote.actualOutput,
+                referenceOutput: assignment.vote.referenceOutput,
+                isExpectedOutputCorrect:
+                  assignment.vote.isExpectedOutputCorrect,
+                isBugProven: assignment.vote.isBugProven,
+                isVoteCorrect: assignment.vote.isVoteCorrect,
+                evaluationStatus: assignment.vote.evaluationStatus,
+                createdAt: assignment.vote.createdAt,
+              }
+            : null,
+          testExecution: testResultsByAssignmentId.get(assignment.id) || null,
+        })),
+      });
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        challenge: {
+          id: challenge.id,
+          status: challenge.status,
+          title: challenge.title,
+        },
+        matchSettings: Object.values(grouped),
+      },
+    });
+  } catch (error) {
+    handleException(res, error);
+  }
+});
+
+router.post(
+  '/challenges/:challengeId/match-settings/:matchSettingId/private-tests',
+  async (req, res) => {
+    try {
+      const challengeId = Number(req.params.challengeId);
+      const matchSettingId = Number(req.params.matchSettingId);
+      if (!Number.isInteger(challengeId) || challengeId < 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid challengeId',
+        });
+      }
+      if (!Number.isInteger(matchSettingId) || matchSettingId < 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid matchSettingId',
+        });
+      }
+      if (!isPrivilegedRole(getRequestRole(req))) {
+        return res.status(403).json({
+          success: false,
+          error: 'Not authorized to update private tests.',
+        });
+      }
+
+      const challenge = await Challenge.findByPk(challengeId);
+      if (!challenge) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'Challenge not found' });
+      }
+      if (!isEndedStatus(challenge.status)) {
+        return res.status(409).json({
+          success: false,
+          error: 'Challenge has not ended yet.',
+        });
+      }
+
+      const cms = await ChallengeMatchSetting.findOne({
+        where: { challengeId, matchSettingId },
+      });
+      if (!cms) {
+        return res.status(404).json({
+          success: false,
+          error: 'Match setting not found for this challenge',
+        });
+      }
+
+      const matchSetting = await MatchSetting.findByPk(matchSettingId);
+      if (!matchSetting) {
+        return res.status(404).json({
+          success: false,
+          error: 'Match setting not found',
+        });
+      }
+
+      const assignmentId = Number(req.body?.assignmentId);
+      if (!Number.isInteger(assignmentId) || assignmentId < 1) {
+        return res.status(400).json({
+          success: false,
+          error: 'assignmentId is required to validate the peer review test.',
+        });
+      }
+
+      const assignment = await PeerReviewAssignment.findOne({
+        where: { id: assignmentId },
+        include: [
+          {
+            model: Submission,
+            as: 'submission',
+            include: [
+              {
+                model: Match,
+                as: 'match',
+                include: [
+                  {
+                    model: ChallengeMatchSetting,
+                    as: 'challengeMatchSetting',
+                    where: { challengeId, matchSettingId },
+                    required: true,
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            model: PeerReviewVote,
+            as: 'vote',
+          },
+        ],
+      });
+
+      if (!assignment?.submission) {
+        return res.status(404).json({
+          success: false,
+          error: 'Peer review assignment not found for this match setting.',
+        });
+      }
+
+      const vote = assignment.vote;
+      if (!vote || vote.vote !== VoteType.INCORRECT) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Only incorrect peer review votes can be added to private tests.',
+        });
+      }
+
+      if (!vote.testCaseInput || !vote.expectedOutput) {
+        return res.status(400).json({
+          success: false,
+          error: 'Peer review test case is missing input or expected output.',
+        });
+      }
+
+      const parsedInput = parseJsonValueStrict(vote.testCaseInput, 'Input');
+      if (!parsedInput.ok) {
+        return res.status(400).json({
+          success: false,
+          error: parsedInput.error,
+        });
+      }
+      const parsedOutput = parseJsonValueStrict(vote.expectedOutput, 'Output');
+      if (!parsedOutput.ok) {
+        return res.status(400).json({
+          success: false,
+          error: parsedOutput.error,
+        });
+      }
+
+      if (!matchSetting.referenceSolution) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Reference solution is required to validate peer review tests.',
+        });
+      }
+
+      try {
+        const referenceResult = await runReferenceSolution({
+          referenceSolution: matchSetting.referenceSolution,
+          testCaseInput: JSON.stringify(parsedInput.value),
+        });
+        const normalizedExpected = normalizeOutputForComparison(
+          parsedOutput.value
+        );
+        const normalizedReference = normalizeOutputForComparison(
+          referenceResult.referenceOutput
+        );
+
+        if (normalizedExpected !== normalizedReference) {
+          return res.status(400).json({
+            success: false,
+            error: 'Expected output does not match the reference solution.',
+          });
+        }
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error:
+            error?.message ||
+            'Unable to validate the peer review test against the reference solution.',
+        });
+      }
+
+      const privateTests = Array.isArray(matchSetting.privateTests)
+        ? matchSetting.privateTests
+        : [];
+      const newTestCase = {
+        input: parsedInput.value,
+        output: parsedOutput.value,
+      };
+
+      const alreadyExists = privateTests.some((testCase) => {
+        if (!testCase) return false;
+        return (
+          JSON.stringify(testCase.input) ===
+            JSON.stringify(newTestCase.input) &&
+          JSON.stringify(testCase.output) === JSON.stringify(newTestCase.output)
+        );
+      });
+
+      if (!alreadyExists) {
+        await matchSetting.update({
+          privateTests: [...privateTests, newTestCase],
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          matchSettingId: matchSetting.id,
+          added: !alreadyExists,
+          privateTests: matchSetting.privateTests,
+        },
+      });
+    } catch (error) {
+      handleException(res, error);
+    }
+  }
+);
 
 router.post('/challenges/:challengeId/publish', async (req, res) => {
   let transaction;

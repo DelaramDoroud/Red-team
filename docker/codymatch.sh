@@ -3,7 +3,7 @@ USERID=$(id -u)
 GROUPID=$(id -g)
 export USERID GROUPID
 
-if [[ "$1" == "test" ]]; then
+if [[ "$1" == "test" || ( "$1" == "backend" && "$2" == "test" ) || ( "$1" == "frontend" && "$2" == "test" ) ]]; then
   source  "../backend/tests/.env.test"
 else
   source ".env"
@@ -24,6 +24,8 @@ error_message () {
           echo -e "${GREEN}build                      ${WHITE}Stop and remove containers & networks + build or rebuild services"
           echo -e "${GREEN}logs                       ${WHITE}View output from containers"
           echo -e "${GREEN}test [test_file] [--stop]     ${WHITE}Run tests in backend service. Optionally specify a test file to run only that file. Use --stop to stop the test DB after tests complete."
+          echo -e "${GREEN}backend test [--stop]        ${WHITE}Run backend tests only. Use --stop for non-watch mode."
+          echo -e "${GREEN}frontend test [--stop]       ${WHITE}Run frontend tests only. Use --stop for non-watch mode."
           echo -e "${GREEN}lint                       ${WHITE}Run linting with auto-fix in both backend and frontend"
           echo -e "${GREEN}deploy                     ${WHITE}Deploy services"
           echo -e ""
@@ -126,6 +128,17 @@ test)
     exit 1
   fi
 
+  echo "Running backend migrations on test DB..."
+  "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
+    backend sh -c "npm run migrate"
+  MIGRATION_EXIT_CODE=$?
+
+  if [[ $MIGRATION_EXIT_CODE -ne 0 ]]; then
+    echo "Backend migration failed."
+    docker rm -f test-db >/dev/null 2>&1 || true
+    exit 1
+  fi
+
   echo "Running backend tests..."
 
   BACKEND_TEST_EXIT_CODE=0
@@ -192,6 +205,105 @@ lint)
   ;;
 backend|frontend)
     case $2 in
+      test)
+        STOP_AFTER=false
+        TEST_FILE=""
+
+        if [[ "$3" == "--stop" ]]; then
+          STOP_AFTER=true
+        elif [[ -n "$3" && "$1" == "backend" ]]; then
+          TEST_FILE="$3"
+          if [[ "$4" == "--stop" ]]; then
+            STOP_AFTER=true
+          fi
+        fi
+
+        if [[ "$1" == "backend" ]]; then
+          echo "Stopping old test DB if it exists..."
+          docker rm -f test-db >/dev/null 2>&1 || true
+
+          echo "Starting test-db container from db service..."
+          "${DOCKER_COMPOSE[@]}" run -d -T \
+            --name test-db \
+            -p "${DB_PORT}:5432" \
+            db
+
+          echo "Waiting for test DB to become ready..."
+          for _ in {1..30}; do
+            if docker exec test-db pg_isready > /dev/null 2>&1; then
+              echo "test-db is ready"
+              break
+            fi
+            sleep 1
+          done
+
+          if ! docker exec test-db pg_isready > /dev/null 2>&1; then
+            echo "test-db failed to become ready in time." >&2
+            docker rm -f test-db >/dev/null 2>&1 || true
+            exit 1
+          fi
+
+          echo "Running backend migrations on test DB..."
+          "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
+            backend sh -c "npm run migrate"
+          MIGRATION_EXIT_CODE=$?
+
+          if [[ $MIGRATION_EXIT_CODE -ne 0 ]]; then
+            echo "Backend migration failed."
+            docker rm -f test-db >/dev/null 2>&1 || true
+            exit 1
+          fi
+
+          echo "Running backend tests..."
+
+          BACKEND_TEST_EXIT_CODE=0
+
+          if [[ -n "$TEST_FILE" ]]; then
+            echo "Running backend test file: $TEST_FILE"
+            "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T \
+              backend sh -c "npm run test -- tests/$TEST_FILE"
+            BACKEND_TEST_EXIT_CODE=$?
+          else
+            if [[ "$STOP_AFTER" == true ]]; then
+              "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T backend sh -c \
+                "npm run test:run -- --no-file-parallelism --bail=1"
+            else
+              "${DOCKER_COMPOSE[@]}" run --rm --no-deps backend sh -c \
+                "npm run test -- --no-file-parallelism --bail=1"
+            fi
+            BACKEND_TEST_EXIT_CODE=$?
+          fi
+
+          echo "Cleaning up test DB..."
+          docker rm -f test-db > /dev/null 2>&1 || true
+
+          if [[ $BACKEND_TEST_EXIT_CODE -ne 0 ]]; then
+            echo "Backend tests failed."
+            exit 1
+          fi
+
+          echo "Backend tests passed."
+          exit 0
+        fi
+
+        echo "Running frontend tests..."
+        if [[ "$STOP_AFTER" == true ]]; then
+          "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
+            "npm run test:run"
+        else
+          "${DOCKER_COMPOSE[@]}" run --rm --no-deps -T frontend sh -c \
+            "npm run test"
+        fi
+
+        FRONTEND_TEST_EXIT_CODE=$?
+        if [[ $FRONTEND_TEST_EXIT_CODE -ne 0 ]]; then
+          echo "Frontend tests failed."
+          exit 1
+        fi
+
+        echo "Frontend tests passed."
+        exit 0
+        ;;
       restart)
         "${DOCKER_COMPOSE[@]}" restart "$1"
         ;;

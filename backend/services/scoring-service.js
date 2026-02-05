@@ -14,7 +14,7 @@ import logger from '#root/services/logger.js';
 
 /**
  * FULL CALCULATION (RT-215 + RT-216)
- * Calculates Code Review Score, Implementation Score, and Total Score.
+ * Calculates Peer Review Score, Implementation Score, and Total Score.
  * Saves the results in the submission_score_breakdown table (linked to participant).
  */
 export async function calculateChallengeScores(challengeId) {

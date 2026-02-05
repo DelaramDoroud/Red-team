@@ -20,6 +20,8 @@ const mockStartPeerReview = vi.fn();
 const mockEndPeerReview = vi.fn();
 const mockUnpublishChallenge = vi.fn();
 const mockEndChallenge = vi.fn();
+const mockGetTeacherChallengeResults = vi.fn();
+const mockAddMatchSettingPrivateTest = vi.fn();
 const mockDispatch = vi.fn(() => Promise.resolve());
 
 vi.mock('#js/useChallenge', () => ({
@@ -36,6 +38,8 @@ vi.mock('#js/useChallenge', () => ({
     endPeerReview: mockEndPeerReview,
     unpublishChallenge: mockUnpublishChallenge,
     endChallenge: mockEndChallenge,
+    getTeacherChallengeResults: mockGetTeacherChallengeResults,
+    addMatchSettingPrivateTest: mockAddMatchSettingPrivateTest,
   }),
 }));
 
@@ -103,6 +107,16 @@ describe('ChallengeDetailPage', () => {
     mockEndPeerReview.mockResolvedValue({ success: true });
     mockUnpublishChallenge.mockResolvedValue({ success: true });
     mockEndChallenge.mockResolvedValue({ success: true });
+    mockGetTeacherChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        matchSettings: [],
+      },
+    });
+    mockAddMatchSettingPrivateTest.mockResolvedValue({
+      success: true,
+      data: { added: true },
+    });
   });
 
   afterEach(() => {
@@ -166,6 +180,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 1,
         peerReviewReady: false,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -195,6 +212,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 2,
         peerReviewReady: true,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -220,6 +240,9 @@ describe('ChallengeDetailPage', () => {
         durationPeerReview: 15,
         allowedNumberOfReview: 2,
         peerReviewReady: true,
+        totalMatches: 0,
+        finalSubmissionCount: 0,
+        pendingFinalCount: 0,
       },
       assignments: [],
     });
@@ -236,6 +259,34 @@ describe('ChallengeDetailPage', () => {
     await waitFor(() =>
       expect(mockStartPeerReview).toHaveBeenCalledWith('123')
     );
+  });
+
+  it('hides Assign button while submissions are still being finalized', async () => {
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_one',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
+        totalMatches: 3,
+        finalSubmissionCount: 1,
+        pendingFinalCount: 2,
+      },
+      assignments: [],
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
+
+    expect(
+      screen.queryByRole('button', { name: /^assign$/i })
+    ).not.toBeInTheDocument();
   });
 
   it('unpublishes then redirects to edit when Edit is confirmed', async () => {
@@ -336,5 +387,128 @@ describe('ChallengeDetailPage', () => {
     expect(screen.getByText(/Joined students/i)).toBeInTheDocument();
     expect(screen.getByText('Mario Rossi')).toBeInTheDocument();
     expect(screen.getByText('Luca Bianchi')).toBeInTheDocument();
+  });
+
+  it('shows the votes cast by each student in teacher results', async () => {
+    const user = userEvent.setup();
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'ended_phase_two',
+        startDatetime: new Date().toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: true,
+      },
+      assignments: [],
+    });
+    mockGetTeacherChallengeResults.mockResolvedValue({
+      success: true,
+      data: {
+        matchSettings: [
+          {
+            challengeMatchSettingId: 1,
+            matchSetting: { id: 11, problemTitle: 'Sort an array' },
+            matches: [
+              {
+                id: 201,
+                student: { id: 1, firstName: 'Student', lastName: 'One' },
+                submission: {
+                  id: 301,
+                  status: 'probably_correct',
+                  code: 'int main() { return 0; }',
+                  publicTestResults: [],
+                  privateTestResults: [],
+                  updatedAt: new Date().toISOString(),
+                },
+                peerReviewAssignments: [
+                  {
+                    id: 401,
+                    reviewer: { id: 2, firstName: 'Student', lastName: 'Two' },
+                    vote: {
+                      vote: 'correct',
+                      isVoteCorrect: true,
+                    },
+                  },
+                ],
+              },
+              {
+                id: 202,
+                student: { id: 2, firstName: 'Student', lastName: 'Two' },
+                submission: {
+                  id: 302,
+                  status: 'wrong',
+                  code: 'int main() { return 1; }',
+                  publicTestResults: [],
+                  privateTestResults: [],
+                  updatedAt: new Date().toISOString(),
+                },
+                peerReviewAssignments: [
+                  {
+                    id: 402,
+                    reviewer: { id: 1, firstName: 'Student', lastName: 'One' },
+                    vote: {
+                      vote: 'correct',
+                      isVoteCorrect: true,
+                    },
+                  },
+                ],
+              },
+              {
+                id: 203,
+                student: { id: 3, firstName: 'Student', lastName: 'Three' },
+                submission: {
+                  id: 303,
+                  status: 'wrong',
+                  code: 'int main() { return 2; }',
+                  publicTestResults: [],
+                  privateTestResults: [],
+                  updatedAt: new Date().toISOString(),
+                },
+                peerReviewAssignments: [
+                  {
+                    id: 403,
+                    reviewer: { id: 1, firstName: 'Student', lastName: 'One' },
+                    vote: {
+                      vote: 'abstain',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    render(<ChallengeDetailPage />);
+
+    await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());
+
+    await user.click(
+      await screen.findByRole('button', { name: /view student results/i })
+    );
+    await waitFor(() =>
+      expect(mockGetTeacherChallengeResults).toHaveBeenCalledWith('123', true)
+    );
+
+    await user.click(await screen.findByText(/Sort an array/i));
+    const studentOneSummary = screen.getByText('Student One');
+    await user.click(studentOneSummary);
+    const studentOneContainer = studentOneSummary.closest('details');
+    expect(studentOneContainer).not.toBeNull();
+    await user.click(within(studentOneContainer).getByText(/Peer review/i));
+
+    expect(
+      await screen.findByText(/Vote for Student Two/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Vote for Student Three/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Student vote:/i).length).toBeGreaterThan(0);
+    expect(
+      within(studentOneContainer).queryByText(/Vote for Student One/i)
+    ).not.toBeInTheDocument();
   });
 });

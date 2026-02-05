@@ -20,14 +20,6 @@ export default function useMatchSettings() {
     [fetchData]
   );
 
-  const getMatchSettingPeerReviewTests = useCallback(
-    async (matchSettingId) => {
-      const url = `${API_REST_BASE}/matchSettings/${matchSettingId}/peer-review-tests`;
-      return fetchData(url);
-    },
-    [fetchData]
-  );
-
   const getMatchSettingsReady = useCallback(async () => {
     const url = `${API_REST_BASE}/matchSettingsReady`;
     return fetchData(url);
@@ -86,7 +78,6 @@ export default function useMatchSettings() {
       loading,
       getMatchSettings,
       getMatchSetting,
-      getMatchSettingPeerReviewTests,
       getMatchSettingsReady,
       createMatchSetting,
       updateMatchSetting,
@@ -98,7 +89,6 @@ export default function useMatchSettings() {
       loading,
       getMatchSettings,
       getMatchSetting,
-      getMatchSettingPeerReviewTests,
       getMatchSettingsReady,
       createMatchSetting,
       updateMatchSetting,

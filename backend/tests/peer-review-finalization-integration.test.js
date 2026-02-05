@@ -55,7 +55,7 @@ beforeAll(async () => {
   Match = matchModule.default;
   Submission = submissionModule.default;
 
-  await sequelize.sync({ force: true });
+  await sequelize.truncate({ cascade: true, restartIdentity: true });
 }, 60000);
 
 beforeEach(() => {
