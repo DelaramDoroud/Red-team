@@ -227,11 +227,11 @@ export async function calculateChallengeScores(challengeId) {
 
       if (execResult.isCompiled) {
         await Promise.all(
-          killerVotes.map(async (index) => {
-            const result = execResult.testResults[index];
-            const passed = result.passed;
+          killerVotes.map(async (_vote, index) => {
+            const result = execResult.testResults?.[index];
+            const passed = result?.passed;
 
-            let actualOutputToSave = result.actualOutput;
+            let actualOutputToSave = result?.actualOutput;
             if (typeof actualOutputToSave !== 'string')
               actualOutputToSave = JSON.stringify(actualOutputToSave);
 
