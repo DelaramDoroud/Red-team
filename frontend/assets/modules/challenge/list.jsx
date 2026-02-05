@@ -15,12 +15,44 @@ import styles from './list.module.css';
 const COUNTDOWN_DURATION = 5;
 const isPrivateStatus = (status) =>
   status === ChallengeStatus.PRIVATE || status === 'draft';
-const isActiveStatus = (status) =>
-  status === ChallengeStatus.STARTED_PHASE_ONE ||
-  status === ChallengeStatus.ENDED_PHASE_ONE ||
-  status === ChallengeStatus.STARTED_PHASE_TWO;
-const isUpcomingStatus = (status) =>
-  status === ChallengeStatus.PUBLIC || status === ChallengeStatus.ASSIGNED;
+const getChallengeStartTimestamp = (challenge) => {
+  const value = challenge?.startPhaseOneDateTime || challenge?.startDatetime;
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return timestamp;
+};
+const isActiveStatus = (challenge, nowMs) => {
+  const status = challenge?.status;
+  if (
+    status === ChallengeStatus.STARTED_PHASE_ONE ||
+    status === ChallengeStatus.ENDED_PHASE_ONE ||
+    status === ChallengeStatus.STARTED_PHASE_TWO
+  ) {
+    return true;
+  }
+  if (
+    status === ChallengeStatus.PUBLIC ||
+    status === ChallengeStatus.ASSIGNED
+  ) {
+    const startTimestamp = getChallengeStartTimestamp(challenge);
+    if (startTimestamp === null) return false;
+    return startTimestamp <= nowMs;
+  }
+  return false;
+};
+const isUpcomingStatus = (challenge, nowMs) => {
+  const status = challenge?.status;
+  if (
+    status === ChallengeStatus.PUBLIC ||
+    status === ChallengeStatus.ASSIGNED
+  ) {
+    const startTimestamp = getChallengeStartTimestamp(challenge);
+    if (startTimestamp === null) return true;
+    return startTimestamp > nowMs;
+  }
+  return false;
+};
 const isEndedStatus = (status) => status === ChallengeStatus.ENDED_PHASE_TWO;
 const parseNumericValue = (value) => {
   if (value === '' || value === null || value === undefined) return value;
@@ -94,16 +126,29 @@ export default function ChallengeList({ scope = 'main' }) {
 
   const load = useCallback(async () => {
     setError(null);
-    setParticipantsMap({});
     const result = await getChallenges();
     if (result?.success === false) {
       setError(result.message || 'Unable to load challenges');
       setChallenges([]);
+      setParticipantsMap({});
       return;
     }
-    if (Array.isArray(result)) setChallenges(result);
-    else if (Array.isArray(result?.data)) setChallenges(result.data);
-    else setChallenges([]);
+    let nextChallenges = [];
+    if (Array.isArray(result)) nextChallenges = result;
+    else if (Array.isArray(result?.data)) nextChallenges = result.data;
+    setChallenges(nextChallenges);
+    setParticipantsMap((prev) => {
+      if (!nextChallenges.length) return {};
+      const next = {};
+      nextChallenges.forEach((challenge) => {
+        const challengeId = challenge?.id;
+        if (!challengeId) return;
+        if (Object.prototype.hasOwnProperty.call(prev, challengeId)) {
+          next[challengeId] = prev[challengeId];
+        }
+      });
+      return next;
+    });
   }, [getChallenges]);
 
   useEffect(() => {
@@ -202,19 +247,20 @@ export default function ChallengeList({ scope = 'main' }) {
       ),
     [challenges]
   );
+  const nowMs = Date.now();
   const activeChallenges = useMemo(
     () =>
       nonPrivateChallenges.filter((challenge) =>
-        isActiveStatus(challenge.status ?? '')
+        isActiveStatus(challenge, nowMs)
       ),
-    [nonPrivateChallenges]
+    [nonPrivateChallenges, nowMs]
   );
   const upcomingChallenges = useMemo(
     () =>
       nonPrivateChallenges.filter((challenge) =>
-        isUpcomingStatus(challenge.status ?? '')
+        isUpcomingStatus(challenge, nowMs)
       ),
-    [nonPrivateChallenges]
+    [nonPrivateChallenges, nowMs]
   );
   const endedChallenges = useMemo(
     () =>
@@ -233,6 +279,10 @@ export default function ChallengeList({ scope = 'main' }) {
     privateChallenges,
     upcomingChallenges,
   ]);
+  const participantChallenges = useMemo(
+    () => (isPrivateView ? privateChallenges : nonPrivateChallenges),
+    [isPrivateView, nonPrivateChallenges, privateChallenges]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -303,11 +353,11 @@ export default function ChallengeList({ scope = 'main' }) {
   }, [isPrivateView, privateChallenges, validate]);
 
   useEffect(() => {
-    if (!visibleChallenges.length) return;
+    if (!participantChallenges.length) return;
     const fetchParticipantsForPage = async () => {
       const newCounts = {};
       await Promise.all(
-        visibleChallenges.map(async (challenge) => {
+        participantChallenges.map(async (challenge) => {
           try {
             const res = await getChallengeParticipantsRef.current(challenge.id);
             newCounts[challenge.id] =
@@ -320,7 +370,7 @@ export default function ChallengeList({ scope = 'main' }) {
       setParticipantsMap((prev) => ({ ...prev, ...newCounts }));
     };
     fetchParticipantsForPage();
-  }, [visibleChallenges]);
+  }, [participantChallenges]);
 
   const setPendingAction = (id, key, value) => {
     setPending((prev) => ({
