@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+if (typeof window !== 'undefined') {
+  window.IS_REACT_ACT_ENVIRONMENT = true;
+}
+
 const originalConsoleError = console.error;
 console.error = (...args) => {
   const [firstArg] = args;

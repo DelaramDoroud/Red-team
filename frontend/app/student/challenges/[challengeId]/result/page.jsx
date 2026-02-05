@@ -161,11 +161,12 @@ export default function ChallengeResultPage() {
       const payload = res?.data || res;
       const finalizationInfo = payload?.finalization || null;
 
-      // BYPASS TO SHOW RESULTS IF SCORING IS DONE
       const isScoringCompleted =
         payload?.challenge?.scoringStatus === 'completed';
+      const hasScoreBreakdown = Boolean(payload?.scoreBreakdown);
+      const finalizationReady = finalizationInfo?.resultsReady !== false;
       const resultsReady =
-        finalizationInfo?.resultsReady !== false || isScoringCompleted;
+        finalizationReady && (isScoringCompleted || hasScoreBreakdown);
 
       setFinalization(finalizationInfo);
       setResultData(payload);
@@ -425,6 +426,9 @@ export default function ChallengeResultPage() {
   const feedbackSectionId = solutionFeedbackKey
     ? `solution-feedback-${solutionFeedbackKey}`
     : 'solution-feedback';
+  const votesSectionId = codeReviewVotesKey
+    ? `code-review-votes-${codeReviewVotesKey}`
+    : 'code-review-votes';
   const totalPublic = publicResults.length;
   const totalPrivate = privateResults.length;
   const passedPublic = publicResults.filter((result) => result.passed).length;
@@ -513,12 +517,14 @@ export default function ChallengeResultPage() {
         {/* B. Navigate to Votes Button (Goes to the dedicated page) */}
         <Button
           variant='secondary'
-          onClick={() =>
-            router.push(`/student/challenges/${challengeId}/peer-reviews`)
-          }
+          onClick={handleTogglePeerReviewVotes}
+          aria-expanded={isCodeReviewVotesOpen}
+          aria-controls={votesSectionId}
           className='flex-1'
         >
-          View Your Code Review Votes
+          {isCodeReviewVotesOpen
+            ? 'Hide Your Code Review Votes'
+            : 'View Your Code Review Votes'}
         </Button>
       </div>
 
@@ -694,8 +700,8 @@ export default function ChallengeResultPage() {
         </Card>
       )}
 
-      {isFullyEnded && (
-        <Card>
+      {isFullyEnded && isCodeReviewVotesOpen && (
+        <Card className='animate-in fade-in slide-in-from-top-4 duration-300'>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <div className='space-y-1'>
               <CardTitle>Peer Review Results</CardTitle>
@@ -705,96 +711,53 @@ export default function ChallengeResultPage() {
             </div>
           </CardHeader>
           <CardContent className='space-y-6 pt-4'>
-            {scoreBreakdown && (
-              <div className='grid gap-4 md:grid-cols-3'>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    total score
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.totalScore}
+            {isCodeReviewVotesOpen && (
+              <div id={votesSectionId} className={styles.votesPanel}>
+                <div className={styles.votesHeader}>
+                  <div className={styles.votesTitle}>
+                    <span className={styles.votesIcon}>✓</span>
+                    Your Peer Review Votes
                   </div>
                 </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Coding Phase
+                {reviewVotesLoading ? (
+                  <p className='text-sm text-muted-foreground'>
+                    Loading your peer review votes...
+                  </p>
+                ) : null}
+                {reviewVotesError ? (
+                  <p className='text-sm text-destructive'>{reviewVotesError}</p>
+                ) : null}
+                {!reviewVotesLoading &&
+                !reviewVotesError &&
+                voteItems.length === 0 ? (
+                  <p className='text-sm text-muted-foreground'>
+                    No peer review votes available.
+                  </p>
+                ) : null}
+                {!reviewVotesLoading &&
+                !reviewVotesError &&
+                voteItems.length > 0 ? (
+                  <div className={styles.votesList}>
+                    {voteItems.map((item) => (
+                      <PeerReviewVoteResultCard
+                        key={item.id}
+                        title={item.submissionLabel}
+                        vote={item.vote}
+                        expectedEvaluation={item.expectedEvaluation}
+                        isCorrect={item.isCorrect}
+                        testCaseInput={item.testCaseInput}
+                        expectedOutput={item.expectedOutput}
+                        referenceOutput={item.referenceOutput}
+                        actualOutput={item.actualOutput}
+                        isExpectedOutputCorrect={item.isExpectedOutputCorrect}
+                        isVoteCorrect={item.isVoteCorrect}
+                        evaluationStatus={item.evaluationStatus}
+                      />
+                    ))}
                   </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.implementationScore}
-                  </div>
-                </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Peer review phase
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.codeReviewScore}
-                  </div>
-                </div>
+                ) : null}
               </div>
             )}
-
-            <div>
-              <Button
-                variant='outline'
-                onClick={handleTogglePeerReviewVotes}
-                aria-expanded={isCodeReviewVotesOpen}
-              >
-                {isCodeReviewVotesOpen
-                  ? 'Hide Peer Review Votes'
-                  : 'View Your Peer Review Votes'}
-              </Button>
-
-              {isCodeReviewVotesOpen && (
-                <div className={styles.votesPanel}>
-                  <div className={styles.votesHeader}>
-                    <div className={styles.votesTitle}>
-                      <span className={styles.votesIcon}>✓</span>
-                      Your Peer Review Votes
-                    </div>
-                  </div>
-                  {reviewVotesLoading ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Loading your peer review votes...
-                    </p>
-                  ) : null}
-                  {reviewVotesError ? (
-                    <p className='text-sm text-destructive'>
-                      {reviewVotesError}
-                    </p>
-                  ) : null}
-                  {!reviewVotesLoading &&
-                  !reviewVotesError &&
-                  voteItems.length === 0 ? (
-                    <p className='text-sm text-muted-foreground'>
-                      No peer review votes available.
-                    </p>
-                  ) : null}
-                  {!reviewVotesLoading &&
-                  !reviewVotesError &&
-                  voteItems.length > 0 ? (
-                    <div className={styles.votesList}>
-                      {voteItems.map((item) => (
-                        <PeerReviewVoteResultCard
-                          key={item.id}
-                          title={item.submissionLabel}
-                          vote={item.vote}
-                          expectedEvaluation={item.expectedEvaluation}
-                          isCorrect={item.isCorrect}
-                          testCaseInput={item.testCaseInput}
-                          expectedOutput={item.expectedOutput}
-                          referenceOutput={item.referenceOutput}
-                          actualOutput={item.actualOutput}
-                          isExpectedOutputCorrect={item.isExpectedOutputCorrect}
-                          isVoteCorrect={item.isVoteCorrect}
-                          evaluationStatus={item.evaluationStatus}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
 
             <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
               <h3 className='text-sm font-semibold'>Received Tests</h3>
@@ -870,61 +833,6 @@ export default function ChallengeResultPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* /!* --- parte che mi sono trovato sul main ma non so se è meglio dell amia oppure no *!/ */}
-      {/* {isFullyEnded && hasPeerReviewTests && ( */}
-      {/*  <Card> */}
-      {/*    <CardHeader> */}
-      {/*      <CardTitle>Received Peer Tests</CardTitle> */}
-      {/*      <CardDescription> */}
-      {/*        Test cases created by other students that your code was evaluated */}
-      {/*        against. */}
-      {/*      </CardDescription> */}
-      {/*    </CardHeader> */}
-      {/*    <CardContent> */}
-      {/*      <div className='space-y-4'> */}
-      {/*        {peerReviewTests.map((review) => { */}
-      {/*          const tests = review.tests || []; */}
-      {/*          if (tests.length === 0) return null; */}
-      {/*          return ( */}
-      {/*            <div */}
-      {/*              key={`review-${review.id}`} */}
-      {/*              className='rounded-xl border border-border bg-muted/40 p-4 space-y-3' */}
-      {/*            > */}
-      {/*              <p className='text-sm font-semibold'> */}
-      {/*                Reviewer: {review.reviewer?.username || 'Anonymous'} */}
-      {/*              </p> */}
-      {/*              <div className='space-y-3'> */}
-      {/*                {tests.map((test) => { */}
-      {/*                  const testKey = JSON.stringify({ */}
-      {/*                    input: test.input, */}
-      {/*                    expectedOutput: test.expectedOutput, */}
-      {/*                    notes: test.notes, */}
-      {/*                  }); */}
-      {/*                  return ( */}
-      {/*                    <div */}
-      {/*                      key={testKey} */}
-      {/*                      className='rounded-lg border border-border bg-background p-3 text-xs space-y-2' */}
-      {/*                    > */}
-      {/*                      <p> */}
-      {/*                        <span className='font-semibold'>Input:</span>{' '} */}
-      {/*                        {renderValue(test.input)} */}
-      {/*                      </p> */}
-      {/*                      <p> */}
-      {/*                        <span className='font-semibold'>Expected:</span>{' '} */}
-      {/*                        {renderValue(test.expectedOutput)} */}
-      {/*                      </p> */}
-      {/*                    </div> */}
-      {/*                  ); */}
-      {/*                })} */}
-      {/*              </div> */}
-      {/*            </div> */}
-      {/*          ); */}
-      {/*        })} */}
-      {/*      </div> */}
-      {/*    </CardContent> */}
-      {/*  </Card> */}
-      {/* )} */}
 
       {isFullyEnded && (
         <Card>

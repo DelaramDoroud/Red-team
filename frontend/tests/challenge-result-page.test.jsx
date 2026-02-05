@@ -92,6 +92,7 @@ describe('ChallengeResultPage', () => {
 
   it('renders ended challenge details with private tests and peer review feedback', async () => {
     const user = userEvent.setup();
+    mockGetStudentVotes.mockResolvedValue({ success: true, votes: [] });
     mockGetChallengeResults.mockResolvedValue({
       success: true,
       data: {
@@ -99,6 +100,7 @@ describe('ChallengeResultPage', () => {
           id: 42,
           title: 'Sorting Challenge',
           status: 'ended_phase_two',
+          scoringStatus: 'completed',
           endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
@@ -144,6 +146,11 @@ describe('ChallengeResultPage', () => {
             ],
           },
         ],
+        scoreBreakdown: {
+          totalScore: 100,
+          implementationScore: 50,
+          codeReviewScore: 50,
+        },
       },
     });
 
@@ -156,10 +163,6 @@ describe('ChallengeResultPage', () => {
     expect(await screen.findByText('Sorting Challenge')).toBeInTheDocument();
     expect(
       await screen.findByText(/Problem: Sort an array/i)
-    ).toBeInTheDocument();
-
-    expect(
-      await screen.findByText(/Your (submission|solution)/i)
     ).toBeInTheDocument();
 
     const toggleButton = screen.getByRole('button', {
@@ -178,11 +181,19 @@ describe('ChallengeResultPage', () => {
         name: /Hide Your Solution & Feedback/i,
       })
     ).toBeInTheDocument();
+    expect(screen.getByText(/Your submission details/i)).toBeInTheDocument();
     expect(screen.getByText(/int main\(\) { return 0; }/i)).toBeInTheDocument();
     expect(screen.getByText(/Public test results/i)).toBeInTheDocument();
     expect(screen.getByText(/Private test results/i)).toBeInTheDocument();
     expect(screen.getAllByText('1 2').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Received Tests/i)).toBeInTheDocument();
+
+    expect(screen.queryByText(/Received Tests/i)).not.toBeInTheDocument();
+    const codeReviewToggle = screen.getByRole('button', {
+      name: /View Your Code Review Votes/i,
+    });
+    await user.click(codeReviewToggle);
+
+    expect(await screen.findByText(/Received Tests/i)).toBeInTheDocument();
     expect(screen.getByText(/Reviewer:\s*peer/i)).toBeInTheDocument();
     expect(screen.getByText(/2 1/)).toBeInTheDocument();
 
@@ -202,6 +213,7 @@ describe('ChallengeResultPage', () => {
           id: 42,
           title: 'Sorting Challenge',
           status: 'ended_phase_two',
+          scoringStatus: 'completed',
           endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
@@ -211,6 +223,11 @@ describe('ChallengeResultPage', () => {
           createdAt: new Date('2025-12-01T10:00:00Z').toISOString(),
           publicTestResults: [],
           privateTestResults: [],
+        },
+        scoreBreakdown: {
+          totalScore: 100,
+          implementationScore: 50,
+          codeReviewScore: 50,
         },
       },
     });
@@ -245,14 +262,16 @@ describe('ChallengeResultPage', () => {
     });
 
     const votesToggle = await screen.findByRole('button', {
-      name: /View Your Peer Review Votes/i,
+      name: /View Your Code Review Votes/i,
     });
     await user.click(votesToggle);
 
     expect(
-      screen.getByRole('button', { name: /Hide Peer Review Votes/i })
+      screen.getByRole('button', { name: /Hide Your Code Review Votes/i })
     ).toBeInTheDocument();
-    expect(screen.getByText(/Your Peer Review Votes/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/Your Peer Review Votes/i).length
+    ).toBeGreaterThan(0);
     expect(screen.getByText(/Your vote:/i)).toBeInTheDocument();
     expect(screen.getByText(/Expected evaluation:/i)).toBeInTheDocument();
     expect(screen.getByText(/Test provided/i)).toBeInTheDocument();
@@ -261,7 +280,7 @@ describe('ChallengeResultPage', () => {
     expect(screen.getAllByText(/Correct/i).length).toBeGreaterThan(0);
 
     await user.click(
-      screen.getByRole('button', { name: /Hide Peer Review Votes/i })
+      screen.getByRole('button', { name: /Hide Your Code Review Votes/i })
     );
     expect(
       screen.queryByText(/Your Peer Review Votes/i, { selector: 'div' })
@@ -276,6 +295,7 @@ describe('ChallengeResultPage', () => {
           id: 42,
           title: 'Sorting Challenge',
           status: 'ended_phase_two',
+          scoringStatus: 'completed',
           endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
@@ -300,6 +320,11 @@ describe('ChallengeResultPage', () => {
               stderr: 'Wrong order',
             },
           ],
+        },
+        scoreBreakdown: {
+          totalScore: 100,
+          implementationScore: 50,
+          codeReviewScore: 50,
         },
       },
     });
