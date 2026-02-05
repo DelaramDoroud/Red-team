@@ -146,8 +146,6 @@ export const submitVote = async (
     // RT-162: Test the input test case against the code runner and output to validate
     const submissionCode = assignment.submission?.code;
 
-    console.log('DEBUG: submissionCode:', submissionCode);
-
     if (submissionCode) {
       try {
         const testResults = await executeCodeTests({
@@ -160,19 +158,12 @@ export const submitVote = async (
           ],
         });
 
-        console.log(
-          'DEBUG: testResults:',
-          JSON.stringify(testResults, null, 2)
-        );
-
         // Check if the test case actually exposes a bug (test should fail)
         const testResult = testResults.testResults?.[0];
-        console.log('DEBUG: testResult:', testResult);
 
         if (testResult) {
           // If the code passes the test case, the vote is invalid
           if (testResult.passed) {
-            console.log('DEBUG: Test passed, throwing INVALID_TEST_CASE');
             const error = new Error(
               'This test case actually passes with the provided expected output. The code is correct for this input, so you cannot vote "incorrect" with this test case.'
             );
@@ -190,11 +181,8 @@ export const submitVote = async (
           }
         }
       } catch (error) {
-        console.log('DEBUG: Caught error:', error.message, error.code);
         // Re-throw validation errors as-is
-        if (error.code === 'INVALID_TEST_CASE') {
-          throw error;
-        }
+        if (error.code === 'INVALID_TEST_CASE') throw error;
 
         // For unexpected errors, log but allow the vote (code runner might be unavailable)
         // This prevents service disruption
