@@ -25,7 +25,7 @@ import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
-
+import skillTitleModal from '#components/skillTitle/skillTitleModal.jsx';
 const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
 
@@ -136,7 +136,8 @@ export default function ChallengeResultPage() {
   const [reviewVotes, setReviewVotes] = useState(null);
   const [reviewVotesLoading, setReviewVotesLoading] = useState(false);
   const [reviewVotesError, setReviewVotesError] = useState('');
-
+  const [showTitleModal, setShowTitleModal] = useState(false);
+  const [newTitle, setNewTitle] = useState(null);
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
     setAwaitingChallengeEnd(false);
@@ -478,6 +479,13 @@ export default function ChallengeResultPage() {
       };
     }
   );
+  const simulateTitleUnlock = () => {
+    setNewTitle({
+      name: 'Expert',
+      description: 'Skilled coder with proven excellence',
+    });
+    setShowTitleModal(true);
+  };
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -971,6 +979,22 @@ export default function ChallengeResultPage() {
       >
         Back to challenges
       </Button>
+      
+      <button
+        onClick={simulateTitleUnlock}
+        className="bg-purple-500 text-white px-4 py-2 rounded"
+      >
+        Simulate Title Unlock
+      </button>
+
+      {/* Title Modal */}
+      {showTitleModal && (
+        <TitleModal
+          title={newTitle}
+          onClose={() => setShowTitleModal(false)}
+        />
+      )}
     </div>
+    
   );
 }
