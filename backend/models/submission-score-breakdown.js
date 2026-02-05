@@ -37,6 +37,13 @@ SubmissionScoreBreakdown.init(
       allowNull: false,
       field: 'total_score',
     },
+
+    stats: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      field: 'stats',
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -61,7 +68,6 @@ SubmissionScoreBreakdown.init(
     indexes: [
       {
         unique: true,
-
         fields: ['challenge_participant_id'],
         name: 'uq_submission_score_breakdown_participant_id',
       },

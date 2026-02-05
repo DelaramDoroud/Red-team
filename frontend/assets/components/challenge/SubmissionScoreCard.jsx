@@ -9,23 +9,22 @@ export default function SubmissionScoreCard({ scoreData }) {
     codeReviewScore,
     implementationScore,
     updatedAt,
-    // Expecting these stats from the backend.
+    // Ora stats arriva popolato dal Backend grazie alla modifica nel service
     stats = {},
   } = scoreData || {};
 
   const formattedDate = updatedAt ? formatDateTime(updatedAt) : '—';
 
-  // --- DERIVED DATA FOR CODE REVIEW ---
+  // --- DATI CODE REVIEW ---
   const { E = 0, C = 0, W = 0, totalReviewed = 0 } = stats.codeReview || {};
 
-  // Fixed: Renamed to camelCase for ESLint compliance
   const weightE = 2;
   const weightC = 1;
   const weightW = 0.5;
 
   const earnedCR = E * weightE + C * weightC - W * weightW;
 
-  // --- DERIVED DATA FOR IMPLEMENTATION ---
+  // --- DATI IMPLEMENTATION ---
   const {
     teacherPassed = 0,
     teacherTotal = 0,
@@ -36,7 +35,7 @@ export default function SubmissionScoreCard({ scoreData }) {
   const baseScoreCalc =
     teacherTotal > 0 ? (teacherPassed / teacherTotal) * 50 : 0;
 
-  // Cap penalty at 1/3 of total points (approx 16.67)
+  // Cap penalty a 16.67 (50/3)
   const penaltyCalc =
     peerTotal > 0 ? Math.min((peerPenalties / peerTotal) * 50, 16.67) : 0;
 
