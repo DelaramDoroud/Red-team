@@ -705,35 +705,6 @@ export default function ChallengeResultPage() {
             </div>
           </CardHeader>
           <CardContent className='space-y-6 pt-4'>
-            {scoreBreakdown && (
-              <div className='grid gap-4 md:grid-cols-3'>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    total score
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.totalScore}
-                  </div>
-                </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Coding Phase
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.implementationScore}
-                  </div>
-                </div>
-                <div className='rounded-xl border border-border bg-muted/40 p-4'>
-                  <div className='text-sm font-medium text-muted-foreground'>
-                    Peer review phase
-                  </div>
-                  <div className='text-2xl font-bold'>
-                    {scoreBreakdown.codeReviewScore}
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div>
               <Button
                 variant='outline'
@@ -870,61 +841,6 @@ export default function ChallengeResultPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* /!* --- parte che mi sono trovato sul main ma non so se è meglio dell amia oppure no *!/ */}
-      {/* {isFullyEnded && hasPeerReviewTests && ( */}
-      {/*  <Card> */}
-      {/*    <CardHeader> */}
-      {/*      <CardTitle>Received Peer Tests</CardTitle> */}
-      {/*      <CardDescription> */}
-      {/*        Test cases created by other students that your code was evaluated */}
-      {/*        against. */}
-      {/*      </CardDescription> */}
-      {/*    </CardHeader> */}
-      {/*    <CardContent> */}
-      {/*      <div className='space-y-4'> */}
-      {/*        {peerReviewTests.map((review) => { */}
-      {/*          const tests = review.tests || []; */}
-      {/*          if (tests.length === 0) return null; */}
-      {/*          return ( */}
-      {/*            <div */}
-      {/*              key={`review-${review.id}`} */}
-      {/*              className='rounded-xl border border-border bg-muted/40 p-4 space-y-3' */}
-      {/*            > */}
-      {/*              <p className='text-sm font-semibold'> */}
-      {/*                Reviewer: {review.reviewer?.username || 'Anonymous'} */}
-      {/*              </p> */}
-      {/*              <div className='space-y-3'> */}
-      {/*                {tests.map((test) => { */}
-      {/*                  const testKey = JSON.stringify({ */}
-      {/*                    input: test.input, */}
-      {/*                    expectedOutput: test.expectedOutput, */}
-      {/*                    notes: test.notes, */}
-      {/*                  }); */}
-      {/*                  return ( */}
-      {/*                    <div */}
-      {/*                      key={testKey} */}
-      {/*                      className='rounded-lg border border-border bg-background p-3 text-xs space-y-2' */}
-      {/*                    > */}
-      {/*                      <p> */}
-      {/*                        <span className='font-semibold'>Input:</span>{' '} */}
-      {/*                        {renderValue(test.input)} */}
-      {/*                      </p> */}
-      {/*                      <p> */}
-      {/*                        <span className='font-semibold'>Expected:</span>{' '} */}
-      {/*                        {renderValue(test.expectedOutput)} */}
-      {/*                      </p> */}
-      {/*                    </div> */}
-      {/*                  ); */}
-      {/*                })} */}
-      {/*              </div> */}
-      {/*            </div> */}
-      {/*          ); */}
-      {/*        })} */}
-      {/*      </div> */}
-      {/*    </CardContent> */}
-      {/*  </Card> */}
-      {/* )} */}
 
       {isFullyEnded && (
         <Card>
