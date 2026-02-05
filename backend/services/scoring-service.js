@@ -227,8 +227,9 @@ export async function calculateChallengeScores(challengeId) {
 
       if (execResult.isCompiled) {
         await Promise.all(
-          killerVotes.map(async (index) => {
-            const result = execResult.testResults[index];
+          killerVotes.map(async (_vote, index) => {
+            const result = execResult.testResults?.[index];
+            if (!result) return;
             const passed = result.passed;
 
             let actualOutputToSave = result.actualOutput;
