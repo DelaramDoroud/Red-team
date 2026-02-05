@@ -63,6 +63,7 @@ export default async function startChallenge({ challengeId }) {
     status: ChallengeStatus.STARTED_PHASE_ONE,
     startPhaseOneDateTime: startedAt,
     endPhaseOneDateTime,
+    phaseOneFinalizationCompletedAt: null,
   });
 
   return {

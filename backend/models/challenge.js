@@ -95,6 +95,12 @@ const Challenge = sequelize.define(
       field: 'endPhaseTwoDateTime',
       allowNull: true,
     },
+    phaseOneFinalizationCompletedAt: {
+      type: DataTypes.DATE,
+      field: 'phase_one_finalization_completed_at',
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     tableName: 'challenge',

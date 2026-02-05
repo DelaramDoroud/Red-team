@@ -6,6 +6,10 @@ import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import { Op } from 'sequelize';
+import {
+  getInFlightSubmissionsCount,
+  maybeCompletePhaseOneFinalization,
+} from '#root/services/phase-one-finalization.js';
 
 const shuffle = (array) => {
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -233,6 +237,26 @@ export default async function assignPeerReviews({
     return {
       status: 'invalid_status',
       challengeStatus: challenge.status,
+    };
+  }
+
+  const inFlightSubmissionsCount = getInFlightSubmissionsCount(challengeId);
+  if (inFlightSubmissionsCount > 0) {
+    return {
+      status: 'finalization_pending',
+      inFlightSubmissionsCount,
+    };
+  }
+
+  if (!challenge.phaseOneFinalizationCompletedAt) {
+    await maybeCompletePhaseOneFinalization({ challengeId });
+    await challenge.reload();
+  }
+
+  if (!challenge.phaseOneFinalizationCompletedAt) {
+    return {
+      status: 'finalization_pending',
+      inFlightSubmissionsCount: 0,
     };
   }
 
