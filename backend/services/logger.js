@@ -1,6 +1,6 @@
 import winston from 'winston';
 
-export default winston.createLogger({
+const logger = winston.createLogger({
   transports: [
     new winston.transports.Console({
       level:
@@ -17,9 +17,21 @@ export default winston.createLogger({
   ],
 });
 
+if (process.env.NODE_ENV === 'test') {
+  const originalError = logger.error.bind(logger);
+  // Route logger errors through console.error so vitest.setup can fail fast.
+  // (Winston may write directly to stderr, which vitest doesn't treat as a test failure.)
+  logger.error = (...args) => {
+    originalError(...args);
+    console.error(...args);
+  };
+}
+
+export default logger;
+
 /*
-logger.debug('debug');
-logger.info('info');
-logger.warn('warn');
-logger.error('error');
+	logger.debug('debug');
+	logger.info('info');
+	logger.warn('warn');
+	logger.error('error');
 */
