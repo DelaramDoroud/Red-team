@@ -11,7 +11,8 @@ import Match from '#root/models/match.js';
 import Submission from '#root/models/submission.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
+import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
+
 import { SubmissionStatus } from '#root/models/enum/enums.js';
 
 /* ------------------------------------------------------------------ */
@@ -100,21 +101,22 @@ describe('Challenge milestone badge awarding (backend)', () => {
       role: 'student',
     });
 
-    // Eligible student → 5 completed challenges
     for (let i = 0; i < 5; i++) {
       await createCompletedChallenge(eligibleStudent, i);
     }
 
-    // Ineligible student → 2 completed challenges
     for (let i = 0; i < 2; i++) {
       await createCompletedChallenge(ineligibleStudent, i);
     }
 
-    const eligibleResult = await awardBadgeIfEligible(eligibleStudent.id);
-    const ineligibleResult = await awardBadgeIfEligible(ineligibleStudent.id);
-
+    const eligibleResult = await awardChallengeMilestoneBadges(
+      eligibleStudent.id
+    );
+    const ineligibleResult = await awardChallengeMilestoneBadges(
+      ineligibleStudent.id
+    );
     // Eligible student
-    const eligibleKeys = eligibleResult.unlockedBadges.map((b) => b.key);
+    const eligibleKeys = eligibleResult.newlyUnlocked.map((badge) => badge.key);
     expect(eligibleResult.completedChallenges).toBe(5);
     expect(eligibleKeys).toEqual(
       expect.arrayContaining(['challenge_3', 'challenge_5'])
@@ -123,7 +125,7 @@ describe('Challenge milestone badge awarding (backend)', () => {
 
     // Ineligible student
     expect(ineligibleResult.completedChallenges).toBe(2);
-    expect(ineligibleResult.unlockedBadges).toHaveLength(0);
+    expect(ineligibleResult.newlyUnlocked).toHaveLength(0);
   });
 
   it('allows a single student to unlock multiple challenge badges in one evaluation', async () => {
@@ -138,8 +140,8 @@ describe('Challenge milestone badge awarding (backend)', () => {
       await createCompletedChallenge(student, i);
     }
 
-    const result = await awardBadgeIfEligible(student.id);
-    const keys = result.unlockedBadges.map((b) => b.key);
+    const result = await awardChallengeMilestoneBadges(student.id);
+    const keys = result.newlyUnlocked.map((badge) => badge.key);
 
     expect(result.completedChallenges).toBe(5);
     expect(keys).toEqual(
@@ -159,10 +161,10 @@ describe('Challenge milestone badge awarding (backend)', () => {
       await createCompletedChallenge(student, i);
     }
 
-    const first = await awardBadgeIfEligible(student.id);
-    expect(first.unlockedBadges.length).toBeGreaterThan(0);
+    const first = await awardChallengeMilestoneBadges(student.id);
+    expect(first.newlyUnlocked.length).toBeGreaterThan(0);
 
-    const second = await awardBadgeIfEligible(student.id);
-    expect(second.unlockedBadges).toHaveLength(0);
+    const second = await awardChallengeMilestoneBadges(student.id);
+    expect(second.newlyUnlocked).toHaveLength(0);
   });
 });

@@ -19,7 +19,7 @@ import {
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import logger from '#root/services/logger.js';
-import { awardBadgeIfEligible } from '#root/services/challenge-completed-badges-controller.js';
+import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 
@@ -321,12 +321,12 @@ export default async function finalizePeerReviewChallenge({
 
     const badgeResults = [];
     for (const participant of participants) {
-      const { unlockedBadges, completedChallenges } =
-        await awardBadgeIfEligible(participant.studentId);
-      if (unlockedBadges.length > 0) {
+      const { newlyUnlocked, completedChallenges } =
+        await awardChallengeMilestoneBadges(participant.studentId);
+      if (newlyUnlocked.length > 0) {
         badgeResults.push({
           studentId: participant.studentId,
-          unlockedBadges,
+          newlyUnlocked,
           completedChallenges,
         });
       }
@@ -371,12 +371,15 @@ export default async function finalizePeerReviewChallenge({
       }
     }
 
+    let status = 'update_failed';
+    if (alreadyFinalized) {
+      status = 'already_finalized';
+    } else if (updatedCount > 0) {
+      status = 'ok';
+    }
+
     return {
-      status: alreadyFinalized
-        ? 'already_finalized'
-        : updatedCount > 0
-          ? 'ok'
-          : 'update_failed',
+      status,
       challenge: updatedChallenge,
       badgeResults,
     };

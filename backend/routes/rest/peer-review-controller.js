@@ -25,7 +25,6 @@ import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js'
 
 const router = Router();
 
-// ----------------------------- GET VOTES -----------------------------
 router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
   try {
     const { challengeId } = req.params;
@@ -250,8 +249,6 @@ router.get('/challenges/:challengeId/peer-reviews/votes', async (req, res) => {
     handleException(res, error);
   }
 });
-
-// ----------------------------- SUBMIT VOTE -----------------------------
 router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
   try {
     const { assignmentId } = req.params;
@@ -301,8 +298,6 @@ router.post('/peer-reviews/:assignmentId/vote', async (req, res) => {
     handleException(res, error);
   }
 });
-
-// ----------------------------- FINALIZE CHALLENGE -----------------------------
 router.post('/peer-review/finalize-challenge', async (req, res) => {
   try {
     const { challengeId, allowEarly = false } = req.body;
@@ -355,18 +350,13 @@ router.post('/peer-review/finalize-challenge', async (req, res) => {
     const badgeResults = result.badgeResults || [];
     return res.json({
       success: true,
-      data: {
-        finalized: true,
-        badgeUnlocked: badgeResults.length > 0,
-        badgeResults,
-      },
+      data: { finalized: true, badgeResults },
     });
   } catch (error) {
     handleException(res, error);
   }
 });
 
-// ----------------------------- EXIT PEER REVIEW -----------------------------
 router.post('/peer-review/exit', async (req, res) => {
   const t = await PeerReviewVote.sequelize.transaction();
 

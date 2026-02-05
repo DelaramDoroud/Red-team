@@ -16,6 +16,8 @@ import {
   setCodeReviewVotesVisibility,
   setSolutionFeedbackVisibility,
 } from '#js/store/slices/ui';
+import { markBadgeSeen } from '#js/store/slices/auth';
+
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
@@ -23,6 +25,7 @@ import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
+import BadgeModal from '#components/badge/BadgeModal';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
 
@@ -99,6 +102,7 @@ export default function ChallengeResultPage() {
   const isChallengeEnded = challengeStatus === ChallengeStatus.ENDED_PHASE_TWO;
   const canLoadResults =
     !durationContext || (hasChallengeStatus && isChallengeEnded);
+
   const {
     user,
     loading: authLoading,
@@ -110,6 +114,8 @@ export default function ChallengeResultPage() {
   const codeReviewVotesVisibility = useAppSelector(
     (state) => state.ui.codeReviewVotesVisibility
   );
+  const badgeSeen = useAppSelector((state) => state.auth.badgeSeen);
+
   const studentId = user?.id;
   const challengeId = params?.challengeId;
   const solutionFeedbackKey = challengeId ? String(challengeId) : null;
@@ -136,6 +142,9 @@ export default function ChallengeResultPage() {
   const [reviewVotes, setReviewVotes] = useState(null);
   const [reviewVotesLoading, setReviewVotesLoading] = useState(false);
   const [reviewVotesError, setReviewVotesError] = useState('');
+  const [badgeQueue, setBadgeQueue] = useState([]);
+  const [activeBadge, setActiveBadge] = useState(null);
+  const [showBadge, setShowBadge] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -159,6 +168,23 @@ export default function ChallengeResultPage() {
         return;
       }
       const payload = res?.data || res;
+      setResultData(payload);
+
+      if (payload?.badges?.newlyUnlocked?.length > 0) {
+        const unseenBadges = payload.badges.newlyUnlocked.filter(
+          (badge) => !badgeSeen?.[studentId]?.[badge.id]
+        );
+        if (
+          unseenBadges.length > 0 &&
+          badgeQueue.length === 0 &&
+          !activeBadge
+        ) {
+          setBadgeQueue(unseenBadges);
+          setActiveBadge(unseenBadges[0]);
+          setShowBadge(true);
+        }
+      }
+
       const finalizationInfo = payload?.finalization || null;
 
       const isScoringCompleted =
@@ -170,12 +196,7 @@ export default function ChallengeResultPage() {
 
       setFinalization(finalizationInfo);
       setResultData(payload);
-
-      if (!resultsReady) {
-        setIsFinalizationPending(true);
-        return;
-      }
-      setIsFinalizationPending(false);
+      setIsFinalizationPending(!resultsReady);
     } catch {
       setError('Unable to load results.');
     } finally {
@@ -187,7 +208,25 @@ export default function ChallengeResultPage() {
     isLoggedIn,
     getChallengeResults,
     redirectOnError,
+    badgeQueue,
+    activeBadge,
+    badgeSeen,
   ]);
+
+  const handleBadgeClose = () => {
+    if (activeBadge && studentId) {
+      dispatch(markBadgeSeen({ studentId, badgeId: activeBadge.id }));
+    }
+    setBadgeQueue((prevQueue) => {
+      const [, ...rest] = prevQueue;
+      if (rest.length > 0) setActiveBadge(rest[0]);
+      else {
+        setActiveBadge(null);
+        setShowBadge(false);
+      }
+      return rest;
+    });
+  };
 
   const loadReviewVotes = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -214,31 +253,17 @@ export default function ChallengeResultPage() {
   }, [challengeId, studentId, isLoggedIn, getStudentVotes]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (durationContext && hasChallengeStatus && !isChallengeEnded) {
-      setLoading(false);
+    if (!canLoadResults || !challengeId || !studentId || !isLoggedIn)
       return undefined;
-    }
-    if (!canLoadResults) return undefined;
-    if (!challengeId || !studentId || !isLoggedIn) return undefined;
+    let cancelled = false;
     const run = async () => {
-      if (cancelled) return;
-      await loadResults();
+      if (!cancelled) await loadResults();
     };
     run();
     return () => {
       cancelled = true;
     };
-  }, [
-    canLoadResults,
-    challengeId,
-    durationContext,
-    hasChallengeStatus,
-    isChallengeEnded,
-    isLoggedIn,
-    loadResults,
-    studentId,
-  ]);
+  }, [canLoadResults, challengeId, studentId, isLoggedIn, loadResults]);
 
   useEffect(() => {
     if (!isFinalizationPending || !canLoadResults) return undefined;
@@ -879,6 +904,9 @@ export default function ChallengeResultPage() {
       >
         Back to challenges
       </Button>
+      {showBadge && (
+        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+      )}
     </div>
   );
 }
