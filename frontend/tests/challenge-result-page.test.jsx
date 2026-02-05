@@ -359,7 +359,6 @@ describe('ChallengeResultPage', () => {
       screen.getByText(/Please wait until the peer review phase has ended/i)
     ).toBeInTheDocument();
 
-    // Lo snake c'è ancora
     expect(screen.getByText(/Snake break/i)).toBeInTheDocument();
   });
 
@@ -372,7 +371,7 @@ describe('ChallengeResultPage', () => {
           title: 'Sorting Challenge',
           status: 'ended_phase_two',
           endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
-          scoringStatus: 'computing', // Importante simulare lo stato computing
+          scoringStatus: 'computing',
         },
         finalization: {
           totalMatches: 4,
