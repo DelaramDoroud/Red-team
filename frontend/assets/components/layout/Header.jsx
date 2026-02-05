@@ -78,7 +78,8 @@ export default function Header() {
   const navLinks = useMemo(() => {
     if (isLoggedIn && user?.role === 'student') {
       return [
-        { href: '/student/challenges', label: 'Students' },
+        { href: '/student/', label: 'Profile' },
+        { href: '/student/challenges', label: 'Challenges' },
         { href: '/student/rewards', label: 'Game Rules Guide' },
         { href: '/student/leaderboard', label: 'Leaderboard' },
       ];
