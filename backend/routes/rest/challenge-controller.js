@@ -51,7 +51,11 @@ import {
   getInFlightSubmissionsCount,
   maybeCompletePhaseOneFinalization,
 } from '#root/services/phase-one-finalization.js';
-import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
+import {
+  awardChallengeMilestoneBadges,
+  awardReviewMilestoneBadges,
+  awardReviewQualityBadges,
+} from '#root/services/challenge-completed-badges.js';
 
 const router = Router();
 
@@ -2295,7 +2299,19 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         tests: assignment.feedbackTests || [],
       }));
     }
-    const badgeStatus = await awardChallengeMilestoneBadges(studentId);
+    const challengeBadgeStatus = await awardChallengeMilestoneBadges(studentId);
+    const { newlyUnlocked: reviewMilestoneBadges } =
+      await awardReviewMilestoneBadges(studentId);
+    const { newlyUnlocked: reviewQualityBadges } =
+      await awardReviewQualityBadges(studentId);
+    const badgeStatus = {
+      ...challengeBadgeStatus,
+      newlyUnlocked: [
+        ...challengeBadgeStatus.newlyUnlocked,
+        ...reviewMilestoneBadges,
+        ...reviewQualityBadges,
+      ],
+    };
     logger.info(`BadgeStatus for student ${studentId}: ${badgeStatus}`);
     return res.json({
       success: true,

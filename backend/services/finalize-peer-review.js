@@ -19,7 +19,11 @@ import {
 } from '#root/services/reference-solution-evaluation.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 import logger from '#root/services/logger.js';
-import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
+import {
+  awardChallengeMilestoneBadges,
+  awardReviewMilestoneBadges,
+  awardReviewQualityBadges,
+} from '#root/services/challenge-completed-badges.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 
@@ -321,8 +325,17 @@ export default async function finalizePeerReviewChallenge({
 
     const badgeResults = [];
     for (const participant of participants) {
-      const { newlyUnlocked, completedChallenges } =
+      const { newlyUnlocked: challengeBadges, completedChallenges } =
         await awardChallengeMilestoneBadges(participant.studentId);
+      const { newlyUnlocked: reviewMilestoneBadges } =
+        await awardReviewMilestoneBadges(participant.studentId);
+      const { newlyUnlocked: reviewQualityBadges } =
+        await awardReviewQualityBadges(participant.studentId);
+      const newlyUnlocked = [
+        ...challengeBadges,
+        ...reviewMilestoneBadges,
+        ...reviewQualityBadges,
+      ];
       if (newlyUnlocked.length > 0) {
         badgeResults.push({
           studentId: participant.studentId,
