@@ -15,6 +15,14 @@ import {
 
 import useProfile from '#js/useProfile';
 
+const formatMaxTwoDecimals = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return '0';
+  return parsed.toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  });
+};
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState(null);
@@ -186,9 +194,9 @@ export default function ProfilePage() {
               />
 
               <BadgeSection
-                title='Code review badges'
+                title='Peer review badges'
                 items={profile.badges.codeReview}
-                emptyText='No code review badges yet.'
+                emptyText='No peer review badges yet.'
               />
 
               <BadgeSection
@@ -215,17 +223,17 @@ export default function ProfilePage() {
                 />
                 <StatCard
                   label='Average Total Score'
-                  value={`${profile.stats.avgTotalScore}/100`}
+                  value={`${formatMaxTwoDecimals(profile.stats.avgTotalScore)}/100`}
                   subtext='Overall performance'
                 />
                 <StatCard
-                  label='Avg Implementation'
-                  value={`${profile.stats.avgImplementation}/50`}
+                  label='Avg Coding Phase'
+                  value={`${formatMaxTwoDecimals(profile.stats.avgImplementation)}/50`}
                   subtext='Code quality'
                 />
                 <StatCard
-                  label='Avg Code Review'
-                  value={`${profile.stats.avgCodeReview}/50`}
+                  label='Avg Peer Review'
+                  value={`${formatMaxTwoDecimals(profile.stats.avgCodeReview)}/50`}
                   subtext='Review accuracy'
                 />
                 <StatCard
@@ -235,7 +243,7 @@ export default function ProfilePage() {
                 />
                 <StatCard
                   label='Review Accuracy'
-                  value={`${profile.stats.reviewAccuracy}%`}
+                  value={`${formatMaxTwoDecimals(profile.stats.reviewAccuracy)}%`}
                   subtext='Correct reviews'
                 />
               </div>
