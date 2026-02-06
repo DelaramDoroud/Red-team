@@ -68,11 +68,13 @@ app.use(
 app.use(apiRouter);
 
 await models.init();
-try {
-  await scheduleActivePhaseOneChallenges();
-  await scheduleActivePhaseTwoChallenges();
-} catch (error) {
-  console.error('Failed to schedule coding phase end timers:', error);
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    await scheduleActivePhaseOneChallenges();
+    await scheduleActivePhaseTwoChallenges();
+  } catch (error) {
+    console.error('Failed to schedule coding phase end timers:', error);
+  }
 }
 
 let queueInitialized = false;
