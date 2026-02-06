@@ -80,12 +80,13 @@ const authSlice = createSlice({
     clearUser: () => initialState,
     markBadgeSeen: (state, action) => {
       const { studentId, badgeId } = action.payload;
+      const badgeSeen = state.badgeSeen || {};
       return {
         ...state,
         badgeSeen: {
-          ...state.badgeSeen,
+          ...badgeSeen,
           [studentId]: {
-            ...(state.badgeSeen[studentId] || {}),
+            ...(badgeSeen[studentId] || {}),
             [badgeId]: true,
           },
         },
