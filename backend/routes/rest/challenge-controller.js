@@ -2300,10 +2300,16 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
       }));
     }
     const challengeBadgeStatus = await awardChallengeMilestoneBadges(studentId);
-    const { newlyUnlocked: reviewMilestoneBadges } =
-      await awardReviewMilestoneBadges(studentId);
-    const { newlyUnlocked: reviewQualityBadges } =
-      await awardReviewQualityBadges(studentId);
+    // Award and return review badges only after peer review is finalized and vote
+    // results (e.g. is_vote_correct) are registered in the database.
+    let reviewMilestoneBadges = [];
+    let reviewQualityBadges = [];
+    if (challenge.scoringStatus === 'completed') {
+      const milestone = await awardReviewMilestoneBadges(studentId);
+      const quality = await awardReviewQualityBadges(studentId);
+      reviewMilestoneBadges = milestone.newlyUnlocked;
+      reviewQualityBadges = quality.newlyUnlocked;
+    }
     const badgeStatus = {
       ...challengeBadgeStatus,
       newlyUnlocked: [
