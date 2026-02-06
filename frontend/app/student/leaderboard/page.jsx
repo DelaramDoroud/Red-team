@@ -170,6 +170,8 @@ export default function StudentLeaderboardPage() {
         challenges={challenges}
         activeId={activeChallenge?.id}
         onSelect={setActiveChallenge}
+        label='Search a challenge'
+        searchable
       />
 
       <section className={styles.summaryCard}>

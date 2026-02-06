@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Star } from 'lucide-react';
+import { Button } from '#components/common/Button';
 
 const FIREWORK_COUNT = 12;
 const fireworkColors = [
@@ -40,6 +41,17 @@ function BadgeModal({ badge, onClose }) {
     };
   }, [badge]);
 
+  useEffect(() => {
+    if (!badge) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [badge, onClose]);
+
   const fireworks = useMemo(() => {
     if (!showFireworks) return [];
     return Array.from({ length: FIREWORK_COUNT }).map(() => {
@@ -74,9 +86,18 @@ function BadgeModal({ badge, onClose }) {
   const iconSrc = badge?.iconKey ? `/badge/${badge.iconKey}.png` : '';
 
   return createPortal(
-    <div className='fixed inset-0 z-[9999] flex items-center justify-center'>
-      {/* Background grigio */}
-      <div className='absolute inset-0 bg-black/50' />
+    <div
+      className='fixed inset-0 z-[9999] flex items-center justify-center p-4'
+      role='dialog'
+      aria-modal='true'
+      aria-label='Badge unlocked'
+    >
+      <button
+        type='button'
+        aria-label='Close badge modal'
+        className='absolute inset-0 border-0 m-0 p-0 bg-black/55 dark:bg-black/70 backdrop-blur-[2px]'
+        onClick={onClose}
+      />
 
       {/* Fireworks */}
       {showFireworks && (
@@ -99,16 +120,13 @@ function BadgeModal({ badge, onClose }) {
         </div>
       )}
 
-      {/* Modale */}
-      <div className='relative bg-white rounded-2xl p-6 w-96 text-center shadow-xl z-20 animate-pop overflow-hidden'>
-        {/* Header */}
+      <div className='relative z-20 w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 text-center text-card-foreground shadow-2xl animate-pop'>
         <div className='flex items-center justify-center gap-2 mb-6'>
           <Star className='w-6 h-6 text-yellow-400 animate-pulse' />
           <h2 className='text-xl font-bold'>Badge Unlocked!</h2>
           <Star className='w-6 h-6 text-yellow-400 animate-pulse' />
         </div>
 
-        {/* Badge circle */}
         <div className='mx-auto w-32 h-32 rounded-full flex items-center justify-center shadow-lg mb-4 relative'>
           <span
             className={`absolute inset-0 rounded-full ${style.bg} opacity-40 animate-pulse`}
@@ -121,24 +139,18 @@ function BadgeModal({ badge, onClose }) {
           />
         </div>
 
-        {/* Badge info */}
         <h3 className='text-lg font-semibold'>{badge.name}</h3>
-        <p className='text-gray-600 mt-1'>{badge.description}</p>
+        <p className='mt-1 text-muted-foreground'>{badge.description}</p>
         {badge.threshold && badge.metric && (
-          <p className='text-gray-500 text-sm mt-2'>
+          <p className='mt-2 text-sm text-muted-foreground'>
             You&apos;ve completed {badge.threshold}{' '}
             {badge.metric.replace('_', ' ').toLowerCase()}!
           </p>
         )}
 
-        {/* Close button */}
-        <button
-          type='button'
-          onClick={onClose}
-          className='mt-6 bg-blue-500 text-white px-6 py-2 rounded-full font-semibold hover:bg-blue-600 transition'
-        >
+        <Button type='button' onClick={onClose} className='mt-6 min-w-28'>
           Close
-        </button>
+        </Button>
       </div>
 
       {/* Keyframes */}
