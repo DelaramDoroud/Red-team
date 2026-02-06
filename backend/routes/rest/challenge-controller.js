@@ -1547,7 +1547,7 @@ router.post('/challenges/:challengeId/end-coding', async (req, res) => {
         challengeId: updatedChallenge.id,
       });
     } catch (error) {
-      logger.error('Phase one finalization completion error:', {
+      logger.error('Coding phase finalization completion error:', {
         challengeId: updatedChallenge.id,
         error: error?.message || String(error),
       });

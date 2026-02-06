@@ -190,7 +190,7 @@ describe('ChallengeResultPage', () => {
 
     expect(screen.queryByText(/Received Tests/i)).not.toBeInTheDocument();
     const codeReviewToggle = screen.getByRole('button', {
-      name: /View Your Code Review Votes/i,
+      name: /View Your Peer Review Votes/i,
     });
     await user.click(codeReviewToggle);
 
@@ -263,12 +263,12 @@ describe('ChallengeResultPage', () => {
     });
 
     const votesToggle = await screen.findByRole('button', {
-      name: /View Your Code Review Votes/i,
+      name: /View Your Peer Review Votes/i,
     });
     await user.click(votesToggle);
 
     expect(
-      screen.getByRole('button', { name: /Hide Your Code Review Votes/i })
+      screen.getByRole('button', { name: /Hide Your Peer Review Votes/i })
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(/Your Peer Review Votes/i).length
@@ -281,7 +281,7 @@ describe('ChallengeResultPage', () => {
     expect(screen.getAllByText(/Correct/i).length).toBeGreaterThan(0);
 
     await user.click(
-      screen.getByRole('button', { name: /Hide Your Code Review Votes/i })
+      screen.getByRole('button', { name: /Hide Your Peer Review Votes/i })
     );
     expect(
       screen.queryByText(/Your Peer Review Votes/i, { selector: 'div' })

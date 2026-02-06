@@ -17,10 +17,13 @@ const scheduleCompletionRecheck = (challengeId, delayMs) => {
   const timeoutId = setTimeout(() => {
     completionTimersByChallengeId.delete(challengeId);
     maybeCompletePhaseOneFinalization({ challengeId }).catch((error) => {
-      logger.error('Phase one finalization: delayed completion check failed', {
-        challengeId,
-        error: error?.message || String(error),
-      });
+      logger.error(
+        'Coding phase finalization: delayed completion check failed',
+        {
+          challengeId,
+          error: error?.message || String(error),
+        }
+      );
     });
   }, delayMs);
 
@@ -58,7 +61,7 @@ export const unmarkSubmissionInFlight = async (challengeId) => {
     inFlightSubmissionsByChallengeId.set(normalized, next);
   }
 
-  // If phase one has ended, we may now be able to mark finalization completed.
+  // If the coding phase has ended, we may now be able to mark finalization completed.
   await maybeCompletePhaseOneFinalization({ challengeId: normalized });
 };
 
@@ -113,7 +116,7 @@ export const maybeCompletePhaseOneFinalization = async ({ challengeId }) => {
     await finalizeMissingSubmissionsForChallenge({ challengeId: normalized });
   } catch (error) {
     logger.error(
-      'Phase one finalization: finalize missing submissions failed',
+      'Coding phase finalization: finalize missing submissions failed',
       {
         challengeId: normalized,
         error: error?.message || String(error),

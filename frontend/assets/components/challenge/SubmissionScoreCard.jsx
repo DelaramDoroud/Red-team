@@ -9,13 +9,13 @@ export default function SubmissionScoreCard({ scoreData }) {
     codeReviewScore,
     implementationScore,
     updatedAt,
-    // Ora stats arriva popolato dal Backend grazie alla modifica nel service
+    // Backend provides detailed score stats for each phase.
     stats = {},
   } = scoreData || {};
 
   const formattedDate = updatedAt ? formatDateTime(updatedAt) : '—';
 
-  // --- DATI CODE REVIEW ---
+  // --- PEER REVIEW STATS ---
   const { E = 0, C = 0, W = 0, totalReviewed = 0 } = stats.codeReview || {};
 
   const weightE = 2;
@@ -24,7 +24,7 @@ export default function SubmissionScoreCard({ scoreData }) {
 
   const earnedCR = E * weightE + C * weightC - W * weightW;
 
-  // --- DATI IMPLEMENTATION ---
+  // --- CODING PHASE STATS ---
   const {
     teacherPassed = 0,
     teacherTotal = 0,
@@ -35,7 +35,7 @@ export default function SubmissionScoreCard({ scoreData }) {
   const baseScoreCalc =
     teacherTotal > 0 ? (teacherPassed / teacherTotal) * 50 : 0;
 
-  // Cap penalty a 16.67 (50/3)
+  // Cap penalty at 16.67 (50/3)
   const penaltyCalc =
     peerTotal > 0 ? Math.min((peerPenalties / peerTotal) * 50, 16.67) : 0;
 
@@ -53,16 +53,16 @@ export default function SubmissionScoreCard({ scoreData }) {
         <div className={styles.heroSubScores}>
           <div className={styles.subScoreItem}>
             <span className={styles.subValue}>
-              {codeReviewScore !== undefined ? codeReviewScore : '-'}
+              {implementationScore !== undefined ? implementationScore : '-'}
             </span>
-            <span className={styles.subLabel}>Code Review Score</span>
+            <span className={styles.subLabel}>Coding Phase Score</span>
           </div>
           <div className={styles.verticalSeparator} />
           <div className={styles.subScoreItem}>
             <span className={styles.subValue}>
-              {implementationScore !== undefined ? implementationScore : '-'}
+              {codeReviewScore !== undefined ? codeReviewScore : '-'}
             </span>
-            <span className={styles.subLabel}>Implementation Score</span>
+            <span className={styles.subLabel}>Peer Review Score</span>
           </div>
         </div>
 
@@ -73,7 +73,110 @@ export default function SubmissionScoreCard({ scoreData }) {
 
       {/* 2. BREAKDOWN SECTION */}
       <div className={styles.breakdownGrid}>
-        {/* --- LEFT: CODE REVIEW CARD --- */}
+        {/* --- LEFT: CODING PHASE CARD --- */}
+        <div className={styles.detailCard}>
+          <div className={styles.cardHeader}>
+            <div className={`${styles.iconBox} ${styles.iconImpl}`}>
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                width='24'
+                height='24'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' />
+              </svg>
+            </div>
+            <div className={styles.headerInfo}>
+              <h3>Coding Phase</h3>
+              <span>Solution Correctness</span>
+            </div>
+            <div className={styles.headerScore}>
+              {implementationScore !== undefined ? implementationScore : 0}
+              <span className={styles.headerMax}>/50</span>
+            </div>
+          </div>
+
+          <div className={styles.statsRow}>
+            <div className={`${styles.statBox} ${styles.statGreen}`}>
+              <span className={styles.statBig}>
+                {teacherPassed}/{teacherTotal}
+              </span>
+              <span className={styles.statLabel}>
+                TEACHER TESTS
+                <br />
+                PASSED
+              </span>
+            </div>
+            <div className={`${styles.statBox} ${styles.statRed}`}>
+              <span className={styles.statBig}>
+                {peerPenalties}/{peerTotal}
+              </span>
+              <span className={styles.statLabel}>
+                PEER REVIEW TESTS
+                <br />
+                EXPOSED ERRORS
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.infoBox}>
+            <span className={styles.infoIcon}>ⓘ</span>
+            <p>
+              <strong>Peer review test evaluation:</strong> Only test cases that
+              exposed real bugs in your solution are counted in the penalty
+              calculation.
+            </p>
+          </div>
+
+          <div className={styles.subCalcRow}>
+            <span>Base Score (Teacher Tests)</span>
+            <span className={styles.subCalcValueGreen}>
+              ({teacherPassed}/{teacherTotal}) × 50 = +
+              {baseScoreCalc.toFixed(2)}
+            </span>
+          </div>
+
+          <div className={styles.subCalcRow}>
+            <span>Penalty (Failed Peer Review Tests)</span>
+            <span className={styles.subCalcValueRed}>
+              -{penaltyCalc.toFixed(1)}
+            </span>
+          </div>
+          <div className={styles.subCalcNote}>
+            min(({peerPenalties}/{peerTotal}) × 50, 16.67) <br /> Capped at 50/3
+            points
+          </div>
+
+          <div className={`${styles.calcBox} ${styles.calcBoxPurple}`}>
+            <h4>FINAL CALCULATION</h4>
+            <div className={styles.calcRow}>
+              <span>
+                Base = ({teacherPassed}/{teacherTotal}) × 50 ={' '}
+                <strong>{baseScoreCalc.toFixed(0)} points</strong>
+              </span>
+            </div>
+            <div className={styles.calcRow}>
+              <span>
+                Penalty = min(
+                {Math.round((peerPenalties / peerTotal) * 50) || 0}, 16.67) ={' '}
+                <strong>{penaltyCalc.toFixed(1)} points</strong>
+              </span>
+            </div>
+            <div className={styles.calcRow}>
+              <span>
+                Final = {baseScoreCalc.toFixed(0)} - {penaltyCalc.toFixed(1)} ={' '}
+                <strong>{implementationScore}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* --- RIGHT: PEER REVIEW CARD --- */}
         <div className={styles.detailCard}>
           <div className={styles.cardHeader}>
             <div className={`${styles.iconBox} ${styles.iconReview}`}>
@@ -95,7 +198,7 @@ export default function SubmissionScoreCard({ scoreData }) {
               </svg>
             </div>
             <div className={styles.headerInfo}>
-              <h3>Code Review</h3>
+              <h3>Peer Review</h3>
               <span>Peer Review Accuracy</span>
             </div>
             <div className={styles.headerScore}>
@@ -146,109 +249,6 @@ export default function SubmissionScoreCard({ scoreData }) {
             </div>
             <div className={styles.calcRow}>
               <span>Final Score = {codeReviewScore}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* --- RIGHT: IMPLEMENTATION CARD --- */}
-        <div className={styles.detailCard}>
-          <div className={styles.cardHeader}>
-            <div className={`${styles.iconBox} ${styles.iconImpl}`}>
-              <svg
-                xmlns='http://www.w3.org/2000/svg'
-                width='24'
-                height='24'
-                viewBox='0 0 24 24'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              >
-                <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' />
-              </svg>
-            </div>
-            <div className={styles.headerInfo}>
-              <h3>Implementation</h3>
-              <span>Solution Correctness</span>
-            </div>
-            <div className={styles.headerScore}>
-              {implementationScore !== undefined ? implementationScore : 0}
-              <span className={styles.headerMax}>/50</span>
-            </div>
-          </div>
-
-          <div className={styles.statsRow}>
-            <div className={`${styles.statBox} ${styles.statGreen}`}>
-              <span className={styles.statBig}>
-                {teacherPassed}/{teacherTotal}
-              </span>
-              <span className={styles.statLabel}>
-                TEACHER TESTS
-                <br />
-                PASSED
-              </span>
-            </div>
-            <div className={`${styles.statBox} ${styles.statRed}`}>
-              <span className={styles.statBig}>
-                {peerPenalties}/{peerTotal}
-              </span>
-              <span className={styles.statLabel}>
-                PEER TESTS
-                <br />
-                EXPOSED ERRORS
-              </span>
-            </div>
-          </div>
-
-          <div className={styles.infoBox}>
-            <span className={styles.infoIcon}>ⓘ</span>
-            <p>
-              <strong>Peer test evaluation:</strong> Only test cases that
-              exposed real bugs in your solution are counted in the penalty
-              calculation.
-            </p>
-          </div>
-
-          <div className={styles.subCalcRow}>
-            <span>Base Score (Teacher Tests)</span>
-            <span className={styles.subCalcValueGreen}>
-              ({teacherPassed}/{teacherTotal}) × 50 = +
-              {baseScoreCalc.toFixed(2)}
-            </span>
-          </div>
-
-          <div className={styles.subCalcRow}>
-            <span>Penalty (Failed Peer Tests)</span>
-            <span className={styles.subCalcValueRed}>
-              -{penaltyCalc.toFixed(1)}
-            </span>
-          </div>
-          <div className={styles.subCalcNote}>
-            min(({peerPenalties}/{peerTotal}) × 50, 16.67) <br /> Capped at 50/3
-            points
-          </div>
-
-          <div className={`${styles.calcBox} ${styles.calcBoxPurple}`}>
-            <h4>FINAL CALCULATION</h4>
-            <div className={styles.calcRow}>
-              <span>
-                Base = ({teacherPassed}/{teacherTotal}) × 50 ={' '}
-                <strong>{baseScoreCalc.toFixed(0)} points</strong>
-              </span>
-            </div>
-            <div className={styles.calcRow}>
-              <span>
-                Penalty = min(
-                {Math.round((peerPenalties / peerTotal) * 50) || 0}, 16.67) ={' '}
-                <strong>{penaltyCalc.toFixed(1)} points</strong>
-              </span>
-            </div>
-            <div className={styles.calcRow}>
-              <span>
-                Final = {baseScoreCalc.toFixed(0)} - {penaltyCalc.toFixed(1)} ={' '}
-                <strong>{implementationScore}</strong>
-              </span>
             </div>
           </div>
         </div>

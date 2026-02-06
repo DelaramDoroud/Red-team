@@ -466,6 +466,9 @@ export default function ChallengeResultPage() {
   const feedbackSectionId = solutionFeedbackKey
     ? `solution-feedback-${solutionFeedbackKey}`
     : 'solution-feedback';
+  const peerReviewSectionId = codeReviewVotesKey
+    ? `peer-review-votes-${codeReviewVotesKey}`
+    : 'peer-review-votes';
   const totalPublic = publicResults.length;
   const totalPrivate = privateResults.length;
   const passedPublic = publicResults.filter((result) => result.passed).length;
@@ -551,15 +554,17 @@ export default function ChallengeResultPage() {
             : 'View Your Solution & Feedback'}
         </Button>
 
-        {/* B. Navigate to Votes Button (Goes to the dedicated page) */}
+        {/* B. Toggle Peer Review Section (Uses Redux = Persistent state) */}
         <Button
           variant='secondary'
-          onClick={() =>
-            router.push(`/student/challenges/${challengeId}/peer-reviews`)
-          }
+          onClick={handleTogglePeerReviewVotes}
+          aria-expanded={isCodeReviewVotesOpen}
+          aria-controls={peerReviewSectionId}
           className='flex-1'
         >
-          View Your Code Review Votes
+          {isCodeReviewVotesOpen
+            ? 'Hide Your Peer Review Votes'
+            : 'View Your Peer Review Votes'}
         </Button>
       </div>
 
@@ -735,8 +740,11 @@ export default function ChallengeResultPage() {
         </Card>
       )}
 
-      {isFullyEnded && (
-        <Card>
+      {isFullyEnded && isCodeReviewVotesOpen && (
+        <Card
+          id={peerReviewSectionId}
+          className='animate-in fade-in slide-in-from-top-2 duration-300'
+        >
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <div className='space-y-1'>
               <CardTitle>Peer Review Results</CardTitle>
@@ -746,66 +754,50 @@ export default function ChallengeResultPage() {
             </div>
           </CardHeader>
           <CardContent className='space-y-6 pt-4'>
-            <div>
-              <Button
-                variant='outline'
-                onClick={handleTogglePeerReviewVotes}
-                aria-expanded={isCodeReviewVotesOpen}
-              >
-                {isCodeReviewVotesOpen
-                  ? 'Hide Peer Review Votes'
-                  : 'View Your Peer Review Votes'}
-              </Button>
-
-              {isCodeReviewVotesOpen && (
-                <div className={styles.votesPanel}>
-                  <div className={styles.votesHeader}>
-                    <div className={styles.votesTitle}>
-                      <span className={styles.votesIcon}>✓</span>
-                      Your Peer Review Votes
-                    </div>
-                  </div>
-                  {reviewVotesLoading ? (
-                    <p className='text-sm text-muted-foreground'>
-                      Loading your peer review votes...
-                    </p>
-                  ) : null}
-                  {reviewVotesError ? (
-                    <p className='text-sm text-destructive'>
-                      {reviewVotesError}
-                    </p>
-                  ) : null}
-                  {!reviewVotesLoading &&
-                  !reviewVotesError &&
-                  voteItems.length === 0 ? (
-                    <p className='text-sm text-muted-foreground'>
-                      No peer review votes available.
-                    </p>
-                  ) : null}
-                  {!reviewVotesLoading &&
-                  !reviewVotesError &&
-                  voteItems.length > 0 ? (
-                    <div className={styles.votesList}>
-                      {voteItems.map((item) => (
-                        <PeerReviewVoteResultCard
-                          key={item.id}
-                          title={item.submissionLabel}
-                          vote={item.vote}
-                          expectedEvaluation={item.expectedEvaluation}
-                          isCorrect={item.isCorrect}
-                          testCaseInput={item.testCaseInput}
-                          expectedOutput={item.expectedOutput}
-                          referenceOutput={item.referenceOutput}
-                          actualOutput={item.actualOutput}
-                          isExpectedOutputCorrect={item.isExpectedOutputCorrect}
-                          isVoteCorrect={item.isVoteCorrect}
-                          evaluationStatus={item.evaluationStatus}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
+            <div className={styles.votesPanel}>
+              <div className={styles.votesHeader}>
+                <div className={styles.votesTitle}>
+                  <span className={styles.votesIcon}>✓</span>
+                  Your Peer Review Votes
                 </div>
-              )}
+              </div>
+              {reviewVotesLoading ? (
+                <p className='text-sm text-muted-foreground'>
+                  Loading your peer review votes...
+                </p>
+              ) : null}
+              {reviewVotesError ? (
+                <p className='text-sm text-destructive'>{reviewVotesError}</p>
+              ) : null}
+              {!reviewVotesLoading &&
+              !reviewVotesError &&
+              voteItems.length === 0 ? (
+                <p className='text-sm text-muted-foreground'>
+                  No peer review votes available.
+                </p>
+              ) : null}
+              {!reviewVotesLoading &&
+              !reviewVotesError &&
+              voteItems.length > 0 ? (
+                <div className={styles.votesList}>
+                  {voteItems.map((item) => (
+                    <PeerReviewVoteResultCard
+                      key={item.id}
+                      title={item.submissionLabel}
+                      vote={item.vote}
+                      expectedEvaluation={item.expectedEvaluation}
+                      isCorrect={item.isCorrect}
+                      testCaseInput={item.testCaseInput}
+                      expectedOutput={item.expectedOutput}
+                      referenceOutput={item.referenceOutput}
+                      actualOutput={item.actualOutput}
+                      isExpectedOutputCorrect={item.isExpectedOutputCorrect}
+                      isVoteCorrect={item.isVoteCorrect}
+                      evaluationStatus={item.evaluationStatus}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>

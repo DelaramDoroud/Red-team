@@ -205,8 +205,8 @@ export default function StudentLeaderboardPage() {
             <div>Rank</div>
             <div>Student</div>
             <div>Total</div>
-            <div>Impl.</div>
-            <div>Review</div>
+            <div>Coding</div>
+            <div>Peer Rev.</div>
             <div>Badges</div>
           </div>
           {pagedRows.map((row) => {
@@ -324,7 +324,7 @@ export default function StudentLeaderboardPage() {
             </div>
           </div>
           <div className={styles.personalItem}>
-            <div className={styles.personalLabel}>Implementation</div>
+            <div className={styles.personalLabel}>Coding Phase</div>
             <div className={styles.personalValue}>
               {leaderboardData.personalSummary?.implementationScore != null
                 ? `${leaderboardData.personalSummary.implementationScore}/50`
@@ -332,7 +332,7 @@ export default function StudentLeaderboardPage() {
             </div>
           </div>
           <div className={styles.personalItem}>
-            <div className={styles.personalLabel}>Code Review</div>
+            <div className={styles.personalLabel}>Peer Review</div>
             <div className={styles.personalValue}>
               {leaderboardData.personalSummary?.codeReviewScore != null
                 ? `${leaderboardData.personalSummary.codeReviewScore}/50`

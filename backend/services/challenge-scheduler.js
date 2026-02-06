@@ -88,7 +88,7 @@ const markPhaseOneEnded = async (challengeId) => {
       });
     } catch (error) {
       console.error(
-        `Error completing phase one finalization for challenge ${updatedChallenge.id}:`,
+        `Error completing coding phase finalization for challenge ${updatedChallenge.id}:`,
         error
       );
     }

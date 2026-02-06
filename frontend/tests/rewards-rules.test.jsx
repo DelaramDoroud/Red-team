@@ -60,7 +60,7 @@ describe('RewardsRulesPage', () => {
     // Verify presence of static educational content
     expect(
       screen.getByText(
-        /As you complete challenges and participate in code reviews/
+        /As you complete challenges and participate in peer reviews/
       )
     ).toBeInTheDocument();
     expect(screen.getByText('🏅 Badges')).toBeInTheDocument();
