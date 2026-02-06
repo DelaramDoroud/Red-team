@@ -16,6 +16,7 @@ SubmissionScoreBreakdown.init(
       allowNull: false,
       field: 'challenge_participant_id',
     },
+
     submissionId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -36,6 +37,13 @@ SubmissionScoreBreakdown.init(
       allowNull: false,
       field: 'total_score',
     },
+
+    stats: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      field: 'stats',
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,

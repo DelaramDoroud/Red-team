@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
+import Spinner from '#components/common/Spinner';
 import {
   Card,
   CardContent,
@@ -16,8 +17,6 @@ import {
   setCodeReviewVotesVisibility,
   setSolutionFeedbackVisibility,
 } from '#js/store/slices/ui';
-import { markBadgeSeen } from '#js/store/slices/auth';
-
 import { getApiErrorMessage } from '#js/apiError';
 import useApiErrorRedirect from '#js/useApiErrorRedirect';
 import { ChallengeStatus } from '#js/constants';
@@ -25,7 +24,6 @@ import { formatDateTime } from '#js/date';
 import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
-import BadgeModal from '#components/badge/BadgeModal';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
 
@@ -102,7 +100,6 @@ export default function ChallengeResultPage() {
   const isChallengeEnded = challengeStatus === ChallengeStatus.ENDED_PHASE_TWO;
   const canLoadResults =
     !durationContext || (hasChallengeStatus && isChallengeEnded);
-
   const {
     user,
     loading: authLoading,
@@ -114,8 +111,6 @@ export default function ChallengeResultPage() {
   const codeReviewVotesVisibility = useAppSelector(
     (state) => state.ui.codeReviewVotesVisibility
   );
-  const badgeSeen = useAppSelector((state) => state.auth.badgeSeen);
-
   const studentId = user?.id;
   const challengeId = params?.challengeId;
   const solutionFeedbackKey = challengeId ? String(challengeId) : null;
@@ -142,9 +137,6 @@ export default function ChallengeResultPage() {
   const [reviewVotes, setReviewVotes] = useState(null);
   const [reviewVotesLoading, setReviewVotesLoading] = useState(false);
   const [reviewVotesError, setReviewVotesError] = useState('');
-  const [badgeQueue, setBadgeQueue] = useState([]);
-  const [activeBadge, setActiveBadge] = useState(null);
-  const [showBadge, setShowBadge] = useState(false);
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -167,36 +159,25 @@ export default function ChallengeResultPage() {
         setFinalization(null);
         return;
       }
+
       const payload = res?.data || res;
-      setResultData(payload);
-
-      if (payload?.badges?.newlyUnlocked?.length > 0) {
-        const unseenBadges = payload.badges.newlyUnlocked.filter(
-          (badge) => !badgeSeen?.[studentId]?.[badge.id]
-        );
-        if (
-          unseenBadges.length > 0 &&
-          badgeQueue.length === 0 &&
-          !activeBadge
-        ) {
-          setBadgeQueue(unseenBadges);
-          setActiveBadge(unseenBadges[0]);
-          setShowBadge(true);
-        }
-      }
-
       const finalizationInfo = payload?.finalization || null;
+      const scoringStatus = payload?.challenge?.scoringStatus;
 
-      const isScoringCompleted =
-        payload?.challenge?.scoringStatus === 'completed';
-      const hasScoreBreakdown = Boolean(payload?.scoreBreakdown);
-      const finalizationReady = finalizationInfo?.resultsReady !== false;
-      const resultsReady =
-        finalizationReady && (isScoringCompleted || hasScoreBreakdown);
+      const isComputing = scoringStatus === 'computing';
+
+      const areSubmissionsPending = finalizationInfo?.resultsReady === false;
+
+      const shouldShowSpinner = isComputing || areSubmissionsPending;
 
       setFinalization(finalizationInfo);
       setResultData(payload);
-      setIsFinalizationPending(!resultsReady);
+
+      if (shouldShowSpinner) {
+        setIsFinalizationPending(true);
+        return;
+      }
+      setIsFinalizationPending(false);
     } catch {
       setError('Unable to load results.');
     } finally {
@@ -208,25 +189,7 @@ export default function ChallengeResultPage() {
     isLoggedIn,
     getChallengeResults,
     redirectOnError,
-    badgeQueue,
-    activeBadge,
-    badgeSeen,
   ]);
-
-  const handleBadgeClose = () => {
-    if (activeBadge && studentId) {
-      dispatch(markBadgeSeen({ studentId, badgeId: activeBadge.id }));
-    }
-    setBadgeQueue((prevQueue) => {
-      const [, ...rest] = prevQueue;
-      if (rest.length > 0) setActiveBadge(rest[0]);
-      else {
-        setActiveBadge(null);
-        setShowBadge(false);
-      }
-      return rest;
-    });
-  };
 
   const loadReviewVotes = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -253,17 +216,27 @@ export default function ChallengeResultPage() {
   }, [challengeId, studentId, isLoggedIn, getStudentVotes]);
 
   useEffect(() => {
-    if (!canLoadResults || !challengeId || !studentId || !isLoggedIn)
-      return undefined;
     let cancelled = false;
+
+    if (!challengeId || !studentId || !isLoggedIn) return undefined;
+
     const run = async () => {
-      if (!cancelled) await loadResults();
+      if (cancelled) return;
+      await loadResults();
     };
     run();
     return () => {
       cancelled = true;
     };
-  }, [canLoadResults, challengeId, studentId, isLoggedIn, loadResults]);
+  }, [
+    challengeId,
+    durationContext,
+    hasChallengeStatus,
+    isChallengeEnded,
+    isLoggedIn,
+    loadResults,
+    studentId,
+  ]);
 
   useEffect(() => {
     if (!isFinalizationPending || !canLoadResults) return undefined;
@@ -318,27 +291,6 @@ export default function ChallengeResultPage() {
   const isWaitingForResults =
     awaitingChallengeEnd ||
     (durationContext && hasChallengeStatus && !isChallengeEnded);
-
-  if (isWaitingForResults) {
-    return (
-      <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
-        <Card>
-          <CardHeader>
-            <CardTitle>Peer review in progress</CardTitle>
-            <CardDescription>
-              Your review is complete. Results will be available once the
-              challenge ends.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='text-sm text-muted-foreground'>
-            You can play a quick round of Snake while you wait.
-          </CardContent>
-        </Card>
-        <SnakeGame />
-      </div>
-    );
-  }
-
   if (isFinalizationPending) {
     const totalMatches = finalization?.totalMatches;
     const finalizedCount = finalization?.finalSubmissionCount;
@@ -349,14 +301,17 @@ export default function ChallengeResultPage() {
         : null;
     const pendingText =
       typeof pendingCount === 'number' ? `${pendingCount}` : null;
+
     return (
       <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
         <Card>
           <CardHeader>
-            <CardTitle>Preparing your results</CardTitle>
+            <div className='flex items-center gap-3'>
+              <Spinner className='h-6 w-6 text-primary animate-spin' />
+              <CardTitle>Scoring is not available yet</CardTitle>
+            </div>
             <CardDescription>
-              We are still finalizing submissions for the class. You can play a
-              quick round of Snake while we finish.
+              Please wait until scoring is computed.
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-2 text-sm text-muted-foreground'>
@@ -377,6 +332,25 @@ export default function ChallengeResultPage() {
                 Having trouble refreshing results. Retrying automatically...
               </p>
             )}
+          </CardContent>
+        </Card>
+        <SnakeGame />
+      </div>
+    );
+  }
+
+  if (isWaitingForResults) {
+    return (
+      <div className='max-w-5xl mx-auto px-4 py-10 space-y-6'>
+        <Card className='border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/50'>
+          <CardHeader>
+            <CardTitle>Scoring is not available yet</CardTitle>
+            <CardDescription className='text-amber-800 dark:text-amber-200'>
+              Please wait until the peer review phase has ended.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='text-sm text-muted-foreground'>
+            You can play a quick round of Snake while you wait.
           </CardContent>
         </Card>
         <SnakeGame />
@@ -451,9 +425,6 @@ export default function ChallengeResultPage() {
   const feedbackSectionId = solutionFeedbackKey
     ? `solution-feedback-${solutionFeedbackKey}`
     : 'solution-feedback';
-  const votesSectionId = codeReviewVotesKey
-    ? `code-review-votes-${codeReviewVotesKey}`
-    : 'code-review-votes';
   const totalPublic = publicResults.length;
   const totalPrivate = privateResults.length;
   const passedPublic = publicResults.filter((result) => result.passed).length;
@@ -542,14 +513,12 @@ export default function ChallengeResultPage() {
         {/* B. Navigate to Votes Button (Goes to the dedicated page) */}
         <Button
           variant='secondary'
-          onClick={handleTogglePeerReviewVotes}
-          aria-expanded={isCodeReviewVotesOpen}
-          aria-controls={votesSectionId}
+          onClick={() =>
+            router.push(`/student/challenges/${challengeId}/peer-reviews`)
+          }
           className='flex-1'
         >
-          {isCodeReviewVotesOpen
-            ? 'Hide Your Code Review Votes'
-            : 'View Your Code Review Votes'}
+          View Your Code Review Votes
         </Button>
       </div>
 
@@ -725,8 +694,8 @@ export default function ChallengeResultPage() {
         </Card>
       )}
 
-      {isFullyEnded && isCodeReviewVotesOpen && (
-        <Card className='animate-in fade-in slide-in-from-top-4 duration-300'>
+      {isFullyEnded && (
+        <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <div className='space-y-1'>
               <CardTitle>Peer Review Results</CardTitle>
@@ -736,53 +705,67 @@ export default function ChallengeResultPage() {
             </div>
           </CardHeader>
           <CardContent className='space-y-6 pt-4'>
-            {isCodeReviewVotesOpen && (
-              <div id={votesSectionId} className={styles.votesPanel}>
-                <div className={styles.votesHeader}>
-                  <div className={styles.votesTitle}>
-                    <span className={styles.votesIcon}>✓</span>
-                    Your Peer Review Votes
+            <div>
+              <Button
+                variant='outline'
+                onClick={handleTogglePeerReviewVotes}
+                aria-expanded={isCodeReviewVotesOpen}
+              >
+                {isCodeReviewVotesOpen
+                  ? 'Hide Peer Review Votes'
+                  : 'View Your Peer Review Votes'}
+              </Button>
+
+              {isCodeReviewVotesOpen && (
+                <div className={styles.votesPanel}>
+                  <div className={styles.votesHeader}>
+                    <div className={styles.votesTitle}>
+                      <span className={styles.votesIcon}>✓</span>
+                      Your Peer Review Votes
+                    </div>
                   </div>
+                  {reviewVotesLoading ? (
+                    <p className='text-sm text-muted-foreground'>
+                      Loading your peer review votes...
+                    </p>
+                  ) : null}
+                  {reviewVotesError ? (
+                    <p className='text-sm text-destructive'>
+                      {reviewVotesError}
+                    </p>
+                  ) : null}
+                  {!reviewVotesLoading &&
+                  !reviewVotesError &&
+                  voteItems.length === 0 ? (
+                    <p className='text-sm text-muted-foreground'>
+                      No peer review votes available.
+                    </p>
+                  ) : null}
+                  {!reviewVotesLoading &&
+                  !reviewVotesError &&
+                  voteItems.length > 0 ? (
+                    <div className={styles.votesList}>
+                      {voteItems.map((item) => (
+                        <PeerReviewVoteResultCard
+                          key={item.id}
+                          title={item.submissionLabel}
+                          vote={item.vote}
+                          expectedEvaluation={item.expectedEvaluation}
+                          isCorrect={item.isCorrect}
+                          testCaseInput={item.testCaseInput}
+                          expectedOutput={item.expectedOutput}
+                          referenceOutput={item.referenceOutput}
+                          actualOutput={item.actualOutput}
+                          isExpectedOutputCorrect={item.isExpectedOutputCorrect}
+                          isVoteCorrect={item.isVoteCorrect}
+                          evaluationStatus={item.evaluationStatus}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                {reviewVotesLoading ? (
-                  <p className='text-sm text-muted-foreground'>
-                    Loading your peer review votes...
-                  </p>
-                ) : null}
-                {reviewVotesError ? (
-                  <p className='text-sm text-destructive'>{reviewVotesError}</p>
-                ) : null}
-                {!reviewVotesLoading &&
-                !reviewVotesError &&
-                voteItems.length === 0 ? (
-                  <p className='text-sm text-muted-foreground'>
-                    No peer review votes available.
-                  </p>
-                ) : null}
-                {!reviewVotesLoading &&
-                !reviewVotesError &&
-                voteItems.length > 0 ? (
-                  <div className={styles.votesList}>
-                    {voteItems.map((item) => (
-                      <PeerReviewVoteResultCard
-                        key={item.id}
-                        title={item.submissionLabel}
-                        vote={item.vote}
-                        expectedEvaluation={item.expectedEvaluation}
-                        isCorrect={item.isCorrect}
-                        testCaseInput={item.testCaseInput}
-                        expectedOutput={item.expectedOutput}
-                        referenceOutput={item.referenceOutput}
-                        actualOutput={item.actualOutput}
-                        isExpectedOutputCorrect={item.isExpectedOutputCorrect}
-                        isVoteCorrect={item.isVoteCorrect}
-                        evaluationStatus={item.evaluationStatus}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            )}
+              )}
+            </div>
 
             <div className='space-y-4 animate-in fade-in slide-in-from-top-2 duration-300'>
               <h3 className='text-sm font-semibold'>Received Tests</h3>
@@ -904,9 +887,6 @@ export default function ChallengeResultPage() {
       >
         Back to challenges
       </Button>
-      {showBadge && (
-        <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
-      )}
     </div>
   );
 }
