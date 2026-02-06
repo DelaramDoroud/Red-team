@@ -4,6 +4,7 @@ import Submission from '#root/models/submission.js';
 import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import MatchSetting from '#root/models/match-setting.js';
+import Challenge from '#root/models/challenge.js';
 
 import sequelize from '#root/services/sequelize.js';
 import { handleException } from '#root/services/error.js';
@@ -13,11 +14,19 @@ import { validateImportsBlock } from '#root/services/import-validation.js';
 import { getSubmissionStatus } from '#root/services/submission-evaluation.js';
 import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
+import {
+  PHASE_ONE_AUTOSUBMIT_GRACE_MS,
+  markSubmissionInFlight,
+  unmarkSubmissionInFlight,
+} from '#root/services/phase-one-finalization.js';
 
 const router = Router();
 
 router.post('/submissions', async (req, res) => {
   let transaction;
+  let challengeId = null;
+  let isInFlightMarked = false;
   try {
     const { matchId, code, language = 'cpp', isAutomatic = false } = req.body;
     const isAutomaticSubmission = Boolean(
@@ -70,6 +79,53 @@ router.post('/submissions', async (req, res) => {
         success: false,
         error: { message: 'Match setting not found for this match' },
       });
+    }
+
+    challengeId = match.challengeMatchSetting?.challengeId || null;
+    if (challengeId) {
+      const challenge = await Challenge.findByPk(challengeId, {
+        attributes: [
+          'id',
+          'status',
+          'endPhaseOneDateTime',
+          'phaseOneFinalizationCompletedAt',
+        ],
+      });
+      if (!challenge) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Challenge not found for this match' },
+        });
+      }
+
+      const isCodingActive =
+        challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
+      const phaseOneEndedRecently = (() => {
+        if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) return false;
+        if (!challenge.endPhaseOneDateTime) return false;
+        const endMs = new Date(challenge.endPhaseOneDateTime).getTime();
+        if (Number.isNaN(endMs)) return false;
+        return Date.now() - endMs <= PHASE_ONE_AUTOSUBMIT_GRACE_MS;
+      })();
+      const isAutoAllowedAfterEnd =
+        isAutomaticSubmission &&
+        phaseOneEndedRecently &&
+        !challenge.phaseOneFinalizationCompletedAt;
+
+      if (!isCodingActive && !isAutoAllowedAfterEnd) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            message: 'Submissions are only accepted during the coding phase.',
+          },
+          currentStatus: challenge.status,
+        });
+      }
+    }
+
+    if (challengeId) {
+      markSubmissionInFlight(challengeId);
+      isInFlightMarked = true;
     }
 
     const publicTests = matchSetting.publicTests || [];
@@ -201,7 +257,6 @@ router.post('/submissions', async (req, res) => {
 
     logger.info(`Submission ${submission.id} saved for match ${matchId}`);
 
-    const challengeId = match.challengeMatchSetting?.challengeId;
     if (challengeId) {
       broadcastEvent({
         event: 'finalization-updated',
@@ -238,6 +293,17 @@ router.post('/submissions', async (req, res) => {
     if (transaction && !transaction.finished) await transaction.rollback();
     logger.error('Submission error:', error);
     handleException(res, error);
+  } finally {
+    if (challengeId && isInFlightMarked) {
+      try {
+        await unmarkSubmissionInFlight(challengeId);
+      } catch (unmarkError) {
+        logger.error('Unable to decrement submission in-flight counter', {
+          challengeId,
+          error: unmarkError?.message || String(unmarkError),
+        });
+      }
+    }
   }
 });
 

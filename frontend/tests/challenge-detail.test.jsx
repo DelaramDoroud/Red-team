@@ -291,6 +291,20 @@ describe('ChallengeDetailPage', () => {
 
   it('unpublishes then redirects to edit when Edit is confirmed', async () => {
     const user = userEvent.setup();
+    mockGetChallengeMatches.mockResolvedValue({
+      success: true,
+      challenge: {
+        id: 123,
+        title: 'Sample Challenge',
+        status: 'public',
+        startDatetime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        duration: 30,
+        durationPeerReview: 15,
+        allowedNumberOfReview: 2,
+        peerReviewReady: false,
+      },
+      assignments: [],
+    });
     render(<ChallengeDetailPage />);
 
     await waitFor(() => expect(mockGetChallengeMatches).toHaveBeenCalled());

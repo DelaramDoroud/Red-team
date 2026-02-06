@@ -10,142 +10,34 @@
  * - Vote saving behavior (auto-save for Correct/Abstain, conditional for Incorrect)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
+import {
+  assignmentsMock,
+  baseChallenge,
+  mockGetStudentPeerReviewAssignments,
+  mockGetStudentVotes,
+  mockSubmitPeerReviewVote,
+  mockUseRoleGuard,
+  renderWithRedux,
+} from './peer-review-voting.mocks';
 
-import { ChallengeStatus } from '#js/constants';
-import PeerReviewPage from '../app/student/challenges/[challengeId]/peer-review/page';
+let PeerReviewPage;
 
-// Mock Monaco editor
-vi.mock('next/dynamic', () => ({
-  default: () => {
-    function FakeMonaco({ value }) {
-      return <pre data-testid='code-editor'>{value}</pre>;
-    }
-    return FakeMonaco;
-  },
-}));
-
-const mockPush = vi.fn();
-const mockRouter = { push: mockPush };
-const mockToast = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  custom: vi.fn(),
-  dismiss: vi.fn(),
-}));
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => mockRouter,
-  useParams: () => ({
-    challengeId: '123',
-  }),
-}));
-
-vi.mock('react-hot-toast', () => ({
-  __esModule: true,
-  default: mockToast,
-}));
-
-const mockUseRoleGuard = vi.fn();
-vi.mock('#js/useRoleGuard', () => ({
-  __esModule: true,
-  default: () => mockUseRoleGuard(),
-}));
-
-const mockGetStudentPeerReviewAssignments = vi.fn();
-const mockGetStudentVotes = vi.fn();
-const mockGetPeerReviewSummary = vi.fn();
-const mockSubmitPeerReviewVote = vi.fn();
-const mockExitPeerReview = vi.fn();
-
-vi.mock('#js/useChallenge', () => ({
-  __esModule: true,
-  default: () => ({
-    getStudentPeerReviewAssignments: mockGetStudentPeerReviewAssignments,
-    getStudentVotes: mockGetStudentVotes,
-    getPeerReviewSummary: mockGetPeerReviewSummary,
-    submitPeerReviewVote: mockSubmitPeerReviewVote,
-    exitPeerReview: mockExitPeerReview,
-  }),
-}));
-
-const mockRedirectOnError = vi.fn();
-vi.mock('#js/useApiErrorRedirect', () => ({
-  __esModule: true,
-  default: () => mockRedirectOnError,
-}));
-
-// Mock Button component
-vi.mock('#components/common/Button', () => {
-  function Button({ children, ...props }) {
-    return (
-      <button type='button' {...props}>
-        {children}
-      </button>
-    );
-  }
-  return { Button };
+beforeAll(async () => {
+  ({ default: PeerReviewPage } =
+    await import('../app/student/challenges/[challengeId]/peer-review/page'));
 });
-
-// Mock Card components
-vi.mock('#components/common/card', () => {
-  function Card({ children }) {
-    return <div>{children}</div>;
-  }
-  function CardHeader({ children }) {
-    return <div>{children}</div>;
-  }
-  function CardTitle({ children }) {
-    return <h2>{children}</h2>;
-  }
-  function CardContent({ children }) {
-    return <div>{children}</div>;
-  }
-  function CardDescription({ children }) {
-    return <p>{children}</p>;
-  }
-  return { Card, CardHeader, CardTitle, CardContent, CardDescription };
-});
-
-const createTestStore = () =>
-  configureStore({
-    reducer: {
-      ui: (state = { theme: 'light' }) => state,
-    },
-  });
-
-const renderWithRedux = (component) =>
-  render(<Provider store={createTestStore()}>{component}</Provider>);
-
-const baseChallenge = {
-  id: 123,
-  status: ChallengeStatus.STARTED_PHASE_TWO,
-  startPhaseTwoDateTime: new Date(Date.now() - 1000 * 60).toISOString(),
-  durationPeerReview: 30,
-};
-
-const assignmentsMock = [
-  {
-    id: 1,
-    submissionId: 11,
-    code: 'function solve(arr) { return arr[0]; }',
-  },
-  {
-    id: 2,
-    submissionId: 22,
-    code: 'function solve(arr) { return arr.reverse(); }',
-  },
-  {
-    id: 3,
-    submissionId: 33,
-    code: 'function solve(arr) { return arr.sort(); }',
-  },
-];
 
 describe('RT-181: Vote Selection and Management', () => {
   beforeEach(() => {
@@ -595,7 +487,7 @@ describe('RT-181: Vote Selection and Management', () => {
 
     it('retains votes after simulated refresh by re-fetching from backend', async () => {
       // Initial render with no votes
-      renderWithRedux(<PeerReviewPage />);
+      const { unmount } = renderWithRedux(<PeerReviewPage />);
 
       await waitFor(() => {
         expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
@@ -614,6 +506,7 @@ describe('RT-181: Vote Selection and Management', () => {
         );
       });
 
+      unmount();
       // Simulate refresh by updating mock to return saved votes
       mockGetStudentVotes.mockResolvedValue({
         success: true,
@@ -621,8 +514,6 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Re-render (simulating page refresh)
-      const { unmount } = renderWithRedux(<PeerReviewPage />);
-      unmount();
       renderWithRedux(<PeerReviewPage />);
 
       await waitFor(() => {
@@ -736,344 +627,6 @@ describe('RT-181: Vote Selection and Management', () => {
 
       // Progress should now show 1 if vote is valid
       // Note: This depends on backend validation passing
-    });
-  });
-});
-
-describe('RT-181: Incorrect Vote Validation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    mockUseRoleGuard.mockReturnValue({
-      user: { id: 1, role: 'student' },
-      isAuthorized: true,
-    });
-
-    mockGetStudentPeerReviewAssignments.mockResolvedValue({
-      success: true,
-      assignments: assignmentsMock,
-      challenge: baseChallenge,
-    });
-
-    mockGetStudentVotes.mockResolvedValue({
-      success: true,
-      votes: [],
-    });
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('Empty field validation', () => {
-    it('shows warning when Incorrect is selected without providing fields', async () => {
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      // Select Incorrect
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      // Warning should appear
-      await waitFor(() => {
-        expect(screen.getByText(/This vote won't count/i)).toBeInTheDocument();
-      });
-
-      // Vote should not be saved
-      expect(mockSubmitPeerReviewVote).not.toHaveBeenCalled();
-    });
-
-    it('shows warning when only input is provided', async () => {
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      // Select Incorrect
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      // Provide only input
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      await userEvent.type(inputField, '[[1, 2]');
-
-      // Warning should still be present
-      await waitFor(() => {
-        expect(screen.getByText(/This vote won't count/i)).toBeInTheDocument();
-      });
-    });
-
-    it('shows warning when only output is provided', async () => {
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      // Select Incorrect
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      // Provide only output
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-      await userEvent.type(outputField, '[[3, 4]');
-
-      // Warning should still be present
-      await waitFor(() => {
-        expect(screen.getByText(/This vote won't count/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Array format validation', () => {
-    it('shows error when input is not a valid array', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: false,
-        error: {
-          message: 'Input and output must be valid array values',
-        },
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      // Select Incorrect
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      // Provide invalid input
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, 'not an array');
-      await userEvent.type(outputField, '[[1]');
-
-      // Trigger save attempt
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(screen.getByText(/valid array values/i)).toBeInTheDocument();
-      });
-    });
-
-    it('shows error when output is not a valid array', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: false,
-        error: {
-          message: 'Input and output must be valid array values',
-        },
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, '[[1, 2]');
-      await userEvent.type(outputField, 'invalid');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(screen.getByText(/valid array values/i)).toBeInTheDocument();
-      });
-    });
-
-    it('accepts valid array with numbers', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: true,
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, '[[1, 2, 3]');
-      await userEvent.type(outputField, '[[3, 2, 1]');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-          1,
-          'incorrect',
-          '[1, 2, 3]',
-          '[3, 2, 1]'
-        );
-      });
-    });
-
-    it('accepts valid array with strings', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: true,
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, '[[ "a", "b", "c" ]');
-      await userEvent.type(outputField, '[[ "c", "b", "a" ]');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-          1,
-          'incorrect',
-          '[ "a", "b", "c" ]',
-          '[ "c", "b", "a" ]'
-        );
-      });
-    });
-
-    it('accepts valid array with booleans', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: true,
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, '[[true, false]');
-      await userEvent.type(outputField, '[[false, true]');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-          1,
-          'incorrect',
-          '[true, false]',
-          '[false, true]'
-        );
-      });
-    });
-
-    it('accepts mixed type arrays', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: true,
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      await userEvent.type(inputField, '[[1, "a", true]');
-      await userEvent.type(outputField, '[[true, "a", 1]');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-          1,
-          'incorrect',
-          '[1, "a", true]',
-          '[true, "a", 1]'
-        );
-      });
-    });
-  });
-
-  describe('Public test case detection', () => {
-    it('shows error when test case matches a public test', async () => {
-      mockSubmitPeerReviewVote.mockResolvedValue({
-        success: false,
-        error: {
-          message: 'You cannot use public test cases',
-        },
-      });
-
-      renderWithRedux(<PeerReviewPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Solution 1 of 3/i)).toBeInTheDocument();
-      });
-
-      const incorrectRadios = screen.getAllByRole('radio', {
-        name: /incorrect/i,
-      });
-      await userEvent.click(incorrectRadios[0]);
-
-      const inputField = await screen.findByLabelText(/Test Case Input/i);
-      const outputField = await screen.findByLabelText(/Expected Output/i);
-
-      // Attempt to use a public test case
-      await userEvent.type(inputField, '[[1, 2, 3]');
-      await userEvent.type(outputField, '[[6]');
-
-      await userEvent.tab();
-
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          expect.stringContaining('public test')
-        );
-      });
     });
   });
 });

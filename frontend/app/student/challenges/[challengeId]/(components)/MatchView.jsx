@@ -23,6 +23,7 @@ import Spinner from '#components/common/Spinner';
 import { useState, useRef } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import Timer from '#components/common/Timer';
+import logo from '#img/logo.jpg';
 import CppEditor from './CppEditor';
 import { useDuration } from '../(context)/DurationContext';
 
@@ -52,6 +53,7 @@ export default function MatchView({
   onSubmit,
   onTimerFinish,
   isChallengeFinished,
+  isFinalizationPending,
   testResults,
   canSubmit,
   isTimeUp,
@@ -204,6 +206,9 @@ export default function MatchView({
   };
 
   const timerFinishHandler = onTimerFinish || handleTimerEnd;
+  const finalizationMessage =
+    'The coding phase has ended. We are finalizing your submission. Please wait.';
+  const showFinalizationPending = Boolean(isFinalizationPending);
 
   if (loading) {
     return (
@@ -275,7 +280,9 @@ export default function MatchView({
   }
 
   if (finished) {
-    let displayMessage = message || submissionError;
+    let displayMessage = showFinalizationPending
+      ? finalizationMessage
+      : message || submissionError;
     if (!displayMessage) {
       displayMessage = 'The coding phase has ended.';
     }
@@ -304,6 +311,16 @@ export default function MatchView({
                 {peerReviewNotice}
               </p>
             ) : null}
+            {showFinalizationPending ? (
+              <div className='mb-4 flex items-center gap-3 text-sm text-muted-foreground'>
+                <img
+                  src={logo.src}
+                  alt='CodyMatch logo'
+                  className='h-8 w-8 animate-spin'
+                />
+                <span>Finalizing your submission...</span>
+              </div>
+            ) : null}
             <p className='text-sm font-medium text-slate-600 mb-4'>
               {finalNotice}
             </p>
@@ -321,6 +338,10 @@ export default function MatchView({
     const finalNotice =
       peerReviewPendingMessage ||
       "Wait for the peer review phase to start so you can review your classmates' code.";
+    const finalDescription = showFinalizationPending
+      ? finalizationMessage
+      : message ||
+        'The coding phase has ended. Your submission has been finalized.';
 
     return (
       <div className='max-w-2xl mx-auto py-10'>
@@ -329,16 +350,25 @@ export default function MatchView({
             <CardTitle>
               Coding phase finished. Wait for peer review to start.
             </CardTitle>
-            <CardDescription>
-              {message ||
-                'The coding phase has ended. Your submission has been finalized.'}
-            </CardDescription>
+            <CardDescription>{finalDescription}</CardDescription>
           </CardHeader>
           {peerReviewNotice ? (
             <CardContent>
               <p className='text-sm font-medium text-amber-700'>
                 {peerReviewNotice}
               </p>
+            </CardContent>
+          ) : null}
+          {showFinalizationPending ? (
+            <CardContent>
+              <div className='flex items-center gap-3 text-sm text-muted-foreground'>
+                <img
+                  src={logo.src}
+                  alt='CodyMatch logo'
+                  className='h-8 w-8 animate-spin'
+                />
+                <span>Finalizing your submission...</span>
+              </div>
             </CardContent>
           ) : null}
           <CardContent>

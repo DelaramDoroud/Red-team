@@ -12,6 +12,8 @@ const initialState = {
   error: null,
   loginRedirectPath: null,
   permissions: null,
+  badgeSeen: {}, // { [studentId]: { [badgeId]: true } }
+  solutionFeedbackVisibility: {}, // { [studentId]: { [challengeId]: true/false } }
 };
 
 export const fetchUserInfo = createAsyncThunk(
@@ -76,6 +78,33 @@ const authSlice = createSlice({
       return newState;
     },
     clearUser: () => initialState,
+    markBadgeSeen: (state, action) => {
+      const { studentId, badgeId } = action.payload;
+      const badgeSeen = state.badgeSeen || {};
+      return {
+        ...state,
+        badgeSeen: {
+          ...badgeSeen,
+          [studentId]: {
+            ...(badgeSeen[studentId] || {}),
+            [badgeId]: true,
+          },
+        },
+      };
+    },
+    setSolutionFeedbackVisibility: (state, action) => {
+      const { userId, challengeId, value } = action.payload;
+      return {
+        ...state,
+        solutionFeedbackVisibility: {
+          ...state.solutionFeedbackVisibility,
+          [userId]: {
+            ...(state.solutionFeedbackVisibility[userId] || {}),
+            [challengeId]: value,
+          },
+        },
+      };
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -144,7 +173,11 @@ const authSlice = createSlice({
 });
 
 export const getPath = () => window.location.pathname;
-
-export const { setLoginRedirectPath, clearUser } = authSlice.actions;
+export const {
+  setLoginRedirectPath,
+  clearUser,
+  markBadgeSeen,
+  setSolutionFeedbackVisibility,
+} = authSlice.actions;
 
 export const authReducer = authSlice.reducer;

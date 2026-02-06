@@ -5,6 +5,10 @@ import Match from '#root/models/match.js';
 import Submission from '#root/models/submission.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import {
+  getInFlightSubmissionsCount,
+  maybeCompletePhaseOneFinalization,
+} from '#root/services/phase-one-finalization.js';
 
 export default async function startPeerReview({ challengeId }) {
   const challenge = await Challenge.findByPk(challengeId);
@@ -16,6 +20,20 @@ export default async function startPeerReview({ challengeId }) {
 
   if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
     return { status: 'invalid_status', challengeStatus: challenge.status };
+  }
+
+  const inFlightSubmissionsCount = getInFlightSubmissionsCount(challengeId);
+  if (inFlightSubmissionsCount > 0) {
+    return { status: 'finalization_pending', inFlightSubmissionsCount };
+  }
+
+  if (!challenge.phaseOneFinalizationCompletedAt) {
+    await maybeCompletePhaseOneFinalization({ challengeId });
+    await challenge.reload();
+  }
+
+  if (!challenge.phaseOneFinalizationCompletedAt) {
+    return { status: 'finalization_pending', inFlightSubmissionsCount: 0 };
   }
 
   const matches = await Match.findAll({

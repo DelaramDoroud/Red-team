@@ -46,6 +46,12 @@ import getPeerReviewSummary from '#root/services/peer-review-summary.js';
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js';
 import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
+import {
+  PHASE_ONE_AUTOSUBMIT_GRACE_MS,
+  getInFlightSubmissionsCount,
+  maybeCompletePhaseOneFinalization,
+} from '#root/services/phase-one-finalization.js';
+import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
 
 const router = Router();
 
@@ -851,8 +857,22 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
       });
     });
 
+    const inFlightSubmissionsCount = getInFlightSubmissionsCount(challengeId);
     const pendingFinalCount = Math.max(0, totalMatches - finalSubmissionCount);
-    const resultsReady = pendingFinalCount === 0;
+    const withinAutosubmitGrace = (() => {
+      if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) return false;
+      if (!PHASE_ONE_AUTOSUBMIT_GRACE_MS) return false;
+      if (!challenge.endPhaseOneDateTime) return false;
+      const endMs = new Date(challenge.endPhaseOneDateTime).getTime();
+      if (Number.isNaN(endMs)) return false;
+      return Date.now() - endMs < PHASE_ONE_AUTOSUBMIT_GRACE_MS;
+    })();
+    const gracePendingCount = withinAutosubmitGrace ? 1 : 0;
+    const pendingFinalizationCount =
+      challenge.status === ChallengeStatus.ENDED_PHASE_ONE
+        ? pendingFinalCount + inFlightSubmissionsCount + gracePendingCount
+        : pendingFinalCount;
+    const resultsReady = pendingFinalizationCount === 0;
 
     return res.json({
       success: true,
@@ -870,8 +890,11 @@ router.get('/challenges/:challengeId/matches', async (req, res) => {
         allowedNumberOfReview: challenge.allowedNumberOfReview,
         totalMatches,
         finalSubmissionCount,
-        pendingFinalCount,
+        pendingFinalCount: pendingFinalizationCount,
         resultsReady,
+        inFlightSubmissionsCount,
+        phaseOneFinalizationCompletedAt:
+          challenge.phaseOneFinalizationCompletedAt,
         validSubmissionsCount: totalValidSubmissions,
         totalSubmissionsCount,
         peerReviewReady,
@@ -984,6 +1007,15 @@ router.post(
           success: false,
           error: 'Peer review can only be assigned after coding ends.',
           currentStatus: result.challengeStatus,
+        });
+      }
+
+      if (result.status === 'finalization_pending') {
+        return res.status(409).json({
+          success: false,
+          error:
+            'Submissions are still being finalized. Try again in a moment.',
+          inFlightSubmissionsCount: result.inFlightSubmissionsCount,
         });
       }
 
@@ -1289,6 +1321,14 @@ router.post('/challenges/:challengeId/peer-reviews/start', async (req, res) => {
       });
     }
 
+    if (result.status === 'finalization_pending') {
+      return res.status(409).json({
+        success: false,
+        error: 'Submissions are still being finalized. Try again in a moment.',
+        inFlightSubmissionsCount: result.inFlightSubmissionsCount,
+      });
+    }
+
     if (result.status === 'already_started') {
       return res.status(409).json({
         success: false,
@@ -1465,6 +1505,7 @@ router.post('/challenges/:challengeId/end-coding', async (req, res) => {
       {
         status: ChallengeStatus.ENDED_PHASE_ONE,
         endPhaseOneDateTime,
+        phaseOneFinalizationCompletedAt: null,
       },
       {
         where: {
@@ -1500,6 +1541,17 @@ router.post('/challenges/:challengeId/end-coding', async (req, res) => {
       logger.error('Finalize missing submissions error:', error);
     }
     emitChallengeUpdate(updatedChallenge);
+
+    try {
+      await maybeCompletePhaseOneFinalization({
+        challengeId: updatedChallenge.id,
+      });
+    } catch (error) {
+      logger.error('Phase one finalization completion error:', {
+        challengeId: updatedChallenge.id,
+        error: error?.message || String(error),
+      });
+    }
 
     return res.json({
       success: true,
@@ -2101,8 +2153,22 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
       ],
     });
 
+    const inFlightSubmissionsCount = getInFlightSubmissionsCount(challengeId);
     const pendingFinalCount = Math.max(0, totalMatches - finalSubmissionCount);
-    const resultsReady = pendingFinalCount === 0;
+    const withinAutosubmitGrace = (() => {
+      if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) return false;
+      if (!PHASE_ONE_AUTOSUBMIT_GRACE_MS) return false;
+      if (!challenge.endPhaseOneDateTime) return false;
+      const endMs = new Date(challenge.endPhaseOneDateTime).getTime();
+      if (Number.isNaN(endMs)) return false;
+      return Date.now() - endMs < PHASE_ONE_AUTOSUBMIT_GRACE_MS;
+    })();
+    const gracePendingCount = withinAutosubmitGrace ? 1 : 0;
+    const pendingFinalizationCount =
+      challenge.status === ChallengeStatus.ENDED_PHASE_ONE
+        ? pendingFinalCount + inFlightSubmissionsCount + gracePendingCount
+        : pendingFinalCount;
+    const resultsReady = pendingFinalizationCount === 0;
 
     let studentSubmission = await Submission.findOne({
       where: { matchId: match.id, isFinal: true },
@@ -2229,7 +2295,8 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         tests: assignment.feedbackTests || [],
       }));
     }
-
+    const badgeStatus = await awardChallengeMilestoneBadges(studentId);
+    logger.info(`BadgeStatus for student ${studentId}: ${badgeStatus}`);
     return res.json({
       success: true,
       data: {
@@ -2267,12 +2334,19 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
         finalization: {
           totalMatches,
           finalSubmissionCount,
-          pendingFinalCount,
+          pendingFinalCount: pendingFinalizationCount,
           resultsReady,
+          inFlightSubmissionsCount,
+          phaseOneFinalizationCompletedAt:
+            challenge.phaseOneFinalizationCompletedAt,
         },
         otherSubmissions,
         peerReviewTests,
         scoreBreakdown,
+        badges: {
+          completedChallenges: badgeStatus.completedChallenges,
+          newlyUnlocked: badgeStatus.newlyUnlocked,
+        },
       },
     });
   } catch (error) {
@@ -2942,13 +3016,11 @@ router.patch('/challenges/:challengeId', async (req, res) => {
         .json({ success: false, error: 'Challenge not found' });
     }
 
-    const isEditableStatus =
-      challenge.status === ChallengeStatus.PRIVATE ||
-      challenge.status === ChallengeStatus.PUBLIC;
-    if (!isEditableStatus) {
+    if (challenge.status !== ChallengeStatus.PRIVATE) {
       return res.status(409).json({
         success: false,
-        error: 'Challenge can only be edited before it starts.',
+        error: 'Challenge must be private to be edited. Unpublish it first.',
+        currentStatus: challenge.status,
       });
     }
 

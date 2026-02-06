@@ -5,6 +5,7 @@ import finalizePeerReviewChallenge from '#root/services/finalize-peer-review.js'
 import { calculateChallengeScores } from '#root/services/scoring-service.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
 import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
+import { maybeCompletePhaseOneFinalization } from '#root/services/phase-one-finalization.js';
 
 const phaseOneTimers = new Map();
 const phaseTwoTimers = new Map();
@@ -41,6 +42,7 @@ const markPhaseOneEnded = async (challengeId) => {
     {
       status: ChallengeStatus.ENDED_PHASE_ONE,
       endPhaseOneDateTime: new Date(),
+      phaseOneFinalizationCompletedAt: null,
     },
     {
       where: {
@@ -79,6 +81,17 @@ const markPhaseOneEnded = async (challengeId) => {
         status: updatedChallenge.status,
       },
     });
+
+    try {
+      await maybeCompletePhaseOneFinalization({
+        challengeId: updatedChallenge.id,
+      });
+    } catch (error) {
+      console.error(
+        `Error completing phase one finalization for challenge ${updatedChallenge.id}:`,
+        error
+      );
+    }
   }
 };
 

@@ -591,9 +591,8 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       .patch(`/api/rest/challenges/${challenge.id}`)
       .send(payload);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.challenge.status).toBe(payload.status);
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
   });
 
   it('rejects updates when the challenge has already started', async () => {

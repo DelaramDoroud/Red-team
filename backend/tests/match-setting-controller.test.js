@@ -4,7 +4,27 @@ import app from '#root/app_initial.js';
 import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
 
-const mockExecuteCodeTests = vi.fn();
+const { mockExecuteCodeTests } = vi.hoisted(() => ({
+  mockExecuteCodeTests: vi.fn().mockImplementation(async ({ testCases }) => ({
+    testResults: Array.isArray(testCases)
+      ? testCases.map((testCase, index) => ({
+          testIndex: index,
+          passed: true,
+          expectedOutput: testCase?.expectedOutput ?? '',
+          actualOutput: testCase?.expectedOutput ?? '',
+        }))
+      : [],
+    summary: {
+      total: Array.isArray(testCases) ? testCases.length : 0,
+      passed: Array.isArray(testCases) ? testCases.length : 0,
+      failed: 0,
+      allPassed: true,
+    },
+    isCompiled: true,
+    isPassed: true,
+    errors: [],
+  })),
+}));
 vi.mock('#root/services/execute-code-tests.js', () => ({
   executeCodeTests: (...args) => mockExecuteCodeTests(...args),
 }));
