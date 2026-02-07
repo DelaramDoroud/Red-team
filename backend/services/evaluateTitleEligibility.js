@@ -13,23 +13,18 @@ export async function evaluateTitleEligibility({ profileData }) {
   if (!titles.length) {
     return { eligible: false, newTitle: null };
   }
-
-  // 1. current rank (from DB-backed profile)
   const currentRank = profileData.title
     ? (titles.find((t) => t.name === profileData.title.name)?.rank ?? 1)
     : 1;
 
-  // 2. ONLY next title
   const nextTitle = titles.find((t) => t.rank === currentRank + 1);
 
   if (!nextTitle) {
     return { eligible: false, newTitle: null };
   }
 
-  // 3. stats
   const { totalChallenges, avgTotalScore, badgesEarned } = profileData.stats;
 
-  // 4. eligibility check (>= is correct ✔)
   const eligible =
     totalChallenges >= nextTitle.minChallenges &&
     avgTotalScore >= nextTitle.minAvgScore &&
@@ -39,7 +34,6 @@ export async function evaluateTitleEligibility({ profileData }) {
     return { eligible: false, newTitle: null };
   }
 
-  // 5. success
   return {
     eligible: true,
     newTitle: {
