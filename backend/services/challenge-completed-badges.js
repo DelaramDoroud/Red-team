@@ -1,9 +1,13 @@
 import sequelize from '#root/services/sequelize.js';
 import Badge from '#root/models/badge.js';
 import StudentBadge from '#root/models/student-badges.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 import logger from '#root/services/logger.js';
 import { Op, QueryTypes } from 'sequelize';
 import { BadgeCategory, BadgeMetric } from '#root/models/enum/enums.js';
+import { VoteType } from '#root/models/enum/enums.js';
 
 /**
  * Count the number of completed challenges for a student.
@@ -46,6 +50,220 @@ export async function countCompletedChallenges(studentId) {
     logger.error('Error counting completed challenges:', error);
     return 0;
   }
+}
+
+/**
+ * Count the number of submissions reviewed by a student (any vote cast:
+ * correct, incorrect, or abstain). Used for review milestone badges (3, 5, 10, …).
+ */
+export async function countReviewsCompleted(studentId) {
+  const count = await PeerReviewVote.count({
+    include: [
+      {
+        model: PeerReviewAssignment,
+        as: 'assignment',
+        required: true,
+        attributes: [],
+        include: [
+          {
+            model: ChallengeParticipant,
+            as: 'reviewer',
+            required: true,
+            attributes: [],
+            where: { studentId },
+          },
+        ],
+      },
+    ],
+  });
+  logger.info(
+    `Student ${studentId} submissions reviewed (milestone) count: ${count}`
+  );
+  return count;
+}
+
+/**
+ * Get review quality stats for a student (evaluated reviews only; abstain does not count).
+ * Used for quality badges: Reviewer Rookie, Code Detective, Review Master.
+ */
+export async function getReviewQualityStats(studentId) {
+  const row = await PeerReviewVote.findOne({
+    attributes: [
+      [
+        sequelize.fn(
+          'COUNT',
+          sequelize.literal(
+            `CASE WHEN "PeerReviewVote"."is_vote_correct" IS NOT NULL AND "PeerReviewVote"."vote" != '${VoteType.ABSTAIN}' THEN 1 END`
+          )
+        ),
+        'totalEvaluated',
+      ],
+      [
+        sequelize.fn(
+          'SUM',
+          sequelize.literal(
+            `CASE WHEN "PeerReviewVote"."is_vote_correct" = true THEN 1 ELSE 0 END`
+          )
+        ),
+        'correctReviews',
+      ],
+      [
+        sequelize.fn(
+          'SUM',
+          sequelize.literal(
+            `CASE WHEN "PeerReviewVote"."vote" = '${VoteType.INCORRECT}' AND "PeerReviewVote"."is_vote_correct" = true THEN 1 ELSE 0 END`
+          )
+        ),
+        'errorsFound',
+      ],
+    ],
+    include: [
+      {
+        model: PeerReviewAssignment,
+        as: 'assignment',
+        required: true,
+        attributes: [],
+        include: [
+          {
+            model: ChallengeParticipant,
+            as: 'reviewer',
+            required: true,
+            attributes: [],
+            where: { studentId },
+          },
+        ],
+      },
+    ],
+    raw: true,
+  });
+
+  const totalEvaluated = Number(row?.totalEvaluated ?? 0);
+  const correctReviews = Number(row?.correctReviews ?? 0);
+  const errorsFound = Number(row?.errorsFound ?? 0);
+  const accuracy = totalEvaluated > 0 ? correctReviews / totalEvaluated : 0;
+
+  return {
+    totalEvaluated,
+    correctReviews,
+    errorsFound,
+    accuracy,
+  };
+}
+
+/**
+ * Award review milestone badges (3, 5, 10, 15, 20, 25 submissions reviewed).
+ * Only newly unlocked badges are returned.
+ */
+export async function awardReviewMilestoneBadges(studentId) {
+  const completedReviews = await countReviewsCompleted(studentId);
+
+  const eligibleBadges = await Badge.findAll({
+    where: {
+      category: BadgeCategory.REVIEW_MILESTONE,
+      metric: BadgeMetric.REVIEWS_COMPLETED,
+      threshold: { [Op.lte]: completedReviews },
+    },
+    order: [['threshold', 'ASC']],
+  });
+
+  const newlyUnlocked = [];
+
+  for (const badge of eligibleBadges) {
+    const [, created] = await StudentBadge.findOrCreate({
+      where: { studentId, badgeId: badge.id },
+      defaults: { earnedAt: new Date() },
+    });
+
+    if (created) {
+      newlyUnlocked.push({
+        id: badge.id,
+        key: badge.key,
+        name: badge.name,
+        description: badge.description,
+        iconKey: badge.iconKey,
+        level: badge.level,
+        threshold: badge.threshold,
+        metric: badge.metric,
+        accuracyRequired: badge.accuracyRequired,
+        category: badge.category,
+        createdAt: badge.createdAt,
+        updatedAt: badge.updatedAt,
+      });
+      logger.info(
+        `Review milestone badge ${badge.id} just unlocked for student ${studentId}`
+      );
+    }
+  }
+
+  return {
+    newlyUnlocked,
+    completedReviews,
+  };
+}
+
+/**
+ * Award review quality badges (Reviewer Rookie, Code Detective, Review Master).
+ * Abstain votes do not count. Only newly unlocked badges are returned.
+ */
+export async function awardReviewQualityBadges(studentId) {
+  const stats = await getReviewQualityStats(studentId);
+  const { totalEvaluated, correctReviews, errorsFound, accuracy } = stats;
+
+  const qualityBadges = await Badge.findAll({
+    where: { category: BadgeCategory.REVIEW_QUALITY },
+    order: [['threshold', 'ASC']],
+  });
+
+  const newlyUnlocked = [];
+
+  for (const badge of qualityBadges) {
+    let eligible = false;
+    if (badge.metric === BadgeMetric.CORRECT_REVIEWS) {
+      eligible =
+        correctReviews >= badge.threshold &&
+        (badge.accuracyRequired == null || accuracy >= badge.accuracyRequired);
+    } else if (badge.metric === BadgeMetric.ERRORS_FOUND) {
+      eligible = errorsFound >= badge.threshold;
+    } else if (
+      badge.metric === BadgeMetric.REVIEWS_COMPLETED &&
+      badge.accuracyRequired != null
+    ) {
+      eligible =
+        totalEvaluated >= badge.threshold && accuracy >= badge.accuracyRequired;
+    }
+
+    if (!eligible) continue;
+
+    const [, created] = await StudentBadge.findOrCreate({
+      where: { studentId, badgeId: badge.id },
+      defaults: { earnedAt: new Date() },
+    });
+
+    if (created) {
+      newlyUnlocked.push({
+        id: badge.id,
+        key: badge.key,
+        name: badge.name,
+        description: badge.description,
+        iconKey: badge.iconKey,
+        level: badge.level,
+        threshold: badge.threshold,
+        metric: badge.metric,
+        accuracyRequired: badge.accuracyRequired,
+        category: badge.category,
+        createdAt: badge.createdAt,
+        updatedAt: badge.updatedAt,
+      });
+      logger.info(
+        `Review quality badge ${badge.id} just unlocked for student ${studentId}`
+      );
+    }
+  }
+
+  return {
+    newlyUnlocked,
+    ...stats,
+  };
 }
 
 /**
