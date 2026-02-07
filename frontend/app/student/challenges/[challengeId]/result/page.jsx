@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState , useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import {
@@ -25,7 +25,8 @@ import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
-import skillTitleModal from '#components/skillTitle/skillTitleModal.jsx';
+import SkillTitleModal from '#components/skillTitle/SkillTitleModal.jsx';
+import useTitle from '#js/useTitle.js';
 const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
 
@@ -136,9 +137,9 @@ export default function ChallengeResultPage() {
   const [reviewVotes, setReviewVotes] = useState(null);
   const [reviewVotesLoading, setReviewVotesLoading] = useState(false);
   const [reviewVotesError, setReviewVotesError] = useState('');
-  const [showTitleModal, setShowTitleModal] = useState(false);
   const [newTitle, setNewTitle] = useState(null);
-  const loadResults = useCallback(async () => {
+  const {loading : titleLoading , evaluateTitle}=useTitle();
+    const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
     setAwaitingChallengeEnd(false);
     setLoading(true);
@@ -265,6 +266,55 @@ export default function ChallengeResultPage() {
     resultData,
     reviewVotes,
     reviewVotesLoading,
+  ]);
+//   useEffect(() => {
+//   const checkTitleEligibility = async () => {
+//     const res = await evaluateTitle();
+//     console.log('eligibility result:', res);
+
+//     if (res?.eligible && res?.title) {
+//       setNewTitle(res.title);
+//     }
+//   };
+
+//   checkTitleEligibility();
+// }, [evaluateTitle]);
+const hasEvaluatedRef = useRef(false);
+useEffect(() => {
+  // شرط‌های «Result واقعاً آماده است»
+  const resultReady =
+    !loading &&
+    !awaitingChallengeEnd &&
+    resultData &&
+    finalization;
+
+  if (!resultReady) return;
+  if (hasEvaluatedRef.current) return;
+
+  hasEvaluatedRef.current = true;
+
+  const checkTitleEligibility = async () => {
+    try {
+      const res = await evaluateTitle();
+      console.log('eligibility result:', res);
+
+      if (res?.eligible && res?.titleChanged && res?.title) {
+        setNewTitle(res.title);
+        // اگر popup داری:
+        // openTitlePopup();
+      }
+    } catch (err) {
+      console.error('evaluateTitle failed:', err);
+    }
+  };
+
+    checkTitleEligibility();
+  }, [
+    loading,
+    awaitingChallengeEnd,
+    resultData,
+    finalization,
+    evaluateTitle,
   ]);
 
   if (authLoading) {
@@ -479,13 +529,6 @@ export default function ChallengeResultPage() {
       };
     }
   );
-  const simulateTitleUnlock = () => {
-    setNewTitle({
-      name: 'Expert',
-      description: 'Skilled coder with proven excellence',
-    });
-    setShowTitleModal(true);
-  };
 
   return (
     <div className='max-w-6xl mx-auto px-4 py-8 space-y-6'>
@@ -979,19 +1022,11 @@ export default function ChallengeResultPage() {
       >
         Back to challenges
       </Button>
-      
-      <button
-        onClick={simulateTitleUnlock}
-        className="bg-purple-500 text-white px-4 py-2 rounded"
-      >
-        Simulate Title Unlock
-      </button>
 
-      {/* Title Modal */}
-      {showTitleModal && (
-        <TitleModal
+      {newTitle && (
+        <SkillTitleModal
           title={newTitle}
-          onClose={() => setShowTitleModal(false)}
+          onClose={() => setNewTitle(null)}
         />
       )}
     </div>

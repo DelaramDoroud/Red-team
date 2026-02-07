@@ -169,24 +169,24 @@ Challenge.createWithValidation = async function (payload, options = {}) {
   return Challenge.create(payload, options);
 };
 
-Challenge.seed = async function () {
-  try {
-    const count = await Challenge.count();
-    if (count > 0) return;
+// Challenge.seed = async function () {
+//   try {
+//     const count = await Challenge.count();
+//     if (count > 0) return;
 
-    await Challenge.createWithValidation({
-      title: 'Intro to Loops',
-      duration: 2,
-      startDatetime: '2025-12-01T09:00:00Z',
-      endDatetime: '2025-12-01T10:00:00Z',
-      durationPeerReview: 60,
-      allowedNumberOfReview: 3,
-      status: 'public',
-    });
+//     await Challenge.createWithValidation({
+//       title: 'Intro to Loops',
+//       duration: 2,
+//       startDatetime: '2025-12-01T09:00:00Z',
+//       endDatetime: '2025-12-01T10:00:00Z',
+//       durationPeerReview: 60,
+//       allowedNumberOfReview: 3,
+//       status: 'public',
+//     });
 
-    console.log('Challenge seeded successfully.');
-  } catch (error) {
-    console.error('Challenge seeding failed:', error);
-  }
-};
+//     console.log('Challenge seeded successfully.');
+//   } catch (error) {
+//     console.error('Challenge seeding failed:', error);
+//   }
+// };
 export default Challenge;
