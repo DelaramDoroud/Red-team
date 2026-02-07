@@ -1,7 +1,18 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
-const AUTH_API_BASE =
-  process.env.NEXT_PUBLIC_AUTH_API_BASE_URL || 'http://localhost:3001';
+const getBaseUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (envUrl) {
+    try {
+      return new URL(envUrl).origin;
+    } catch (e) {
+      console.warn('URL .env non valido, uso fallback', e);
+    }
+  }
+  return 'http://localhost:3001';
+};
+
+const AUTH_API_BASE = getBaseUrl();
 const AUTH_API = `${AUTH_API_BASE}/api`;
 
 const initialState = {
