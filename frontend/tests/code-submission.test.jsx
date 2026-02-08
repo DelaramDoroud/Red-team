@@ -551,6 +551,9 @@ describe('RT-4 Code Submission', () => {
       rerenderWithDuration({ status: ChallengeStatus.ENDED_PHASE_ONE });
     });
 
+    fireEvent.click(screen.getByTestId('timer-finish-btn'));
+    // -----------------------------------------------------------
+
     await waitFor(
       () => {
         expect(mockRunCode.mock.calls.length).toBeGreaterThan(
