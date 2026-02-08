@@ -55,6 +55,7 @@ import {
   awardChallengeMilestoneBadges,
   awardReviewMilestoneBadges,
   awardReviewQualityBadges,
+  getReviewBadgesEarnedSince,
 } from '#root/services/challenge-completed-badges.js';
 
 const router = Router();
@@ -2304,18 +2305,33 @@ router.get('/challenges/:challengeId/results', async (req, res) => {
     // results (e.g. is_vote_correct) are registered in the database.
     let reviewMilestoneBadges = [];
     let reviewQualityBadges = [];
+    let reviewBadgesAlreadyEarned = [];
     if (challenge.scoringStatus === 'completed') {
       const milestone = await awardReviewMilestoneBadges(studentId);
       const quality = await awardReviewQualityBadges(studentId);
       reviewMilestoneBadges = milestone.newlyUnlocked;
       reviewQualityBadges = quality.newlyUnlocked;
+      // Include review badges already earned (e.g. from finalize) so the result
+      // page modal can show them; they are not "newly created" here.
+      const phaseTwoEnd = challenge.endPhaseTwoDateTime
+        ? new Date(challenge.endPhaseTwoDateTime)
+        : null;
+      reviewBadgesAlreadyEarned = await getReviewBadgesEarnedSince(
+        studentId,
+        phaseTwoEnd
+      );
     }
+    const reviewFromAward = [...reviewMilestoneBadges, ...reviewQualityBadges];
+    const awardIds = new Set(reviewFromAward.map((b) => b.id));
+    const extraReview = reviewBadgesAlreadyEarned.filter(
+      (b) => !awardIds.has(b.id)
+    );
     const badgeStatus = {
       ...challengeBadgeStatus,
       newlyUnlocked: [
         ...challengeBadgeStatus.newlyUnlocked,
-        ...reviewMilestoneBadges,
-        ...reviewQualityBadges,
+        ...reviewFromAward,
+        ...extraReview,
       ],
     };
     logger.info(`BadgeStatus for student ${studentId}: ${badgeStatus}`);
