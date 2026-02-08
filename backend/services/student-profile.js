@@ -17,6 +17,8 @@ export default async function studentProfile({ studentId }) {
     raw: true,
   });
 
+  if (!user) return { status: 'user_not_found' };
+
   const currentTitle = user.titleId
     ? await Title.findByPk(user.titleId, {
         attributes: ['name', 'description', 'rank'],
