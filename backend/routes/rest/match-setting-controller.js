@@ -15,6 +15,11 @@ const normalizeText = (value) => (typeof value === 'string' ? value : '');
 
 const normalizeTests = (value) => (Array.isArray(value) ? value : []);
 
+const MAX_EXECUTION_ERROR_MESSAGE_LENGTH = 220;
+const CPP_UNQUALIFIED_STL_SYMBOL_REGEX =
+  /\b(string|vector|unordered_map|map|set|queue|stack|deque|list|pair|cin|cout|cerr|clog|getline)\b/i;
+const CPP_NOT_DECLARED_REGEX = /was not declared in this scope/i;
+
 const isBlank = (value) =>
   typeof value !== 'string' || value.trim().length === 0;
 
@@ -29,6 +34,70 @@ const hasValidTestCases = (tests) =>
       Object.prototype.hasOwnProperty.call(testCase, 'input') &&
       Object.prototype.hasOwnProperty.call(testCase, 'output')
   );
+
+const sanitizeExecutionMessage = (value) => {
+  if (typeof value !== 'string') return null;
+
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  if (normalized.length <= MAX_EXECUTION_ERROR_MESSAGE_LENGTH) {
+    return normalized;
+  }
+  return `${normalized.slice(0, MAX_EXECUTION_ERROR_MESSAGE_LENGTH - 3)}...`;
+};
+
+const getExecutionFailureDetail = (executionResult) => {
+  if (!executionResult || typeof executionResult !== 'object') return null;
+
+  const { errors, testResults } = executionResult;
+
+  if (Array.isArray(errors)) {
+    for (const entry of errors) {
+      const detail = sanitizeExecutionMessage(entry?.error);
+      if (detail) return detail;
+    }
+  }
+
+  if (Array.isArray(testResults)) {
+    for (const testResult of testResults) {
+      const stderrDetail = sanitizeExecutionMessage(testResult?.stderr);
+      if (stderrDetail) return stderrDetail;
+
+      const errorDetail = sanitizeExecutionMessage(testResult?.error);
+      if (errorDetail) return errorDetail;
+    }
+  }
+
+  return null;
+};
+
+const buildCppNamespaceHint = (detail) => {
+  if (typeof detail !== 'string' || !detail.trim()) return null;
+  if (!CPP_NOT_DECLARED_REGEX.test(detail)) return null;
+  if (!CPP_UNQUALIFIED_STL_SYMBOL_REGEX.test(detail)) return null;
+
+  return 'Hint: add "using namespace std;" in fixed prefix, or use std:: for STL symbols.';
+};
+
+const buildPublishFailureMessage = ({
+  visibilityLabel,
+  executionResult,
+  language,
+}) => {
+  const baseMessage = `Reference solution failed ${visibilityLabel} tests. Fix it before publishing.`;
+  const detail = getExecutionFailureDetail(executionResult);
+  if (!detail) return baseMessage;
+
+  let message = `${baseMessage} Details: ${detail}`;
+  if (language?.toLowerCase() === 'cpp') {
+    const cppHint = buildCppNamespaceHint(detail);
+    if (cppHint) {
+      message = `${message} ${cppHint}`;
+    }
+  }
+  return message;
+};
 
 const buildDuplicateTitle = async (title) => {
   const baseTitle = title || 'Untitled match setting';
@@ -354,8 +423,11 @@ router.post('/matchSettings/:id/publish', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: {
-          message:
-            'Reference solution failed public tests. Fix it before publishing.',
+          message: buildPublishFailureMessage({
+            visibilityLabel: 'public',
+            executionResult: publicResult,
+            language,
+          }),
         },
       });
     }
@@ -371,8 +443,11 @@ router.post('/matchSettings/:id/publish', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: {
-          message:
-            'Reference solution failed private tests. Fix it before publishing.',
+          message: buildPublishFailureMessage({
+            visibilityLabel: 'private',
+            executionResult: privateResult,
+            language,
+          }),
         },
       });
     }

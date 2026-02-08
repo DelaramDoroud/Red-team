@@ -315,3 +315,55 @@ export async function awardChallengeMilestoneBadges(studentId) {
     completedChallenges,
   };
 }
+
+/**
+ * Get review badges (milestone + quality) already earned by the student since a
+ * given date. Used by GET results so the result page modal can show review
+ * badges that were awarded during finalize (and thus not "newly created" when
+ * the user hits the endpoint).
+ */
+export async function getReviewBadgesEarnedSince(studentId, sinceDate) {
+  const where = { studentId };
+  if (sinceDate) {
+    where.earnedAt = { [Op.gte]: sinceDate };
+  }
+  const studentBadges = await StudentBadge.findAll({
+    where,
+    include: [
+      {
+        model: Badge,
+        as: 'badge',
+        required: true,
+        where: {
+          category: {
+            [Op.in]: [
+              BadgeCategory.REVIEW_MILESTONE,
+              BadgeCategory.REVIEW_QUALITY,
+            ],
+          },
+        },
+      },
+    ],
+    order: [[{ model: Badge, as: 'badge' }, 'threshold', 'ASC']],
+  });
+
+  return studentBadges
+    .filter((sb) => sb.badge)
+    .map((sb) => {
+      const badge = sb.badge;
+      return {
+        id: badge.id,
+        key: badge.key,
+        name: badge.name,
+        description: badge.description,
+        iconKey: badge.iconKey,
+        level: badge.level,
+        threshold: badge.threshold,
+        metric: badge.metric,
+        accuracyRequired: badge.accuracyRequired,
+        category: badge.category,
+        createdAt: badge.createdAt,
+        updatedAt: badge.updatedAt,
+      };
+    });
+}
