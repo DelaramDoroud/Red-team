@@ -195,4 +195,143 @@ describe('ChallengeResultPage badge flow (integration)', () => {
     expect(screen.queryByText('Badge Unlocked!')).not.toBeInTheDocument();
     expect(screen.queryByText('Challenge 3')).not.toBeInTheDocument();
   });
+
+  describe('review badges', () => {
+    it('shows review milestone badge with threshold message', async () => {
+      const user = userEvent.setup();
+      const reviewMilestoneBadge = {
+        id: 401,
+        key: 'review_bronze_3',
+        name: 'Review Bronze (3)',
+        description: 'Complete 3 peer reviews',
+        iconKey: 'review_bronze_3',
+        threshold: 3,
+        metric: 'reviews_completed',
+      };
+
+      mockGetChallengeResults.mockResolvedValue(
+        buildResultResponse([reviewMilestoneBadge])
+      );
+
+      const store = getMockedStore(baseState);
+      renderResultPage(store);
+
+      expect(await screen.findByText('Badge Unlocked!')).toBeInTheDocument();
+      expect(screen.getByText('Review Bronze (3)')).toBeInTheDocument();
+      expect(
+        screen.getByText("You've completed 3 reviews completed!")
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('Badge Unlocked!')).not.toBeInTheDocument();
+      });
+      expect(store.getState().auth.badgeSeen[1][401]).toBe(true);
+    });
+
+    it('shows review quality badge without threshold line', async () => {
+      const user = userEvent.setup();
+      const qualityBadge = {
+        id: 402,
+        key: 'quality_rookie',
+        name: 'Quality Rookie',
+        description: 'First correct peer review',
+        iconKey: 'quality_rookie',
+      };
+
+      mockGetChallengeResults.mockResolvedValue(
+        buildResultResponse([qualityBadge])
+      );
+
+      const store = getMockedStore(baseState);
+      renderResultPage(store);
+
+      expect(await screen.findByText('Badge Unlocked!')).toBeInTheDocument();
+      expect(screen.getByText('Quality Rookie')).toBeInTheDocument();
+      expect(screen.getByText('First correct peer review')).toBeInTheDocument();
+      expect(
+        screen.queryByText(/You've completed \d+/)
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+      await waitFor(() => {
+        expect(screen.queryByText('Badge Unlocked!')).not.toBeInTheDocument();
+      });
+      expect(store.getState().auth.badgeSeen[1][402]).toBe(true);
+    });
+
+    it('shows scoring and review badges in sequence and marks both seen', async () => {
+      const user = userEvent.setup();
+      const scoringBadge = {
+        id: 301,
+        key: 'challenge_3',
+        name: 'Challenge 3',
+        description: 'Complete 3 challenges',
+        iconKey: 'challenge-3',
+        threshold: 3,
+        metric: 'challenges_completed',
+      };
+      const reviewBadge = {
+        id: 401,
+        key: 'review_bronze_3',
+        name: 'Review Bronze (3)',
+        description: 'Complete 3 peer reviews',
+        iconKey: 'review_bronze_3',
+        threshold: 3,
+        metric: 'reviews_completed',
+      };
+
+      mockGetChallengeResults.mockResolvedValue(
+        buildResultResponse([scoringBadge, reviewBadge])
+      );
+
+      const store = getMockedStore(baseState);
+      renderResultPage(store);
+
+      expect(await screen.findByText('Challenge 3')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+
+      expect(await screen.findByText('Review Bronze (3)')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('Badge Unlocked!')).not.toBeInTheDocument();
+      });
+
+      const { badgeSeen } = store.getState().auth;
+      expect(badgeSeen[1][301]).toBe(true);
+      expect(badgeSeen[1][401]).toBe(true);
+    });
+
+    it('does not show review badge already marked as seen after remount', async () => {
+      const reviewBadge = {
+        id: 401,
+        key: 'review_bronze_3',
+        name: 'Review Bronze (3)',
+        description: 'Complete 3 peer reviews',
+        iconKey: 'review_bronze_3',
+        threshold: 3,
+        metric: 'reviews_completed',
+      };
+
+      mockGetChallengeResults.mockResolvedValue(
+        buildResultResponse([reviewBadge])
+      );
+
+      const stateWithSeenReviewBadge = {
+        ...baseState,
+        auth: {
+          ...baseState.auth,
+          badgeSeen: { 1: { 401: true } },
+        },
+      };
+      const store = getMockedStore(stateWithSeenReviewBadge);
+      renderResultPage(store);
+
+      await screen.findByText('Milestone Challenge');
+      expect(screen.queryByText('Badge Unlocked!')).not.toBeInTheDocument();
+      expect(screen.queryByText('Review Bronze (3)')).not.toBeInTheDocument();
+    });
+  });
 });
