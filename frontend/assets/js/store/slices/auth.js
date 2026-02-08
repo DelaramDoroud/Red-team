@@ -6,7 +6,8 @@ const getBaseUrl = () => {
     try {
       return new URL(envUrl).origin;
     } catch (e) {
-      console.warn('URL .env non valido, uso fallback', e);
+      console.error('Invalid API base URL in environment variable');
+      return 'http://localhost:3001';
     }
   }
   return 'http://localhost:3001';
@@ -23,8 +24,8 @@ const initialState = {
   error: null,
   loginRedirectPath: null,
   permissions: null,
-  badgeSeen: {}, // { [studentId]: { [badgeId]: true } }
-  solutionFeedbackVisibility: {}, // { [studentId]: { [challengeId]: true/false } }
+  badgeSeen: {},
+  solutionFeedbackVisibility: {},
 };
 
 export const fetchUserInfo = createAsyncThunk(
