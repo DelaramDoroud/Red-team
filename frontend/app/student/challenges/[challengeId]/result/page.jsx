@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
 import Spinner from '#components/common/Spinner';
@@ -26,6 +26,8 @@ import SnakeGame from '#components/common/SnakeGame';
 import SubmissionScoreCard from '#components/challenge/SubmissionScoreCard';
 import PeerReviewVoteResultCard from '#components/challenge/PeerReviewVoteResultCard';
 import BadgeModal from '#components/badge/BadgeModal';
+import SkillTitleModal from '#components/skillTitle/skillTitleModal';
+import useTitle from '#js/useTitle';
 import { useDuration } from '../(context)/DurationContext';
 import styles from './peer-review-votes.module.css';
 
@@ -143,6 +145,8 @@ export default function ChallengeResultPage() {
   const [badgeQueue, setBadgeQueue] = useState([]);
   const [activeBadge, setActiveBadge] = useState(null);
   const [showBadge, setShowBadge] = useState(false);
+  const [newTitle, setNewTitle] = useState(null);
+  const { evaluateTitle } = useTitle();
 
   const loadResults = useCallback(async () => {
     if (!challengeId || !studentId || !isLoggedIn) return;
@@ -301,6 +305,45 @@ export default function ChallengeResultPage() {
     resultData,
     reviewVotes,
     reviewVotesLoading,
+  ]);
+  const hasEvaluatedRef = useRef(false);
+
+  useEffect(() => {
+    hasEvaluatedRef.current = false;
+  }, [challengeId]);
+
+  useEffect(() => {
+    const resultReady =
+      !loading &&
+      !awaitingChallengeEnd &&
+      !isFinalizationPending &&
+      Boolean(resultData) &&
+      Boolean(finalization);
+
+    if (!resultReady || hasEvaluatedRef.current) return;
+
+    hasEvaluatedRef.current = true;
+
+    const checkTitleEligibility = async () => {
+      try {
+        const res = await evaluateTitle();
+
+        if (res?.eligible && res?.titleChanged && res?.title) {
+          setNewTitle(res.title);
+        }
+      } catch {
+        // Title popup errors should not block result rendering.
+      }
+    };
+
+    checkTitleEligibility();
+  }, [
+    loading,
+    awaitingChallengeEnd,
+    resultData,
+    finalization,
+    isFinalizationPending,
+    evaluateTitle,
   ]);
 
   useEffect(() => {
@@ -929,6 +972,9 @@ export default function ChallengeResultPage() {
       </Button>
       {showBadge && (
         <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+      )}
+      {newTitle && (
+        <SkillTitleModal title={newTitle} onClose={() => setNewTitle(null)} />
       )}
     </div>
   );
