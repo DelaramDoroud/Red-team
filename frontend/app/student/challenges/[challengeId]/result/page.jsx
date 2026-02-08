@@ -171,14 +171,13 @@ export default function ChallengeResultPage() {
         const unseenBadges = payload.badges.newlyUnlocked.filter(
           (badge) => !badgeSeen?.[studentId]?.[badge.id]
         );
-        if (
-          unseenBadges.length > 0 &&
-          badgeQueue.length === 0 &&
-          !activeBadge
-        ) {
-          setBadgeQueue(unseenBadges);
-          setActiveBadge(unseenBadges[0]);
-          setShowBadge(true);
+        if (unseenBadges.length > 0) {
+          setBadgeQueue((prev) => {
+            const existingIds = new Set(prev.map((b) => b.id));
+            const toAdd = unseenBadges.filter((b) => !existingIds.has(b.id));
+            if (toAdd.length === 0) return prev;
+            return [...prev, ...toAdd];
+          });
         }
       }
 
@@ -210,8 +209,6 @@ export default function ChallengeResultPage() {
     isLoggedIn,
     getChallengeResults,
     redirectOnError,
-    badgeQueue,
-    activeBadge,
     badgeSeen,
   ]);
 
@@ -306,6 +303,13 @@ export default function ChallengeResultPage() {
     reviewVotesLoading,
   ]);
 
+  useEffect(() => {
+    if (badgeQueue.length > 0 && !activeBadge) {
+      setActiveBadge(badgeQueue[0]);
+      setShowBadge(true);
+    }
+  }, [badgeQueue, activeBadge]);
+
   if (authLoading) {
     return (
       <div className='max-w-4xl mx-auto px-4 py-10'>
@@ -376,6 +380,9 @@ export default function ChallengeResultPage() {
           </CardContent>
         </Card>
         <SnakeGame />
+        {showBadge && (
+          <BadgeModal badge={activeBadge} onClose={handleBadgeClose} />
+        )}
       </div>
     );
   }
