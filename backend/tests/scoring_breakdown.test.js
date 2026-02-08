@@ -26,7 +26,6 @@ let VoteType;
 // --- MOCK EXECUTE CODE TESTS ---
 vi.mock('#root/services/execute-code-tests.js', () => ({
   executeCodeTests: vi.fn(async ({ code, testCases }) => {
-    // Semplice mock: se il codice è "BUGGY" e il test è "KILLER", fallisce.
     const results = testCases.map((tc) => {
       const inputStr = String(tc.input);
       if (code.includes('BUGGY') && inputStr.includes('KILLER')) {
@@ -63,7 +62,6 @@ beforeAll(async () => {
   ChallengeStatus = enums.ChallengeStatus;
   VoteType = enums.VoteType;
 
-  // 3. Importa Servizio
   const service = await import('#root/services/scoring-service.js');
   calculateChallengeScores = service.calculateChallengeScores;
 });
@@ -171,7 +169,7 @@ describe('Backend Scoring Requirements', () => {
   // REQ 1 & 2: SCORING AVAILABILITY
   // ----------------------------------------------------------------
 
-  it('REQ 1 & 2: Score breakdown is created/updated (Simulating "Completed")', async () => {
+  it('Score breakdown is created/updated (Simulating "Completed")', async () => {
     const { challenge, partA, subB } = await createScenario();
 
     // Verify "In Progress" state (no breakdown yet)
@@ -209,7 +207,7 @@ describe('Backend Scoring Requirements', () => {
   // REQ 3: CODE REVIEW SCORE - NORMALIZATION & CLAMPING [0, 50]
   // ----------------------------------------------------------------
 
-  it('REQ 3: Code Review Score is computed via formula and clamped to [0, 50]', async () => {
+  it('Code Review Score is computed via formula and clamped to [0, 50]', async () => {
     const { challenge, partA, subB } = await createScenario();
 
     // --- CASE A: Perfect Score (Max 50) ---
@@ -263,7 +261,7 @@ describe('Backend Scoring Requirements', () => {
   // REQ 4: IMPLEMENTATION SCORE - FINAL VALUE (Base - Penalty, Clamped)
   // ----------------------------------------------------------------
 
-  it('REQ 4: Final Implementation Score = Base - Penalty, clamped to [0, 50]', async () => {
+  it('Final Implementation Score = Base - Penalty, clamped to [0, 50]', async () => {
     const { challenge, partA, subA, partB } = await createScenario();
 
     // --- CASE A: Penalty application ---
@@ -287,7 +285,7 @@ describe('Backend Scoring Requirements', () => {
     let results = await calculateChallengeScores(challenge.id);
     let resA = results.find((r) => r.challengeParticipantId === partA.id);
 
-    // Base: 50. Penalty: (1 failed / 1 total) * 50 = 50. Cappata a 16.67 (50/3).
+    // Base: 50. Penalty: (1 failed / 1 total) * 50 = 50.  penalty 16.67 (50/3).
     // Exp: 50 - 16.67 = 33.33.
     expect(resA.implementationScore).toBeCloseTo(33.33, 1);
 
