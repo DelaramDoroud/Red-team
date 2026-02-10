@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useId } from 'react';
-import { Button } from '#components/common/Button';
 import { createPortal } from 'react-dom';
+import { Button } from '#components/common/Button';
 import styles from './AlertDialog.module.css';
 
 export default function AlertDialog({

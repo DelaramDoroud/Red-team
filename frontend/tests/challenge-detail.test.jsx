@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  fireEvent,
   render,
   screen,
-  fireEvent,
   waitFor,
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ChallengeDetailPage from '../app/challenges/[id]/page';
 
 const mockGetChallengeMatches = vi.fn();
@@ -71,7 +71,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ id: '123' }),
   usePathname: () => '/challenges/123',
   useRouter: () => mockRouter,
@@ -174,7 +174,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'ended_phase_one',
+        status: 'ended_coding_phase',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -206,7 +206,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'ended_phase_one',
+        status: 'ended_coding_phase',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -234,7 +234,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'ended_phase_one',
+        status: 'ended_coding_phase',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -267,7 +267,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'ended_phase_one',
+        status: 'ended_coding_phase',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -330,7 +330,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'started_phase_one',
+        status: 'started_coding_phase',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -362,7 +362,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'started_phase_two',
+        status: 'started_peer_review',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,
@@ -410,7 +410,7 @@ describe('ChallengeDetailPage', () => {
       challenge: {
         id: 123,
         title: 'Sample Challenge',
-        status: 'ended_phase_two',
+        status: 'ended_peer_review',
         startDatetime: new Date().toISOString(),
         duration: 30,
         durationPeerReview: 15,

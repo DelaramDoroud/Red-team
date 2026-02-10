@@ -1,8 +1,8 @@
-import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
-import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import { Op } from 'sequelize';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import Submission from '#root/models/submission.js';
 
 const submissionStatusRank = {
   [SubmissionStatus.WRONG]: 0,

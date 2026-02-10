@@ -1,14 +1,14 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import {
   assignmentsMock,
@@ -24,8 +24,9 @@ import {
 let PeerReviewPage;
 
 beforeAll(async () => {
-  ({ default: PeerReviewPage } =
-    await import('../app/student/challenges/[challengeId]/peer-review/page'));
+  ({ default: PeerReviewPage } = await import(
+    '../app/student/challenges/[challengeId]/peer-review/page'
+  ));
 });
 
 describe('RT-181: Incorrect Vote Validation', () => {

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, render } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { ChallengeStatus } from '#js/constants';
 import StudentLeaderboardPage from '../app/student/leaderboard/page';
@@ -49,14 +49,14 @@ describe('StudentLeaderboardPage (RT-18 ACs)', () => {
   const endedChallenge = {
     id: 1,
     title: 'Ended Challenge',
-    status: ChallengeStatus.ENDED_PHASE_TWO,
+    status: ChallengeStatus.ENDED_PEER_REVIEW,
     scoringStatus: 'completed',
   };
 
   const activeChallenge = {
     id: 2,
     title: 'Active Challenge',
-    status: ChallengeStatus.STARTED_PHASE_TWO,
+    status: ChallengeStatus.STARTED_PEER_REVIEW,
     scoringStatus: 'pending',
   };
 

@@ -1,7 +1,7 @@
 import Challenge from '#root/models/challenge.js';
-import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
 import { getChallengeParticipants } from '#root/services/challenge-participant.js';
 
 export default async function startChallenge({ challengeId }) {
@@ -12,7 +12,7 @@ export default async function startChallenge({ challengeId }) {
 
   if (
     challenge.status !== ChallengeStatus.ASSIGNED &&
-    challenge.status !== ChallengeStatus.STARTED_PHASE_ONE
+    challenge.status !== ChallengeStatus.STARTED_CODING_PHASE
   ) {
     return {
       status: 'invalid_status',
@@ -50,20 +50,20 @@ export default async function startChallenge({ challengeId }) {
     return { status: 'no_matches' };
   }
 
-  if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) {
+  if (challenge.status === ChallengeStatus.STARTED_CODING_PHASE) {
     return { status: 'already_started' };
   }
 
   const startedAt = new Date();
 
-  const endPhaseOneDateTime = new Date(
+  const endCodingPhaseDateTime = new Date(
     startedAt.getTime() + (challenge.duration || 0) * 60 * 1000 + 5000
   );
   await challenge.update({
-    status: ChallengeStatus.STARTED_PHASE_ONE,
-    startPhaseOneDateTime: startedAt,
-    endPhaseOneDateTime,
-    phaseOneFinalizationCompletedAt: null,
+    status: ChallengeStatus.STARTED_CODING_PHASE,
+    startCodingPhaseDateTime: startedAt,
+    endCodingPhaseDateTime,
+    codingPhaseFinalizationCompletedAt: null,
   });
 
   return {

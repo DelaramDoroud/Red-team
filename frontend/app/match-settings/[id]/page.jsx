@@ -1,12 +1,12 @@
 'use client';
 
-import { use } from 'react';
-import MatchSettingForm from '#modules/match-settings/form';
 import StatusPage from '#components/common/StatusPage';
+import { useParams } from '#js/router';
+import MatchSettingForm from '#modules/match-settings/form';
 
-export default function MatchSettingDetailPage({ params }) {
-  const resolvedParams = use(params);
-  const { id } = resolvedParams || {};
+export default function MatchSettingDetailPage() {
+  const params = useParams();
+  const { id } = params || {};
   const matchSettingId = Number(id);
 
   if (!Number.isFinite(matchSettingId)) {

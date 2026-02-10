@@ -1,9 +1,9 @@
+import { execFile } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const exec = promisify(execFile);
 const scriptPath = path.resolve('scripts/create-migration.js');

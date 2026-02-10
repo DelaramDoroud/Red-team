@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import app from '#root/app_initial.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import User from '#root/models/user.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 
 const createChallengeData = async ({
   participantCount = 2,
@@ -32,7 +32,7 @@ const createChallengeData = async ({
     endDatetime: new Date(Date.now() + 60 * 60 * 1000),
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.ENDED_PHASE_ONE,
+    status: ChallengeStatus.ENDED_CODING_PHASE,
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({
@@ -85,6 +85,25 @@ const createChallengeData = async ({
   };
 };
 
+const createTeacherAgent = async () => {
+  const suffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const teacher = await User.create({
+    username: `teacher_${suffix}`,
+    password: 'password123',
+    email: `teacher_${suffix}@mail.com`,
+    role: 'teacher',
+  });
+
+  const agent = request.agent(app);
+  const loginResponse = await agent.post('/api/login').send({
+    email: teacher.email,
+    password: 'password123',
+  });
+  expect(loginResponse.status).toBe(200);
+  expect(loginResponse.body.success).toBe(true);
+  return agent;
+};
+
 describe('Peer review assignment API', () => {
   beforeEach(async () => {
     await PeerReviewAssignment.destroy({ where: {} });
@@ -113,8 +132,9 @@ describe('Peer review assignment API', () => {
       participantCount: 2,
       validSubmissionCount: 2,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    const res = await request(app)
+    const res = await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 2 });
 
@@ -140,8 +160,9 @@ describe('Peer review assignment API', () => {
       participantCount: 2,
       validSubmissionCount: 1,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    const res = await request(app)
+    const res = await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 2 });
 
@@ -160,15 +181,16 @@ describe('Peer review assignment API', () => {
       participantCount: 2,
       validSubmissionCount: 2,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    const assignRes = await request(app)
+    const assignRes = await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 2 });
 
     expect(assignRes.status).toBe(200);
     expect(assignRes.body.success).toBe(true);
 
-    const startRes = await request(app).post(
+    const startRes = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/peer-reviews/start`
     );
 
@@ -176,8 +198,8 @@ describe('Peer review assignment API', () => {
     expect(startRes.body.success).toBe(true);
 
     const updatedChallenge = await Challenge.findByPk(challenge.id);
-    expect(updatedChallenge.status).toBe(ChallengeStatus.STARTED_PHASE_TWO);
-    expect(updatedChallenge.startPhaseTwoDateTime).not.toBeNull();
+    expect(updatedChallenge.status).toBe(ChallengeStatus.STARTED_PEER_REVIEW);
+    expect(updatedChallenge.startPeerReviewDateTime).not.toBeNull();
   });
 
   it('allows students without valid submissions to be eligible as reviewers', async () => {
@@ -185,8 +207,9 @@ describe('Peer review assignment API', () => {
       participantCount: 4,
       validSubmissionCount: 2,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    await request(app)
+    await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 2 });
 
@@ -207,8 +230,9 @@ describe('Peer review assignment API', () => {
       participantCount: 5,
       validSubmissionCount: 5,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    await request(app)
+    await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 2 });
 
@@ -226,8 +250,9 @@ describe('Peer review assignment API', () => {
       participantCount: 3,
       validSubmissionCount: 2,
     });
+    const teacherAgent = await createTeacherAgent();
 
-    await request(app)
+    await teacherAgent
       .post(`/api/rest/challenges/${challenge.id}/peer-reviews/assign`)
       .send({ expectedReviewsPerSubmission: 1 });
 

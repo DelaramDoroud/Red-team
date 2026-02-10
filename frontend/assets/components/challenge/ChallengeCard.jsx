@@ -1,8 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { formatDateTime } from '#js/date';
 import { getChallengeStatusLabel } from '#js/constants';
+import { formatDateTime } from '#js/date';
+import { useRouter } from '#js/router';
 import styles from './ChallengeCard.module.css';
 
 export default function ChallengeCard({
@@ -47,11 +47,9 @@ export default function ChallengeCard({
   };
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <article
       className={`${styles.card} ${href ? styles.clickable : ''}`}
       role={href ? 'link' : undefined}
-      /* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */
       tabIndex={href ? 0 : undefined}
       onClick={handleNavigate}
       onKeyDown={handleKeyDown}
@@ -102,7 +100,6 @@ export default function ChallengeCard({
       </dl>
       {extraInfo ? <div className={styles.extraInfo}>{extraInfo}</div> : null}
       {actions ? (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events,jsx-a11y/no-static-element-interactions
         <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
           {actions}
         </div>

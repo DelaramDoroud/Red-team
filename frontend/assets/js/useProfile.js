@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import useFetchData from '#js/useFetchData';
 import { API_REST_BASE } from '#js/constants';
+import useFetchData from '#js/useFetchData';
 
 export default function useProfile() {
   const { fetchData, loading } = useFetchData();

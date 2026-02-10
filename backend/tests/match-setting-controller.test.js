@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import app from '#root/app_initial.js';
-import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
+import MatchSetting from '#root/models/match-setting.js';
+import User from '#root/models/user.js';
 import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
 const { mockExecuteCodeTests } = vi.hoisted(() => ({
@@ -114,8 +115,30 @@ const buildMatchSetting = async (overrides = {}) => {
 
 describe('Match Settings API', () => {
   let createdIds = [];
+  let createdUserIds = [];
+  let teacherAgent;
 
-  beforeEach(() => {
+  const createTeacherAgent = async () => {
+    const suffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const teacher = await User.create({
+      username: `teacher_${suffix}`,
+      password: 'password123',
+      email: `teacher_${suffix}@mail.com`,
+      role: 'teacher',
+    });
+    createdUserIds.push(teacher.id);
+
+    const agent = request.agent(app);
+    const loginResponse = await agent.post('/api/login').send({
+      email: teacher.email,
+      password: 'password123',
+    });
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.success).toBe(true);
+    return agent;
+  };
+
+  beforeEach(async () => {
     vi.resetAllMocks();
     mockExecuteCodeTests.mockResolvedValue({
       testResults: [],
@@ -125,11 +148,17 @@ describe('Match Settings API', () => {
       errors: [],
     });
     createdIds = [];
+    createdUserIds = [];
+    teacherAgent = await createTeacherAgent();
   });
 
   afterEach(async () => {
-    if (createdIds.length === 0) return;
-    await MatchSetting.destroy({ where: { id: createdIds } });
+    if (createdIds.length > 0) {
+      await MatchSetting.destroy({ where: { id: createdIds } });
+    }
+    if (createdUserIds.length > 0) {
+      await User.destroy({ where: { id: createdUserIds } });
+    }
   });
 
   it('returns draft and ready match settings', async () => {
@@ -150,7 +179,7 @@ describe('Match Settings API', () => {
   });
 
   it('creates a draft with minimal fields', async () => {
-    const res = await request(app).post('/api/rest/matchSettings').send({
+    const res = await teacherAgent.post('/api/rest/matchSettings').send({
       problemTitle: 'Draft only',
     });
 
@@ -171,7 +200,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(matchSetting.id);
 
-    const res = await request(app)
+    const res = await teacherAgent
       .put(`/api/rest/matchSettings/${matchSetting.id}`)
       .send({ problemTitle: 'Updated title' });
 
@@ -185,7 +214,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(matchSetting.id);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/matchSettings/${matchSetting.id}/unpublish`
     );
 
@@ -201,7 +230,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(matchSetting.id);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/matchSettings/${matchSetting.id}/publish`
     );
 
@@ -216,7 +245,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(matchSetting.id);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/matchSettings/${matchSetting.id}/publish`
     );
 
@@ -234,7 +263,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(matchSetting.id);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/matchSettings/${matchSetting.id}/duplicate`
     );
 
@@ -265,7 +294,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(sourceSetting.id);
 
-    const duplicateRes = await request(app).post(
+    const duplicateRes = await teacherAgent.post(
       `/api/rest/matchSettings/${sourceSetting.id}/duplicate`
     );
 
@@ -274,7 +303,7 @@ describe('Match Settings API', () => {
     const duplicatedId = duplicateRes.body.data.id;
     createdIds.push(duplicatedId);
 
-    const publishRes = await request(app).post(
+    const publishRes = await teacherAgent.post(
       `/api/rest/matchSettings/${duplicatedId}/publish`
     );
 
@@ -307,7 +336,7 @@ describe('Match Settings API', () => {
     });
     createdIds.push(sourceSetting.id);
 
-    const duplicateRes = await request(app).post(
+    const duplicateRes = await teacherAgent.post(
       `/api/rest/matchSettings/${sourceSetting.id}/duplicate`
     );
 
@@ -340,7 +369,7 @@ describe('Match Settings API', () => {
       ],
     });
 
-    const publishRes = await request(app).post(
+    const publishRes = await teacherAgent.post(
       `/api/rest/matchSettings/${duplicatedId}/publish`
     );
 

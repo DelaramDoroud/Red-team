@@ -1,9 +1,9 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { Maximize2, X } from 'lucide-react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '#components/common/Button';
+import dynamic from '#js/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,

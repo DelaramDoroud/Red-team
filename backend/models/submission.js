@@ -1,6 +1,6 @@
-import { Model, DataTypes } from 'sequelize';
-import sequelize from '#root/services/sequelize.js';
+import { DataTypes, Model } from 'sequelize';
 import { SubmissionStatus } from '#root/models/enum/enums.js';
+import sequelize from '#root/services/sequelize.js';
 
 class Submission extends Model {}
 

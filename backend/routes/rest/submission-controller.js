@@ -1,25 +1,24 @@
 import { Router } from 'express';
-
-import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
-import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import MatchSetting from '#root/models/match-setting.js';
 import Challenge from '#root/models/challenge.js';
-
-import sequelize from '#root/services/sequelize.js';
-import { handleException } from '#root/services/error.js';
-import logger from '#root/services/logger.js';
-import { executeCodeTests } from '#root/services/execute-code-tests.js';
-import { validateImportsBlock } from '#root/services/import-validation.js';
-import { getSubmissionStatus } from '#root/services/submission-evaluation.js';
-import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
-import { broadcastEvent } from '#root/services/event-stream.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import Submission from '#root/models/submission.js';
 import {
-  PHASE_ONE_AUTOSUBMIT_GRACE_MS,
+  CODING_PHASE_AUTOSUBMIT_GRACE_MS,
   markSubmissionInFlight,
   unmarkSubmissionInFlight,
-} from '#root/services/phase-one-finalization.js';
+} from '#root/services/coding-phase-finalization.js';
+import { handleException } from '#root/services/error.js';
+import { broadcastEvent } from '#root/services/event-stream.js';
+import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { validateImportsBlock } from '#root/services/import-validation.js';
+import logger from '#root/services/logger.js';
+import sequelize from '#root/services/sequelize.js';
+import { getSubmissionStatus } from '#root/services/submission-evaluation.js';
+import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
+import registerSubmissionReadRoutes from './submission/read-routes.js';
 
 const router = Router();
 
@@ -31,8 +30,8 @@ router.post('/submissions', async (req, res) => {
     const { matchId, code, language = 'cpp', isAutomatic = false } = req.body;
     const isAutomaticSubmission = Boolean(
       req.body.isAutomaticSubmission ??
-      req.body.is_automatic_submission ??
-      isAutomatic
+        req.body.is_automatic_submission ??
+        isAutomatic
     );
 
     if (!matchId || !code) {
@@ -87,8 +86,8 @@ router.post('/submissions', async (req, res) => {
         attributes: [
           'id',
           'status',
-          'endPhaseOneDateTime',
-          'phaseOneFinalizationCompletedAt',
+          'endCodingPhaseDateTime',
+          'codingPhaseFinalizationCompletedAt',
         ],
       });
       if (!challenge) {
@@ -99,18 +98,19 @@ router.post('/submissions', async (req, res) => {
       }
 
       const isCodingActive =
-        challenge.status === ChallengeStatus.STARTED_PHASE_ONE;
-      const phaseOneEndedRecently = (() => {
-        if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) return false;
-        if (!challenge.endPhaseOneDateTime) return false;
-        const endMs = new Date(challenge.endPhaseOneDateTime).getTime();
+        challenge.status === ChallengeStatus.STARTED_CODING_PHASE;
+      const codingPhaseEndedRecently = (() => {
+        if (challenge.status !== ChallengeStatus.ENDED_CODING_PHASE)
+          return false;
+        if (!challenge.endCodingPhaseDateTime) return false;
+        const endMs = new Date(challenge.endCodingPhaseDateTime).getTime();
         if (Number.isNaN(endMs)) return false;
-        return Date.now() - endMs <= PHASE_ONE_AUTOSUBMIT_GRACE_MS;
+        return Date.now() - endMs <= CODING_PHASE_AUTOSUBMIT_GRACE_MS;
       })();
       const isAutoAllowedAfterEnd =
         isAutomaticSubmission &&
-        phaseOneEndedRecently &&
-        !challenge.phaseOneFinalizationCompletedAt;
+        codingPhaseEndedRecently &&
+        !challenge.codingPhaseFinalizationCompletedAt;
 
       if (!isCodingActive && !isAutoAllowedAfterEnd) {
         return res.status(409).json({
@@ -307,100 +307,6 @@ router.post('/submissions', async (req, res) => {
   }
 });
 
-router.get('/submissions/last', async (req, res) => {
-  try {
-    const matchId = Number(req.query?.matchId);
-    if (!matchId) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Match ID is required' },
-      });
-    }
-
-    let submission = await Submission.findOne({
-      where: { matchId, isFinal: true },
-      order: [
-        ['updatedAt', 'DESC'],
-        ['id', 'DESC'],
-      ],
-    });
-
-    if (!submission) {
-      submission = await Submission.findOne({
-        where: { matchId },
-        order: [
-          ['updatedAt', 'DESC'],
-          ['id', 'DESC'],
-        ],
-      });
-    }
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        error: { message: 'Submission not found' },
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        submission: {
-          id: submission.id,
-          matchId: submission.matchId,
-          code: submission.code,
-          createdAt: submission.createdAt,
-          updatedAt: submission.updatedAt,
-          status: submission.status,
-          isAutomaticSubmission: submission.isAutomaticSubmission,
-          isFinal: submission.isFinal,
-          publicTestResults: submission.publicTestResults,
-          privateTestResults: submission.privateTestResults,
-        },
-      },
-    });
-  } catch (error) {
-    logger.error('Get last submission error:', error);
-    handleException(res, error);
-  }
-});
-
-router.get('/submission/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (isNaN(Number(id))) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Submission ID must be a number' },
-      });
-    }
-
-    const submission = await Submission.findByPk(id);
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        error: { message: `Submission with ID ${id} not found` },
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        submission: {
-          id: submission.id,
-          matchId: submission.matchId,
-          code: submission.code,
-          createdAt: submission.createdAt,
-          updatedAt: submission.updatedAt,
-          publicTestResults: submission.publicTestResults,
-          privateTestResults: submission.privateTestResults,
-        },
-      },
-    });
-  } catch (error) {
-    logger.error('Get submission error:', error);
-    handleException(res, error);
-  }
-});
+registerSubmissionReadRoutes(router);
 
 export default router;

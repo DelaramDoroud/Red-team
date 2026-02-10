@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import { ChallengeStatus } from '#js/constants';
 import toast from 'react-hot-toast';
+import { Provider } from 'react-redux';
+import { ChallengeStatus } from '#js/constants';
 import PeerReviewPage from '../app/student/challenges/[challengeId]/peer-review/page';
 
 // Mocks
-vi.mock('next/dynamic', () => ({
+vi.mock('#js/dynamic', () => ({
   default: () => {
     function FakeMonaco({ value }) {
       return <pre>{value}</pre>;
@@ -19,7 +19,7 @@ vi.mock('next/dynamic', () => ({
 
 const mockPush = vi.fn();
 const mockRouter = { push: mockPush };
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => mockRouter,
   useParams: () => ({ challengeId: '123' }),
 }));
@@ -121,8 +121,8 @@ const createTestStore = () =>
 
 const baseChallenge = {
   id: 123,
-  status: ChallengeStatus.STARTED_PHASE_TWO,
-  startPhaseTwoDateTime: new Date().toISOString(),
+  status: ChallengeStatus.STARTED_PEER_REVIEW,
+  startPeerReviewDateTime: new Date().toISOString(),
   durationPeerReview: 1, // 1 minute duration
 };
 
@@ -165,7 +165,7 @@ describe('Peer Review Finalization', () => {
     // Challenge expired 1 minute ago
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -186,7 +186,7 @@ describe('Peer Review Finalization', () => {
   it('fetches summary after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -211,7 +211,7 @@ describe('Peer Review Finalization', () => {
     // Even if not expired calculation-wise, if status is ENDED, controls should be disabled.
     const completedChallenge = {
       ...baseChallenge,
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
     };
 
     mockGetStudentPeerReviewAssignments.mockResolvedValue({
@@ -235,7 +235,7 @@ describe('Peer Review Finalization', () => {
     // Challenge started 30 seconds ago with 1 minute duration...so 30 seconds remaining
     const activeChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: new Date(Date.now() - 30 * 1000).toISOString(),
+      startPeerReviewDateTime: new Date(Date.now() - 30 * 1000).toISOString(),
       durationPeerReview: 1,
     };
 
@@ -259,7 +259,7 @@ describe('Peer Review Finalization', () => {
   it('shows confirmation dialog after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -285,7 +285,7 @@ describe('Peer Review Finalization', () => {
   it('handles finalization API error gracefully', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -311,7 +311,7 @@ describe('Peer Review Finalization', () => {
   it('handles summary fetch error after finalization', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -342,7 +342,7 @@ describe('Peer Review Finalization', () => {
   it('redirects to result page after closing summary', async () => {
     const expiredChallenge = {
       ...baseChallenge,
-      startPhaseTwoDateTime: createExpiredStartTime(1),
+      startPeerReviewDateTime: createExpiredStartTime(1),
       durationPeerReview: 1,
     };
 
@@ -379,10 +379,10 @@ describe('Peer Review Finalization', () => {
     });
   }, 10000);
 
-  it('blocks access when challenge status is ENDED_PHASE_TWO', async () => {
+  it('blocks access when challenge status is ENDED_PEER_REVIEW', async () => {
     const completedChallenge = {
       ...baseChallenge,
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
     };
 
     mockGetStudentPeerReviewAssignments.mockResolvedValue({

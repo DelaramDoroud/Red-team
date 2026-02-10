@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import User from '#root/models/user.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
-import sequelize from '#root/services/sequelize.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
+import sequelize from '#root/services/sequelize.js';
 
 const createVotingScenario = async () => {
   const suffix = Date.now() + Math.floor(Math.random() * 1000);
@@ -35,7 +35,7 @@ const createVotingScenario = async () => {
     endDatetime: new Date(),
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.STARTED_PHASE_TWO,
+    status: ChallengeStatus.STARTED_PEER_REVIEW,
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({

@@ -1,24 +1,24 @@
 import { Op } from 'sequelize';
 import Challenge from '#root/models/challenge.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import Submission from '#root/models/submission.js';
 import {
   getInFlightSubmissionsCount,
-  maybeCompletePhaseOneFinalization,
-} from '#root/services/phase-one-finalization.js';
+  maybeCompleteCodingPhaseFinalization,
+} from '#root/services/coding-phase-finalization.js';
 
 export default async function startPeerReview({ challengeId }) {
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) return { status: 'challenge_not_found' };
 
-  if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO) {
+  if (challenge.status === ChallengeStatus.STARTED_PEER_REVIEW) {
     return { status: 'already_started' };
   }
 
-  if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
+  if (challenge.status !== ChallengeStatus.ENDED_CODING_PHASE) {
     return { status: 'invalid_status', challengeStatus: challenge.status };
   }
 
@@ -27,12 +27,12 @@ export default async function startPeerReview({ challengeId }) {
     return { status: 'finalization_pending', inFlightSubmissionsCount };
   }
 
-  if (!challenge.phaseOneFinalizationCompletedAt) {
-    await maybeCompletePhaseOneFinalization({ challengeId });
+  if (!challenge.codingPhaseFinalizationCompletedAt) {
+    await maybeCompleteCodingPhaseFinalization({ challengeId });
     await challenge.reload();
   }
 
-  if (!challenge.phaseOneFinalizationCompletedAt) {
+  if (!challenge.codingPhaseFinalizationCompletedAt) {
     return { status: 'finalization_pending', inFlightSubmissionsCount: 0 };
   }
 
@@ -112,13 +112,13 @@ export default async function startPeerReview({ challengeId }) {
   }
 
   const startedAt = new Date();
-  const endPhaseTwoDateTime = new Date(
+  const endPeerReviewDateTime = new Date(
     startedAt.getTime() + (challenge.durationPeerReview || 0) * 60 * 1000 + 5000
   );
   await challenge.update({
-    status: ChallengeStatus.STARTED_PHASE_TWO,
-    startPhaseTwoDateTime: startedAt,
-    endPhaseTwoDateTime,
+    status: ChallengeStatus.STARTED_PEER_REVIEW,
+    startPeerReviewDateTime: startedAt,
+    endPeerReviewDateTime,
   });
 
   return { status: 'ok', challenge };

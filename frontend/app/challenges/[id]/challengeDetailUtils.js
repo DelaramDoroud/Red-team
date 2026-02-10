@@ -3,8 +3,8 @@
 import { ChallengeStatus } from '#js/constants';
 
 export const isEndedChallengeStatus = (status) =>
-  status === ChallengeStatus.ENDED_PHASE_ONE ||
-  status === ChallengeStatus.ENDED_PHASE_TWO;
+  status === ChallengeStatus.ENDED_CODING_PHASE ||
+  status === ChallengeStatus.ENDED_PEER_REVIEW;
 
 export const normalizeMultilineValue = (value) =>
   typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
@@ -117,7 +117,7 @@ const normalizeNameValue = (value) =>
 const titleizeValue = (value) => {
   const normalized = normalizeNameValue(value);
   if (!normalized) return '';
-  const base = normalized.split('@')[0];
+  const [base = ''] = normalized.split('@');
   const cleaned = base.replace(/[_\-.]+/g, ' ').trim();
   if (!cleaned) return '';
   return cleaned

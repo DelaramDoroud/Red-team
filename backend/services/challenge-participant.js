@@ -1,5 +1,5 @@
-import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Challenge from '#root/models/challenge.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 import User from '#root/models/user.js';
 
 export async function joinChallenge({ studentId, challengeId }) {

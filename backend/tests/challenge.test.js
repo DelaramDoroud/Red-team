@@ -1,14 +1,14 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
 import request from 'supertest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 let app;
 let sequelize;
@@ -19,14 +19,16 @@ let User;
 let readyMatchSettingIds = [];
 let createdChallengeIds = [];
 let createdUserIds = [];
+let teacherAgent;
 
 beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   const sequelizeModule = await import('#root/services/sequelize.js');
   const challengeModule = await import('#root/models/challenge.js');
   const matchSettingModule = await import('#root/models/match-setting.js');
-  const challengeParticipantModule =
-    await import('#root/models/challenge-participant.js');
+  const challengeParticipantModule = await import(
+    '#root/models/challenge-participant.js'
+  );
   const userModule = await import('#root/models/user.js');
 
   app = appModule.default;
@@ -56,10 +58,27 @@ beforeAll(async () => {
   }
 }, 60000);
 
-beforeEach(() => {
+beforeEach(async () => {
   createdChallengeIds = [];
   createdUserIds = [];
   vi.clearAllMocks();
+
+  const suffix = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const teacher = await User.create({
+    username: `teacher_${suffix}`,
+    email: `teacher_${suffix}@mail.com`,
+    password: 'password123',
+    role: 'teacher',
+  });
+  createdUserIds.push(teacher.id);
+
+  teacherAgent = request.agent(app);
+  const loginResponse = await teacherAgent.post('/api/login').send({
+    email: teacher.email,
+    password: 'password123',
+  });
+  expect(loginResponse.status).toBe(200);
+  expect(loginResponse.body.success).toBe(true);
 });
 
 afterEach(async () => {
@@ -157,7 +176,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: [],
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -181,7 +200,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     if (res.body.challenge?.id) {
       createdChallengeIds.push(res.body.challenge.id);
@@ -212,7 +231,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.body.success).toBe(false);
@@ -235,7 +254,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: [99999, 99998],
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -259,7 +278,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds,
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     if (res.body.challenge?.id) {
       createdChallengeIds.push(res.body.challenge.id);
@@ -287,7 +306,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: [readyMatchSettingIds[0], 99999],
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -320,7 +339,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -350,7 +369,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -382,7 +401,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -402,7 +421,7 @@ describe('Challenge API - POST /api/rest/challenges', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app).post('/api/rest/challenges').send(payload);
+    const res = await teacherAgent.post('/api/rest/challenges').send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -442,7 +461,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app)
+    const res = await teacherAgent
       .patch(`/api/rest/challenges/${challenge.id}`)
       .send(payload);
 
@@ -496,7 +515,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app)
+    const res = await teacherAgent
       .patch(`/api/rest/challenges/${editableChallenge.id}`)
       .send(payload);
 
@@ -549,7 +568,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app)
+    const res = await teacherAgent
       .patch(`/api/rest/challenges/${privateChallenge.id}`)
       .send(payload);
 
@@ -587,7 +606,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app)
+    const res = await teacherAgent
       .patch(`/api/rest/challenges/${challenge.id}`)
       .send(payload);
 
@@ -605,7 +624,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       endDatetime: endTime,
       durationPeerReview: 30,
       allowedNumberOfReview: 2,
-      status: 'started_phase_one',
+      status: 'started_coding_phase',
     });
     createdChallengeIds.push(challenge.id);
     const settings = await MatchSetting.findAll({
@@ -624,7 +643,7 @@ describe('Challenge API - PATCH /api/rest/challenges/:id', () => {
       matchSettingIds: readyMatchSettingIds.slice(0, 1),
     };
 
-    const res = await request(app)
+    const res = await teacherAgent
       .patch(`/api/rest/challenges/${challenge.id}`)
       .send(payload);
 
@@ -667,7 +686,7 @@ describe('Challenge API - POST /api/rest/challenges/:id/unpublish', () => {
       studentId: student.id,
     });
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/unpublish`
     );
 
@@ -701,7 +720,7 @@ describe('Challenge API - POST /api/rest/challenges/:id/publish', () => {
     });
     await challenge.addMatchSettings(settings);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/publish`
     );
 
@@ -724,7 +743,7 @@ describe('Challenge API - POST /api/rest/challenges/:id/publish', () => {
     });
     createdChallengeIds.push(challenge.id);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/publish`
     );
 
@@ -765,7 +784,7 @@ describe('Challenge API - POST /api/rest/challenges/:id/publish', () => {
     await privateChallenge.addMatchSettings(settings);
     await challenge.addMatchSettings(settings);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/publish`
     );
 
@@ -807,7 +826,7 @@ describe('Challenge API - POST /api/rest/challenges/:id/publish', () => {
     await publicChallenge.addMatchSettings(settings);
     await challenge.addMatchSettings(settings);
 
-    const res = await request(app).post(
+    const res = await teacherAgent.post(
       `/api/rest/challenges/${challenge.id}/publish`
     );
 

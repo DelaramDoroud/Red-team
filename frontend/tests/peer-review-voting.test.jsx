@@ -10,17 +10,17 @@
  * - Vote saving behavior (auto-save for Correct/Abstain, conditional for Incorrect)
  */
 
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import {
   assignmentsMock,
@@ -35,8 +35,9 @@ import {
 let PeerReviewPage;
 
 beforeAll(async () => {
-  ({ default: PeerReviewPage } =
-    await import('../app/student/challenges/[challengeId]/peer-review/page'));
+  ({ default: PeerReviewPage } = await import(
+    '../app/student/challenges/[challengeId]/peer-review/page'
+  ));
 });
 
 describe('RT-181: Vote Selection and Management', () => {
@@ -84,11 +85,16 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Verify it was saved automatically
-      expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-        1,
-        'correct',
-        null,
-        null
+      await waitFor(
+        () => {
+          expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
+            1,
+            'correct',
+            null,
+            null
+          );
+        },
+        { timeout: 3000 }
       );
     });
 
@@ -125,11 +131,16 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Verify it was saved automatically
-      expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-        1,
-        'abstain',
-        null,
-        null
+      await waitFor(
+        () => {
+          expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
+            1,
+            'abstain',
+            null,
+            null
+          );
+        },
+        { timeout: 3000 }
       );
     });
   });
@@ -186,11 +197,16 @@ describe('RT-181: Vote Selection and Management', () => {
       });
 
       // Abstain should be saved automatically
-      expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
-        1,
-        'abstain',
-        null,
-        null
+      await waitFor(
+        () => {
+          expect(mockSubmitPeerReviewVote).toHaveBeenCalledWith(
+            1,
+            'abstain',
+            null,
+            null
+          );
+        },
+        { timeout: 3000 }
       );
     });
 

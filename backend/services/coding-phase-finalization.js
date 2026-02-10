@@ -1,10 +1,10 @@
 import Challenge from '#root/models/challenge.js';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { broadcastEvent } from '#root/services/event-stream.js';
-import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
 import logger from '#root/services/logger.js';
+import { finalizeMissingSubmissionsForChallenge } from '#root/services/submission-finalization.js';
 
-export const PHASE_ONE_AUTOSUBMIT_GRACE_MS =
+export const CODING_PHASE_AUTOSUBMIT_GRACE_MS =
   process.env.NODE_ENV === 'test' ? 0 : 20 * 1000;
 
 const inFlightSubmissionsByChallengeId = new Map();
@@ -16,7 +16,7 @@ const scheduleCompletionRecheck = (challengeId, delayMs) => {
 
   const timeoutId = setTimeout(() => {
     completionTimersByChallengeId.delete(challengeId);
-    maybeCompletePhaseOneFinalization({ challengeId }).catch((error) => {
+    maybeCompleteCodingPhaseFinalization({ challengeId }).catch((error) => {
       logger.error(
         'Coding phase finalization: delayed completion check failed',
         {
@@ -62,7 +62,7 @@ export const unmarkSubmissionInFlight = async (challengeId) => {
   }
 
   // If the coding phase has ended, we may now be able to mark finalization completed.
-  await maybeCompletePhaseOneFinalization({ challengeId: normalized });
+  await maybeCompleteCodingPhaseFinalization({ challengeId: normalized });
 };
 
 export const getInFlightSubmissionsCount = (challengeId) => {
@@ -71,7 +71,7 @@ export const getInFlightSubmissionsCount = (challengeId) => {
   return inFlightSubmissionsByChallengeId.get(normalized) || 0;
 };
 
-export const maybeCompletePhaseOneFinalization = async ({ challengeId }) => {
+export const maybeCompleteCodingPhaseFinalization = async ({ challengeId }) => {
   const normalized = normalizeChallengeId(challengeId);
   if (!normalized) return { status: 'invalid_challenge_id' };
 
@@ -84,28 +84,28 @@ export const maybeCompletePhaseOneFinalization = async ({ challengeId }) => {
     attributes: [
       'id',
       'status',
-      'endPhaseOneDateTime',
-      'phaseOneFinalizationCompletedAt',
+      'endCodingPhaseDateTime',
+      'codingPhaseFinalizationCompletedAt',
     ],
   });
 
   if (!challenge) return { status: 'challenge_not_found' };
-  if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
-    return { status: 'not_in_phase_one_end', statusValue: challenge.status };
+  if (challenge.status !== ChallengeStatus.ENDED_CODING_PHASE) {
+    return { status: 'not_in_coding_phase_end', statusValue: challenge.status };
   }
-  if (challenge.phaseOneFinalizationCompletedAt) {
+  if (challenge.codingPhaseFinalizationCompletedAt) {
     return {
       status: 'already_completed',
-      completedAt: challenge.phaseOneFinalizationCompletedAt,
+      completedAt: challenge.codingPhaseFinalizationCompletedAt,
     };
   }
 
-  const endMs = challenge.endPhaseOneDateTime
-    ? new Date(challenge.endPhaseOneDateTime).getTime()
+  const endMs = challenge.endCodingPhaseDateTime
+    ? new Date(challenge.endCodingPhaseDateTime).getTime()
     : null;
   if (endMs !== null && !Number.isNaN(endMs)) {
     const elapsedMs = Date.now() - endMs;
-    const remainingMs = PHASE_ONE_AUTOSUBMIT_GRACE_MS - elapsedMs;
+    const remainingMs = CODING_PHASE_AUTOSUBMIT_GRACE_MS - elapsedMs;
     if (remainingMs > 0) {
       scheduleCompletionRecheck(normalized, remainingMs);
       return { status: 'within_grace_period', remainingMs };
@@ -126,12 +126,12 @@ export const maybeCompletePhaseOneFinalization = async ({ challengeId }) => {
 
   const completedAt = new Date();
   const [updatedCount, updatedRows] = await Challenge.update(
-    { phaseOneFinalizationCompletedAt: completedAt },
+    { codingPhaseFinalizationCompletedAt: completedAt },
     {
       where: {
         id: normalized,
-        status: ChallengeStatus.ENDED_PHASE_ONE,
-        phaseOneFinalizationCompletedAt: null,
+        status: ChallengeStatus.ENDED_CODING_PHASE,
+        codingPhaseFinalizationCompletedAt: null,
       },
       returning: true,
     }
@@ -144,8 +144,8 @@ export const maybeCompletePhaseOneFinalization = async ({ challengeId }) => {
       event: 'challenge-updated',
       data: {
         challengeId: normalized,
-        status: updatedChallenge?.status || ChallengeStatus.ENDED_PHASE_ONE,
-        phaseOneFinalizationCompletedAt: completedAt,
+        status: updatedChallenge?.status || ChallengeStatus.ENDED_CODING_PHASE,
+        codingPhaseFinalizationCompletedAt: completedAt,
       },
     });
 

@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import sequelize from '#root/services/sequelize.js';
-import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
-import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import User from '#root/models/user.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
+import sequelize from '#root/services/sequelize.js';
+import { computeFinalSubmissionForMatch } from '#root/services/submission-finalization.js';
 
 const createFixture = async () => {
   const transaction = await sequelize.transaction();
@@ -44,7 +44,7 @@ const createFixture = async () => {
         endDatetime: new Date('2026-01-01T10:00:00Z'),
         durationPeerReview: 30,
         allowedNumberOfReview: 2,
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
       },
       { transaction }
     );

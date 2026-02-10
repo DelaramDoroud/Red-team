@@ -1,5 +1,5 @@
-import { Umzug, SequelizeStorage } from 'umzug';
 import { Sequelize } from 'sequelize';
+import { SequelizeStorage, Umzug } from 'umzug';
 
 import databaseConfig from '#root/config/database.js';
 

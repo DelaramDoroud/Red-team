@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { ChallengeStatus } from '#js/constants';
-import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
+import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { renderWithProviders } from './test-utils';
 
 const mockGetChallengeResults = vi.fn();
@@ -40,7 +40,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '42' }),
   useRouter: () => mockRouter,
 }));
@@ -79,9 +79,9 @@ const buildResultsResponse = ({
     challenge: {
       id: 42,
       title: 'Score Breakdown Challenge',
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
       scoringStatus: 'completed',
-      endPhaseTwoDateTime: pastDateIso,
+      endPeerReviewDateTime: pastDateIso,
       ...challenge,
     },
     finalization: {
@@ -134,7 +134,7 @@ const buildResultsResponse = ({
   };
 };
 
-const renderPage = (status = ChallengeStatus.ENDED_PHASE_TWO) => {
+const renderPage = (status = ChallengeStatus.ENDED_PEER_REVIEW) => {
   renderWithProviders(
     <DurationProvider value={{ status }}>
       <ChallengeResultPage />
@@ -204,8 +204,8 @@ describe('Score breakdown visibility and details', () => {
     expect(screen.getByText(/4\.5 points/i)).toBeInTheDocument();
   });
 
-  it('shows peer review waiting message and hides score breakdown when phase two is still active', async () => {
-    renderPage(ChallengeStatus.STARTED_PHASE_TWO);
+  it('shows peer review waiting message and hides score breakdown when peer review is still active', async () => {
+    renderPage(ChallengeStatus.STARTED_PEER_REVIEW);
 
     expect(
       await screen.findByText(/Scoring is not available yet/i)

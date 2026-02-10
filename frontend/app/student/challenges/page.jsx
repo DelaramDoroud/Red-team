@@ -1,92 +1,29 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '#components/common/card';
-import {
-  API_REST_BASE,
-  ChallengeStatus,
-  getChallengeStatusLabel,
-} from '#js/constants';
+import { Card, CardContent } from '#components/common/card';
+import { ChallengeStatus } from '#js/constants';
+import { useRouter } from '#js/router';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
-import { formatDateTime } from '#js/date';
-
-const ALLOWED_ROLES = ['student'];
-const unjoinableStatuses = new Set([
-  ChallengeStatus.STARTED_PHASE_ONE,
-  ChallengeStatus.ENDED_PHASE_ONE,
-  ChallengeStatus.STARTED_PHASE_TWO,
-  ChallengeStatus.ENDED_PHASE_TWO,
-]);
-
-const statusStyles = {
-  [ChallengeStatus.PUBLIC]: 'bg-primary/10 text-primary ring-1 ring-primary/15',
-  [ChallengeStatus.ASSIGNED]:
-    'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
-  [ChallengeStatus.STARTED_PHASE_ONE]:
-    'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-200',
-  [ChallengeStatus.STARTED_PHASE_TWO]:
-    'bg-indigo-500/10 text-indigo-700 ring-1 ring-indigo-500/25 dark:text-indigo-200',
-  [ChallengeStatus.ENDED_PHASE_ONE]:
-    'bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-200',
-  [ChallengeStatus.ENDED_PHASE_TWO]:
-    'bg-slate-500/10 text-slate-700 ring-1 ring-slate-500/25 dark:text-slate-200',
-  [ChallengeStatus.PRIVATE]:
-    'bg-muted text-muted-foreground ring-1 ring-border',
-};
-
-const activeStatuses = new Set([
-  ChallengeStatus.ASSIGNED,
-  ChallengeStatus.STARTED_PHASE_ONE,
-  ChallengeStatus.ENDED_PHASE_ONE,
-  ChallengeStatus.STARTED_PHASE_TWO,
-]);
-
-const getStartTimestamp = (value) => {
-  if (!value) return null;
-  const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return null;
-  return timestamp;
-};
-
-const getChallengeStartTimestamp = (challenge) =>
-  getStartTimestamp(
-    challenge?.startPhaseOneDateTime || challenge?.startDatetime
-  );
-
-const sortByStartAsc = (a, b) => {
-  const aStart = getChallengeStartTimestamp(a);
-  const bStart = getChallengeStartTimestamp(b);
-  if (aStart == null && bStart == null) return 0;
-  if (aStart == null) return 1;
-  if (bStart == null) return -1;
-  return aStart - bStart;
-};
-
-const sortByStartDesc = (a, b) => {
-  const aStart = getChallengeStartTimestamp(a);
-  const bStart = getChallengeStartTimestamp(b);
-  if (aStart == null && bStart == null) return 0;
-  if (aStart == null) return 1;
-  if (bStart == null) return -1;
-  return bStart - aStart;
-};
-
-const getActivePriority = (status) => {
-  if (status === ChallengeStatus.STARTED_PHASE_TWO) return 0;
-  if (status === ChallengeStatus.STARTED_PHASE_ONE) return 1;
-  if (status === ChallengeStatus.ENDED_PHASE_ONE) return 2;
-  if (status === ChallengeStatus.ASSIGNED) return 3;
-  return 4;
-};
+import useSseEvent from '#js/useSseEvent';
+import {
+  ChallengeCardItem,
+  ChallengeStatusBadge,
+  EmptyChallengeCard,
+} from './ChallengeCardItem';
+import {
+  ALLOWED_ROLES,
+  activeStatuses,
+  getActivePriority,
+  getChallengeRoute,
+  getChallengeStartTimestamp,
+  getStudentStatusLabel,
+  sortByStartAsc,
+  sortByStartDesc,
+  unjoinableStatuses,
+} from './challengePageUtils';
 
 export default function StudentChallengesPage() {
   const router = useRouter();
@@ -95,7 +32,6 @@ export default function StudentChallengesPage() {
   });
   const studentId = user?.id;
   const { getChallengesForStudent, joinChallenge } = useChallenge();
-
   const [challenges, setChallenges] = useState([]);
   const [error, setError] = useState(null);
   const [now, setNow] = useState(new Date());
@@ -103,10 +39,9 @@ export default function StudentChallengesPage() {
   const lastRedirectKeyRef = useRef(null);
   const activeRedirectStatuses = useRef([
     ChallengeStatus.ASSIGNED,
-    ChallengeStatus.STARTED_PHASE_TWO,
-    ChallengeStatus.STARTED_PHASE_ONE,
+    ChallengeStatus.STARTED_PEER_REVIEW,
+    ChallengeStatus.STARTED_CODING_PHASE,
   ]);
-
   const loadChallenges = useCallback(async () => {
     try {
       if (!studentId) return undefined;
@@ -127,7 +62,6 @@ export default function StudentChallengesPage() {
       return undefined;
     }
   }, [getChallengesForStudent, studentId]);
-
   useEffect(() => {
     if (!isAuthorized || !studentId) return undefined;
     setNow(new Date());
@@ -138,21 +72,11 @@ export default function StudentChallengesPage() {
     return () => clearInterval(id);
   }, [loadChallenges, isAuthorized, studentId]);
 
-  useEffect(() => {
-    if (!isAuthorized || !studentId) return undefined;
-    const source = new EventSource(`${API_REST_BASE}/events`, {
-      withCredentials: true,
-    });
-    const handleUpdate = () => {
-      setNow(new Date());
-      loadChallenges();
-    };
-    source.addEventListener('challenge-updated', handleUpdate);
-
-    return () => {
-      source.close();
-    };
-  }, [loadChallenges, isAuthorized, studentId]);
+  const handleChallengeUpdated = useCallback(() => {
+    setNow(new Date());
+    loadChallenges();
+  }, [loadChallenges]);
+  useSseEvent('challenge-updated', handleChallengeUpdated);
 
   useEffect(() => {
     if (!isAuthorized || !studentId) return;
@@ -166,7 +90,7 @@ export default function StudentChallengesPage() {
       return;
     }
     const redirectRoute =
-      activeChallenge.status === ChallengeStatus.STARTED_PHASE_TWO
+      activeChallenge.status === ChallengeStatus.STARTED_PEER_REVIEW
         ? 'peer-review'
         : 'match';
     const nextKey = `${activeChallenge.id}-${activeChallenge.status}`;
@@ -212,58 +136,16 @@ export default function StudentChallengesPage() {
     }
   };
 
-  const renderStatusBadge = (status) => {
-    const styles =
-      statusStyles[status] || statusStyles[ChallengeStatus.PRIVATE];
-    return (
-      <span
-        className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ring-1 ${styles}`}
-      >
-        {getChallengeStatusLabel(status)}
-      </span>
-    );
-  };
-
   const nowMs = now.getTime();
-
-  const getStudentStatusLabel = (challenge) => {
-    const startTimestamp = getChallengeStartTimestamp(challenge);
-    const isUpcoming = startTimestamp !== null ? startTimestamp > nowMs : false;
-    if (isUpcoming) return 'Upcoming';
-    if (challenge.status === ChallengeStatus.STARTED_PHASE_ONE) return 'Coding';
-    if (challenge.status === ChallengeStatus.ENDED_PHASE_ONE)
-      return 'Awaiting peer review';
-    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO)
-      return 'Peer review';
-    if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO)
-      return 'Completed';
-    if (challenge.status === ChallengeStatus.PUBLIC)
-      return challenge.joined ? 'Joined' : 'Joinable';
-    if (challenge.status === ChallengeStatus.ASSIGNED)
-      return challenge.joined ? 'Assigned' : 'Assigned';
-    return challenge.status || 'Unknown';
-  };
-
-  const getChallengeRoute = (challenge) => {
-    if (challenge.status === ChallengeStatus.STARTED_PHASE_TWO)
-      return `/student/challenges/${challenge.id}/peer-review`;
-    if (
-      challenge.status === ChallengeStatus.ENDED_PHASE_TWO ||
-      challenge.status === ChallengeStatus.ENDED_PHASE_ONE
-    ) {
-      return `/student/challenges/${challenge.id}/result`;
-    }
-    return `/student/challenges/${challenge.id}/match`;
-  };
 
   const renderAction = (challenge) => {
     const isJoined = Boolean(challenge.joined);
     const { status } = challenge;
     const isUnjoinable = unjoinableStatuses.has(status);
-    const isPhaseOneActive = status === ChallengeStatus.STARTED_PHASE_ONE;
-    const isPhaseTwoActive = status === ChallengeStatus.STARTED_PHASE_TWO;
-    const isPhaseOneComplete = status === ChallengeStatus.ENDED_PHASE_ONE;
-    const isPhaseTwoComplete = status === ChallengeStatus.ENDED_PHASE_TWO;
+    const isCodingPhaseActive = status === ChallengeStatus.STARTED_CODING_PHASE;
+    const isPeerReviewActive = status === ChallengeStatus.STARTED_PEER_REVIEW;
+    const isCodingPhaseComplete = status === ChallengeStatus.ENDED_CODING_PHASE;
+    const isPeerReviewComplete = status === ChallengeStatus.ENDED_PEER_REVIEW;
     const startTimestamp = getChallengeStartTimestamp(challenge);
     const isUpcoming = startTimestamp !== null ? startTimestamp > nowMs : false;
     const isJoining = pendingActions[challenge.id]?.join;
@@ -304,7 +186,7 @@ export default function StudentChallengesPage() {
       );
     }
 
-    if (isJoined && isPhaseOneActive) {
+    if (isJoined && isCodingPhaseActive) {
       return (
         <div className='text-primary font-semibold text-sm'>
           Challenge started. Redirecting...
@@ -320,7 +202,7 @@ export default function StudentChallengesPage() {
       );
     }
 
-    if (isJoined && isPhaseTwoActive) {
+    if (isJoined && isPeerReviewActive) {
       return (
         <div className='text-primary font-semibold text-sm'>
           Peer review started. Redirecting...
@@ -328,7 +210,7 @@ export default function StudentChallengesPage() {
       );
     }
 
-    if (isJoined && isPhaseOneComplete) {
+    if (isJoined && isCodingPhaseComplete) {
       return (
         <Button
           size='lg'
@@ -340,7 +222,7 @@ export default function StudentChallengesPage() {
       );
     }
 
-    if (isJoined && isPhaseTwoComplete) {
+    if (isJoined && isPeerReviewComplete) {
       if (!challenge.resultsReady) {
         return null;
       }
@@ -409,7 +291,7 @@ export default function StudentChallengesPage() {
       const startTimestamp = getChallengeStartTimestamp(challenge);
       if (startTimestamp == null) return false;
       if (startTimestamp <= nowMs) return false;
-      if (challenge.status === ChallengeStatus.ENDED_PHASE_TWO) return false;
+      if (challenge.status === ChallengeStatus.ENDED_PEER_REVIEW) return false;
       return !(activeChallenge && challenge.id === activeChallenge.id);
     });
 
@@ -421,65 +303,11 @@ export default function StudentChallengesPage() {
   const endedChallenges = useMemo(() => {
     const ended = challenges.filter(
       (challenge) =>
-        challenge.joined && challenge.status === ChallengeStatus.ENDED_PHASE_TWO
+        challenge.joined &&
+        challenge.status === ChallengeStatus.ENDED_PEER_REVIEW
     );
     return [...ended].sort(sortByStartDesc);
   }, [challenges]);
-
-  const renderEmptyCard = (message) => (
-    <Card className='border border-dashed border-border bg-card'>
-      <CardContent className='py-6'>
-        <p className='text-muted-foreground text-sm'>{message}</p>
-      </CardContent>
-    </Card>
-  );
-
-  const renderChallengeCard = (challenge) => (
-    <Card key={challenge.id} className='border border-border bg-card shadow-sm'>
-      <CardHeader className='pb-4'>
-        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-          <div className='space-y-1.5'>
-            <CardTitle className='text-xl font-semibold'>
-              {challenge.title}
-            </CardTitle>
-            <CardDescription className='text-muted-foreground'>
-              {getStudentStatusLabel(challenge)}
-            </CardDescription>
-          </div>
-          {renderStatusBadge(challenge.status)}
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-          <dl className='flex flex-wrap gap-6 text-sm text-muted-foreground'>
-            <div className='space-y-1'>
-              <dt className='text-xs font-semibold uppercase tracking-wide'>
-                Start
-              </dt>
-              <dd className='text-foreground font-medium'>
-                {formatDateTime(
-                  challenge.startPhaseOneDateTime || challenge.startDatetime
-                )}
-              </dd>
-            </div>
-            <div className='space-y-1'>
-              <dt className='text-xs font-semibold uppercase tracking-wide'>
-                Duration
-              </dt>
-              <dd className='text-foreground font-medium'>
-                {challenge.duration} min
-              </dd>
-            </div>
-          </dl>
-
-          <div className='flex flex-wrap gap-3 justify-end'>
-            {renderAction(challenge)}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   if (!isAuthorized || !studentId) return null;
 
@@ -512,11 +340,19 @@ export default function StudentChallengesPage() {
             Your current challenge, if one is active.
           </p>
         </div>
-        {activeChallenge
-          ? renderChallengeCard(activeChallenge)
-          : renderEmptyCard('No active challenges right now.')}
+        {activeChallenge ? (
+          <ChallengeCardItem
+            challenge={activeChallenge}
+            statusLabel={getStudentStatusLabel(activeChallenge, nowMs)}
+            statusBadge={
+              <ChallengeStatusBadge status={activeChallenge.status} />
+            }
+            actionNode={renderAction(activeChallenge)}
+          />
+        ) : (
+          <EmptyChallengeCard message='No active challenges right now.' />
+        )}
       </section>
-
       <section className='space-y-3'>
         <div className='space-y-1'>
           <h2 className='text-lg font-semibold text-foreground'>Upcoming</h2>
@@ -524,9 +360,18 @@ export default function StudentChallengesPage() {
             The nearest upcoming challenge in your schedule.
           </p>
         </div>
-        {upcomingChallenge
-          ? renderChallengeCard(upcomingChallenge)
-          : renderEmptyCard('No upcoming challenges available.')}
+        {upcomingChallenge ? (
+          <ChallengeCardItem
+            challenge={upcomingChallenge}
+            statusLabel={getStudentStatusLabel(upcomingChallenge, nowMs)}
+            statusBadge={
+              <ChallengeStatusBadge status={upcomingChallenge.status} />
+            }
+            actionNode={renderAction(upcomingChallenge)}
+          />
+        ) : (
+          <EmptyChallengeCard message='No upcoming challenges available.' />
+        )}
       </section>
 
       <section className='space-y-3'>
@@ -536,9 +381,19 @@ export default function StudentChallengesPage() {
             Completed challenges you participated in.
           </p>
         </div>
-        {endedChallenges.length === 0
-          ? renderEmptyCard('No completed challenges yet.')
-          : endedChallenges.map((challenge) => renderChallengeCard(challenge))}
+        {endedChallenges.length === 0 ? (
+          <EmptyChallengeCard message='No completed challenges yet.' />
+        ) : (
+          endedChallenges.map((challenge) => (
+            <ChallengeCardItem
+              key={challenge.id}
+              challenge={challenge}
+              statusLabel={getStudentStatusLabel(challenge, nowMs)}
+              statusBadge={<ChallengeStatusBadge status={challenge.status} />}
+              actionNode={renderAction(challenge)}
+            />
+          ))
+        )}
       </section>
     </div>
   );

@@ -1,29 +1,29 @@
 import {
-  describe,
-  it,
-  expect,
-  beforeEach,
   afterEach,
   beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
   vi,
 } from 'vitest';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import User from '#root/models/user.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
 import initModels from '#root/models/init-models.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 
 // Mock execute-code-tests module before importing submitVote
 vi.mock('#root/services/execute-code-tests.js');
 
-import { submitVote } from '#root/services/peer-review-submit-vote.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
+import { submitVote } from '#root/services/peer-review-submit-vote.js';
 
 /*
  * RT-162: For incorrect choice - Test the input test case against the code runner and output to validate
@@ -48,7 +48,7 @@ const createVotingScenario = async () => {
     endDatetime: new Date(),
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.STARTED_PHASE_TWO,
+    status: ChallengeStatus.STARTED_PEER_REVIEW,
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({

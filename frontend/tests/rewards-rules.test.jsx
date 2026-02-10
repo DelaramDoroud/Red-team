@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import useRewards from '#js/useRewards';
 import RewardsRulesPage from '../app/student/rewards/page';

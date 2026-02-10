@@ -1,8 +1,8 @@
-import NextLink from 'next/link';
+import RouterLink from '#components/common/RouterLink';
 
-export default function APPLink({ href, className, props, children }) {
+export default function APPLink({ href, className, children, ...props }) {
   return (
-    <NextLink
+    <RouterLink
       href={href}
       className={`
         px-4 py-2
@@ -19,6 +19,6 @@ export default function APPLink({ href, className, props, children }) {
       {...props}
     >
       {children}
-    </NextLink>
+    </RouterLink>
   );
 }

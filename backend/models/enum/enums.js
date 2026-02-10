@@ -7,10 +7,10 @@ export const ChallengeStatus = {
   PUBLIC: 'public',
   PRIVATE: 'private',
   ASSIGNED: 'assigned',
-  STARTED_PHASE_ONE: 'started_phase_one',
-  ENDED_PHASE_ONE: 'ended_phase_one',
-  STARTED_PHASE_TWO: 'started_phase_two',
-  ENDED_PHASE_TWO: 'ended_phase_two',
+  STARTED_CODING_PHASE: 'started_coding_phase',
+  ENDED_CODING_PHASE: 'ended_coding_phase',
+  STARTED_PEER_REVIEW: 'started_peer_review',
+  ENDED_PEER_REVIEW: 'ended_peer_review',
 };
 
 export const SubmissionStatus = {

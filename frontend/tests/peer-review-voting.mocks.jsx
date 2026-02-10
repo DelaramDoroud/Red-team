@@ -1,10 +1,10 @@
-import { vi } from 'vitest';
+import { configureStore } from '@reduxjs/toolkit';
 import { render } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
+import { vi } from 'vitest';
 import { ChallengeStatus } from '#js/constants';
 
-vi.mock('next/dynamic', () => ({
+vi.mock('#js/dynamic', () => ({
   default: () => {
     function FakeMonaco({ value }) {
       return <pre data-testid='code-editor'>{value}</pre>;
@@ -22,7 +22,7 @@ export const mockToast = {
   dismiss: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => mockRouter,
   useParams: () => ({
     challengeId: '123',
@@ -105,8 +105,8 @@ export const renderWithRedux = (component) =>
 
 export const baseChallenge = {
   id: 123,
-  status: ChallengeStatus.STARTED_PHASE_TWO,
-  startPhaseTwoDateTime: new Date(Date.now() - 1000 * 60).toISOString(),
+  status: ChallengeStatus.STARTED_PEER_REVIEW,
+  startPeerReviewDateTime: new Date(Date.now() - 1000 * 60).toISOString(),
   durationPeerReview: 30,
 };
 

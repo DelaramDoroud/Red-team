@@ -1,18 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
-
-import sequelize from '#root/services/sequelize.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import app from '#root/app_initial.js';
-
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import User from '#root/models/user.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
+import sequelize from '#root/services/sequelize.js';
 
 // Mock executeCodeTests service
 const { mockExecuteCodeTests } = vi.hoisted(() => ({
@@ -52,6 +50,7 @@ describe('Submission API', () => {
   let participant;
   let match;
   let transaction;
+  let studentAgent;
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -129,7 +128,7 @@ describe('Submission API', () => {
           endDatetime: new Date('2025-12-20T12:00:00Z'),
           durationPeerReview: 30,
           allowedNumberOfReview: 2,
-          status: ChallengeStatus.STARTED_PHASE_ONE,
+          status: ChallengeStatus.STARTED_CODING_PHASE,
         },
         { transaction }
       );
@@ -159,6 +158,14 @@ describe('Submission API', () => {
       );
 
       await transaction.commit();
+
+      studentAgent = request.agent(app);
+      const loginResponse = await studentAgent.post('/api/login').send({
+        email: user.email,
+        password: 'testpassword123',
+      });
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.success).toBe(true);
     } catch (error) {
       await transaction.rollback();
       throw error;
@@ -409,14 +416,14 @@ describe('Submission API', () => {
 
   describe('GET /api/rest/submission/:id', () => {
     it('returns 400 for invalid id', async () => {
-      const res = await request(app).get('/api/rest/submission/abc');
+      const res = await studentAgent.get('/api/rest/submission/abc');
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
     });
 
     it('returns 404 when submission does not exist', async () => {
-      const res = await request(app).get('/api/rest/submission/999999');
+      const res = await studentAgent.get('/api/rest/submission/999999');
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
@@ -429,7 +436,7 @@ describe('Submission API', () => {
         code: 'int main() { return 0; }',
       });
 
-      const res = await request(app).get(
+      const res = await studentAgent.get(
         `/api/rest/submission/${submission.id}`
       );
 

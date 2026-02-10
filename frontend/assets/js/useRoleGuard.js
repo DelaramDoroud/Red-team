@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from '#js/router';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { fetchUserInfo } from '#js/store/slices/auth';
 

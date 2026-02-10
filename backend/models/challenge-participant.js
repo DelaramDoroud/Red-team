@@ -1,5 +1,5 @@
-import sequelize from '#root/services/sequelize.js';
 import { DataTypes } from 'sequelize';
+import sequelize from '#root/services/sequelize.js';
 
 const ChallengeParticipant = sequelize.define(
   'ChallengeParticipant',

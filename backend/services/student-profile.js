@@ -1,16 +1,13 @@
-import sequelize from '#root/services/sequelize.js';
-import User from '#root/models/user.js';
-import Title from '#root/models/title.js';
-import StudentBadge from '#root/models/student-badges.js';
 import Badge from '#root/models/badge.js';
-
-import ChallengeParticipant from '#root/models/challenge-participant.js';
-import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
-
 import Challenge from '#root/models/challenge.js';
-
-import PeerReviewVote from '#root/models/peer-review-vote.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import StudentBadge from '#root/models/student-badges.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import Title from '#root/models/title.js';
+import User from '#root/models/user.js';
+import sequelize from '#root/services/sequelize.js';
 export default async function studentProfile({ studentId }) {
   const user = await User.findByPk(studentId, {
     attributes: ['id', 'username', 'email', 'titleId'],

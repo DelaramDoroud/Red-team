@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import app from '#root/app_initial.js';
 import Badge from '#root/models/badge.js';
 import Title from '#root/models/title.js';

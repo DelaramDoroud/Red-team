@@ -1,5 +1,5 @@
-import { cn } from '#js/utils';
 import { forwardRef } from 'react';
+import { cn } from '#js/utils';
 
 const Table = forwardRef(({ className, ...props }, ref) => (
   <div className='relative w-full overflow-auto'>

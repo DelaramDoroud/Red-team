@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import { execSync } from 'child_process';
-import MatchSetting from '#root/models/match-setting.js';
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
+import MatchSetting from '#root/models/match-setting.js';
 import sequelize from '#root/services/sequelize.js';
+import { cppInvalid } from './student-code/cpp.js';
 import {
   pythonCorrectTwoSum,
   pythonIncorrectTwoSum,
-  pythonSyntaxError,
   pythonInfiniteLoop,
+  pythonSyntaxError,
 } from './student-code/python.js';
-import { cppInvalid } from './student-code/cpp.js';
 
 // Check if Docker is available for these API tests
 const DOCKER_AVAILABLE = (() => {
@@ -311,7 +311,6 @@ describeIf('Code Runner API - POST /api/rest/run', () => {
 
     if (res.body.summary.passed !== res.body.summary.total) {
       // Useful debug in CI logs if it ever fails
-      // eslint-disable-next-line no-console
       console.log('Test results:', JSON.stringify(res.body.results, null, 2));
     }
 
@@ -368,7 +367,6 @@ describeIf('Code Runner API - POST /api/rest/run', () => {
     expect(res.body.success).toBe(true);
     if (res.body.summary.passed !== res.body.summary.total) {
       // Debug in console if fail
-      // eslint-disable-next-line no-console
       console.log(
         'Two Sum C++ Results:',
         JSON.stringify(res.body.results, null, 2)
@@ -465,7 +463,6 @@ describeIf('Code Runner API - POST /api/rest/run', () => {
     expect(res.body.summary).toBeDefined();
 
     if (res.body.summary.passed !== res.body.summary.total) {
-      // eslint-disable-next-line no-console
       console.log(
         'Palindrome results:',
         JSON.stringify(res.body.results, null, 2)
@@ -486,7 +483,6 @@ describeIf('Code Runner API - POST /api/rest/run', () => {
     expect(res.body.summary).toBeDefined();
 
     if (res.body.summary.passed !== res.body.summary.total) {
-      // eslint-disable-next-line no-console
       console.log(
         'Parentheses results:',
         JSON.stringify(res.body.results, null, 2)

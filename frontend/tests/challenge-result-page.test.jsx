@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 // import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { ChallengeStatus } from '#js/constants';
-import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
+import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { renderWithProviders } from './test-utils';
 
 const mockGetChallengeResults = vi.fn();
@@ -32,7 +32,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '42' }),
   useRouter: () => mockRouter,
 }));
@@ -100,9 +100,9 @@ describe('ChallengeResultPage', () => {
         challenge: {
           id: 42,
           title: 'Sorting Challenge',
-          status: 'ended_phase_two',
+          status: 'ended_peer_review',
           scoringStatus: 'completed',
-          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+          endPeerReviewDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
         studentSubmission: {
@@ -157,7 +157,7 @@ describe('ChallengeResultPage', () => {
 
     renderPage({
       durationValue: {
-        status: ChallengeStatus.ENDED_PHASE_TWO,
+        status: ChallengeStatus.ENDED_PEER_REVIEW,
       },
     });
 
@@ -213,9 +213,9 @@ describe('ChallengeResultPage', () => {
         challenge: {
           id: 42,
           title: 'Sorting Challenge',
-          status: 'ended_phase_two',
+          status: 'ended_peer_review',
           scoringStatus: 'completed',
-          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+          endPeerReviewDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
         studentSubmission: {
@@ -258,7 +258,7 @@ describe('ChallengeResultPage', () => {
 
     renderPage({
       durationValue: {
-        status: ChallengeStatus.ENDED_PHASE_TWO,
+        status: ChallengeStatus.ENDED_PEER_REVIEW,
       },
     });
 
@@ -295,9 +295,9 @@ describe('ChallengeResultPage', () => {
         challenge: {
           id: 42,
           title: 'Sorting Challenge',
-          status: 'ended_phase_two',
+          status: 'ended_peer_review',
           scoringStatus: 'completed',
-          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+          endPeerReviewDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
         },
         matchSetting: { id: 5, problemTitle: 'Sort an array' },
         studentSubmission: {
@@ -332,7 +332,7 @@ describe('ChallengeResultPage', () => {
 
     renderPage({
       durationValue: {
-        status: ChallengeStatus.ENDED_PHASE_TWO,
+        status: ChallengeStatus.ENDED_PEER_REVIEW,
       },
       preloadedState: {
         ui: {
@@ -363,7 +363,7 @@ describe('ChallengeResultPage', () => {
 
     renderPage({
       durationValue: {
-        status: ChallengeStatus.ENDED_PHASE_TWO,
+        status: ChallengeStatus.ENDED_PEER_REVIEW,
       },
     });
 
@@ -375,7 +375,7 @@ describe('ChallengeResultPage', () => {
   it('shows a waiting screen while peer review is active', async () => {
     renderPage({
       durationValue: {
-        status: ChallengeStatus.STARTED_PHASE_TWO,
+        status: ChallengeStatus.STARTED_PEER_REVIEW,
       },
     });
     expect(
@@ -395,8 +395,8 @@ describe('ChallengeResultPage', () => {
         challenge: {
           id: 42,
           title: 'Sorting Challenge',
-          status: 'ended_phase_two',
-          endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+          status: 'ended_peer_review',
+          endPeerReviewDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
           scoringStatus: 'computing',
         },
         finalization: {
@@ -410,7 +410,7 @@ describe('ChallengeResultPage', () => {
 
     renderPage({
       durationValue: {
-        status: ChallengeStatus.ENDED_PHASE_TWO,
+        status: ChallengeStatus.ENDED_PEER_REVIEW,
       },
     });
 

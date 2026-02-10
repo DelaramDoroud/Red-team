@@ -1,8 +1,24 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/rest';
+const readEnv = (key) => {
+  if (typeof import.meta !== 'undefined' && import.meta?.env?.[key]) {
+    return import.meta.env[key];
+  }
+
+  if (typeof process !== 'undefined' && process?.env?.[key]) {
+    return process.env[key];
+  }
+
+  return undefined;
+};
+
+const defaultOrigin =
+  typeof window !== 'undefined' && window?.location?.origin
+    ? window.location.origin
+    : 'http://localhost:3001';
+
+export const API_URL = readEnv('VITE_API_URL') || `${defaultOrigin}/api/rest`;
 
 export const API_REST_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/rest';
+  readEnv('VITE_API_REST_BASE') || `${defaultOrigin}/api/rest`;
 
 export const NETWORK_RESPONSE_NOT_OK = 'Network response was not ok: ';
 
@@ -10,20 +26,20 @@ export const ChallengeStatus = {
   PUBLIC: 'public',
   PRIVATE: 'private',
   ASSIGNED: 'assigned',
-  STARTED_PHASE_ONE: 'started_phase_one',
-  ENDED_PHASE_ONE: 'ended_phase_one',
-  STARTED_PHASE_TWO: 'started_phase_two',
-  ENDED_PHASE_TWO: 'ended_phase_two',
+  STARTED_CODING_PHASE: 'started_coding_phase',
+  ENDED_CODING_PHASE: 'ended_coding_phase',
+  STARTED_PEER_REVIEW: 'started_peer_review',
+  ENDED_PEER_REVIEW: 'ended_peer_review',
 };
 
 export const ChallengeStatusLabels = {
   [ChallengeStatus.PUBLIC]: 'Public',
   [ChallengeStatus.PRIVATE]: 'Private',
   [ChallengeStatus.ASSIGNED]: 'Assigned',
-  [ChallengeStatus.STARTED_PHASE_ONE]: 'Coding phase in progress',
-  [ChallengeStatus.ENDED_PHASE_ONE]: 'Coding phase complete',
-  [ChallengeStatus.STARTED_PHASE_TWO]: 'Peer review in progress',
-  [ChallengeStatus.ENDED_PHASE_TWO]: 'Completed',
+  [ChallengeStatus.STARTED_CODING_PHASE]: 'Coding phase in progress',
+  [ChallengeStatus.ENDED_CODING_PHASE]: 'Coding phase complete',
+  [ChallengeStatus.STARTED_PEER_REVIEW]: 'Peer review in progress',
+  [ChallengeStatus.ENDED_PEER_REVIEW]: 'Completed',
 };
 
 export const getChallengeStatusLabel = (status) => {

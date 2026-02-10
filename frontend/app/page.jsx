@@ -1,7 +1,7 @@
 'use client';
 
-import ChallengeList from '#modules/challenge/list';
 import useRoleGuard from '#js/useRoleGuard';
+import ChallengeList from '#modules/challenge/list';
 
 import styles from './page.module.css';
 

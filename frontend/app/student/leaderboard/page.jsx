@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ChallengeSelector from '#components/challenge/ChallengeSelector';
 import { Button } from '#components/common/Button';
+import { ChallengeStatus } from '#js/constants';
 import useChallenge from '#js/useChallenge';
 import useRoleGuard from '#js/useRoleGuard';
-import { ChallengeStatus } from '#js/constants';
 import styles from './page.module.css';
 
 const normalizeChallengeList = (payload) => {
@@ -49,7 +49,7 @@ export default function StudentLeaderboardPage() {
       const list = normalizeChallengeList(res)
         .filter(
           (item) =>
-            item.status === ChallengeStatus.ENDED_PHASE_TWO &&
+            item.status === ChallengeStatus.ENDED_PEER_REVIEW &&
             item.scoringStatus === 'completed'
         )
         .map((item, index) => ({

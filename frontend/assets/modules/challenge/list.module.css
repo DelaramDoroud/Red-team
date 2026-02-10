@@ -116,7 +116,7 @@
   outline-offset: 3px;
 }
 
-.cardLink[aria-disabled='true'] {
+.cardLink[aria-disabled="true"] {
   pointer-events: none;
 }
 

@@ -1,29 +1,20 @@
 import { Op } from 'sequelize';
 import Challenge from '#root/models/challenge.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import { VoteType } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
 import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
-import MatchSetting from '#root/models/match-setting.js';
-import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
-import { VoteType } from '#root/models/enum/enums.js';
 import logger from '#root/services/logger.js';
 
-/**
- * FULL CALCULATION (RT-215 + RT-216)
- * Calculates Peer Review Score, Coding Phase Score, and Total Score.
- * Saves the results in the submission_score_breakdown table (linked to participant),
- * INCLUDING detailed stats for the frontend.
- */
 export async function calculateChallengeScores(challengeId) {
   logger.info(`Starting FULL score calculation for Challenge ${challengeId}`);
 
-  // ---------------------------------------------------------
-  // 1. DATA FETCHING
-  // ---------------------------------------------------------
   const challenge = await Challenge.findByPk(challengeId, {
     include: [
       {
@@ -43,7 +34,6 @@ export async function calculateChallengeScores(challengeId) {
     }
   });
 
-  // Fetch ALL participants for this challenge
   const participants = await ChallengeParticipant.findAll({
     where: { challengeId },
     include: [
@@ -68,7 +58,6 @@ export async function calculateChallengeScores(challengeId) {
     )
     .filter((s) => s && s.id);
 
-  // Fetch all assignments
   const assignments = await PeerReviewAssignment.findAll({
     where: {
       [Op.or]: [
@@ -82,9 +71,6 @@ export async function calculateChallengeScores(challengeId) {
     ],
   });
 
-  // ---------------------------------------------------------
-  // PHASE A: TEST CASE VALIDATION (Reference Check)
-  // ---------------------------------------------------------
   const incorrectVotesWithTests = assignments
     .map((a) => a.vote)
     .filter(
@@ -137,14 +123,10 @@ export async function calculateChallengeScores(challengeId) {
     });
 
     if (execResult.isCompiled) {
-      // NOTE: We don't save DB updates here in calculation service to keep it pure/fast,
-      // usually these updates happen in finalize service. Assuming flags are set or we calculate transiently.
+      // no-op: this precheck validates reference execution compatibility
     }
   }
 
-  // ---------------------------------------------------------
-  // PHASE B: DETERMINE TRUTH (Ground Truth for Submissions)
-  // ---------------------------------------------------------
   const submissionTruthMap = new Map();
   const implementationStatsMap = new Map();
 
@@ -183,7 +165,6 @@ export async function calculateChallengeScores(challengeId) {
       (a) => a.submissionId === submission.id
     );
 
-    // Identify Valid Peer Tests (Killer Votes)
     const killerVotes = relevantAssignments
       .map((a) => a.vote)
       .filter(
@@ -224,9 +205,6 @@ export async function calculateChallengeScores(challengeId) {
     submissionTruthMap.set(submission.id, isUltimatelyCorrect);
   }
 
-  // ---------------------------------------------------------
-  // PHASE C: FINAL SCORE CALCULATION AND SAVING
-  // ---------------------------------------------------------
   const results = [];
 
   const reviewerAssignmentsMap = new Map();
@@ -246,7 +224,6 @@ export async function calculateChallengeScores(challengeId) {
         ? participant.submissions[0]
         : null;
 
-    // 1. CALCULATE CODE REVIEW SCORE
     let E = 0,
       C = 0,
       W = 0,
@@ -265,27 +242,19 @@ export async function calculateChallengeScores(challengeId) {
       if (!vote || vote.vote === VoteType.ABSTAIN) continue;
 
       if (vote.vote === VoteType.CORRECT) {
-        // Correct vote: Reviewer said Correct, and it IS Correct
-        if (vote.isVoteCorrect)
-          C++; // Assuming isVoteCorrect is updated in Phase B or Finalize
+        if (vote.isVoteCorrect) C++;
         else {
-          // Fallback logic if DB isn't updated yet: check map
           isSubmissionCorrect ? C++ : W++;
         }
       } else if (vote.vote === VoteType.INCORRECT) {
-        // Effective vote: Reviewer said Incorrect, Format valid, and it IS Incorrect (Bug Proven)
         if (vote.isExpectedOutputCorrect && vote.isVoteCorrect) E++;
         else {
-          // Fallback logic check
           if (vote.isExpectedOutputCorrect && !isSubmissionCorrect) E++;
           else W++;
         }
       }
     }
 
-    // Fix double counting fallback logic vs stored flags if needed,
-    // but assuming standard calculation flow:
-    // Re-calculate W/E/C strictly based on maps to be safe within this function context:
     E = 0;
     C = 0;
     W = 0;
@@ -298,26 +267,10 @@ export async function calculateChallengeScores(challengeId) {
         if (isSubCorrect) C++;
         else W++;
       } else if (v.vote === VoteType.INCORRECT) {
-        // To get E: Must have correct format (isExpectedOutputCorrect) AND successfully expose bug (!isSubCorrect)
-        // Note: isSubCorrect is false if EITHER teacher tests failed OR peer tests failed.
-        // Strictly speaking, E is awarded if *this specific* test exposed a bug?
-        // Or if the student correctly identified an incorrect submission?
-        // Based on User Story: "reviewer gets credit only if isExpectedOutputCorrect === true and isVoteCorrect === true"
-        // In Phase B loop we determined validity.
-
-        // Simplification: We rely on the Phase B execution to have set flags or we infer:
-        // A peer test is "Correct" (E) if inputs are valid and it fails on the target code.
-        // We can check if `v` was in the "killerVotes" list that actually failed?
-        // For now, using standard logic:
         if (v.isExpectedOutputCorrect && !isSubCorrect) {
-          // Note: this is a loose approximation if multiple people found bugs.
-          // Ideally we track exactly which test killed it.
-          // Assuming isVoteCorrect is reliable here.
           if (v.isVoteCorrect) E++;
           else if (isSubCorrect === false && v.isVoteCorrect === undefined) {
-            // If we just calculated it in memory (Phase B), we might need to rely on that.
-            // For safety, let's trust the logic that if it contributed to failure, it's E.
-            E++; // Optimistic for this snippet context
+            E++;
           } else {
             W++;
           }
@@ -327,8 +280,8 @@ export async function calculateChallengeScores(challengeId) {
       }
     }
 
-    const numerator = 2 * E + 1 * C - 0.5 * W;
-    const denominator = 2 * I_total + 1 * C_total;
+    const numerator = 2 * E + C - 0.5 * W;
+    const denominator = 2 * I_total + C_total;
     let rawReviewScore = denominator > 0 ? 50 * (numerator / denominator) : 0;
 
     if (denominator === 0 && E + C + W === 0) rawReviewScore = 0;
@@ -337,9 +290,7 @@ export async function calculateChallengeScores(challengeId) {
       Math.max(0, Math.min(50, rawReviewScore)).toFixed(2)
     );
 
-    // 2. CALCULATE IMPLEMENTATION SCORE
     let implementationScore = 0;
-    // Prepare stats container
     let implStats = {
       passedTeacher: 0,
       totalTeacher: 0,
@@ -350,7 +301,7 @@ export async function calculateChallengeScores(challengeId) {
     if (reviewerSubmission) {
       const stats = implementationStatsMap.get(reviewerSubmission.id);
       if (stats) {
-        implStats = stats; // Capture for JSON
+        implStats = stats;
 
         let baseScore = 0;
         if (stats.totalTeacher > 0) {
@@ -373,12 +324,10 @@ export async function calculateChallengeScores(challengeId) {
       implementationScore = 0;
     }
 
-    // 3. CALCULATE TOTAL SCORE
     const totalScore = parseFloat(
       (finalReviewScore + implementationScore).toFixed(2)
     );
 
-    // --- CONSTRUCT DETAILED STATS JSON ---
     const statsJSON = {
       codeReview: {
         E,
@@ -396,7 +345,6 @@ export async function calculateChallengeScores(challengeId) {
       },
     };
 
-    // 4. SAVE TO SUBMISSION_SCORE_BREAKDOWN
     try {
       const [breakdown, created] = await SubmissionScoreBreakdown.findOrCreate({
         where: { challengeParticipantId: reviewerId },
@@ -405,7 +353,7 @@ export async function calculateChallengeScores(challengeId) {
           codeReviewScore: finalReviewScore,
           implementationScore: implementationScore,
           totalScore: totalScore,
-          stats: statsJSON, // <--- SAVING STATS
+          stats: statsJSON,
         },
       });
 
@@ -417,7 +365,7 @@ export async function calculateChallengeScores(challengeId) {
           codeReviewScore: finalReviewScore,
           implementationScore: implementationScore,
           totalScore: totalScore,
-          stats: statsJSON, // <--- UPDATING STATS
+          stats: statsJSON,
         });
       }
     } catch (error) {

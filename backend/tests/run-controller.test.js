@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '#root/app_initial.js';
-import MatchSetting from '#root/models/match-setting.js';
 import { MatchSettingStatus } from '#root/models/enum/enums.js';
+import MatchSetting from '#root/models/match-setting.js';
 import { IMPORTS_END_MARKER } from '#root/services/import-validation.js';
 
 const { mockExecuteCodeTests } = vi.hoisted(() => ({

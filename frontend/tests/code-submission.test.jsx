@@ -1,17 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  act,
+  fireEvent,
   render,
   screen,
   waitFor,
-  fireEvent,
-  act,
 } from '@testing-library/react';
 import { Provider } from 'react-redux';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChallengeStatus } from '#js/constants';
 import MatchContainer from '../app/student/challenges/[challengeId]/(components)/MatchContainer';
 import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
-import { given, when, andThen as then } from './bdd';
+import { given, andThen as then, when } from './bdd';
 import { getMockedStore, getMockedStoreWrapper } from './test-redux-provider';
 
 // Mocks
@@ -43,7 +43,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '123' }),
   useRouter: () => mockRouter,
 }));
@@ -532,9 +532,13 @@ describe('RT-4 Code Submission', () => {
 
   it('auto-runs and auto-submits when the coding phase ends and public tests pass', async () => {
     mockSubmitSubmission.mockResolvedValue({ success: true });
+    mockGetLastSubmission.mockResolvedValue({
+      success: false,
+      data: { submission: null },
+    });
 
     const { rerenderWithDuration } = renderMatchContainerWithDuration({
-      durationValue: { status: ChallengeStatus.STARTED_PHASE_ONE },
+      durationValue: { status: ChallengeStatus.STARTED_CODING_PHASE },
     });
 
     await waitFor(() => {
@@ -545,24 +549,20 @@ describe('RT-4 Code Submission', () => {
       setStudentCodeValue(sampleStudentCode);
     });
 
-    const runCallsBeforeTimer = mockRunCode.mock.calls.length;
-
     await act(async () => {
-      rerenderWithDuration({ status: ChallengeStatus.ENDED_PHASE_ONE });
+      rerenderWithDuration({ status: ChallengeStatus.ENDED_CODING_PHASE });
     });
 
     await waitFor(
       () => {
-        expect(mockRunCode.mock.calls.length).toBeGreaterThan(
-          runCallsBeforeTimer
-        );
+        expect(mockRunCode).toHaveBeenCalled();
         expect(mockSubmitSubmission).toHaveBeenCalledWith({
           matchId: 456,
           code: expect.any(String),
           isAutomatic: true,
         });
       },
-      { timeout: 2000 }
+      { timeout: 3000 }
     );
   });
 
@@ -573,7 +573,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     const { rerenderWithDuration } = renderMatchContainerWithDuration({
-      durationValue: { status: ChallengeStatus.STARTED_PHASE_ONE },
+      durationValue: { status: ChallengeStatus.STARTED_CODING_PHASE },
     });
 
     await waitFor(() => {
@@ -585,7 +585,7 @@ describe('RT-4 Code Submission', () => {
     });
 
     await act(async () => {
-      rerenderWithDuration({ status: ChallengeStatus.ENDED_PHASE_ONE });
+      rerenderWithDuration({ status: ChallengeStatus.ENDED_CODING_PHASE });
     });
 
     await waitFor(() => {

@@ -61,9 +61,9 @@ CodyMatch follows a three-tier containerized architecture:
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│                   Frontend (Next.js)                │
-│              Port 3000 (internal)                   │
-│   React 19, Redux Toolkit, Monaco Editor           │
+│                  Frontend (React SPA)               │
+│                Port 3000 (public UI)                │
+│  React 19, React Router, Redux Toolkit, Vite       │
 └─────────────────────────────────────────────────────┘
                          ↓
 ┌─────────────────────────────────────────────────────┐
@@ -81,16 +81,17 @@ CodyMatch follows a three-tier containerized architecture:
 
 ### Architecture Highlights
 
-- **Backend as Reverse Proxy**: Backend proxies frontend requests and handles WebSocket connections
+- **Separated Services**: Frontend and backend are independent containers with path-based routing in production.
 - **Code Execution**: Isolated Docker containers using Judge0 compilers image
 - **State Management**: Redis for session storage, BullMQ for job queues
-- **Real-time Updates**: WebSocket support for live challenge updates
+- **Real-time Updates**: SSE (Server-Sent Events) only via `EventSource`
 
 ## Technology Stack
 
 ### Frontend
 
-- **Framework**: Next.js 16.0 (React 19)
+- **Framework**: React 19 + Vite
+- **Routing**: React Router
 - **State Management**: Redux Toolkit with Redux Persist
 - **UI Components**: Radix UI, Tailwind CSS
 - **Code Editor**: Monaco Editor (VS Code engine)
@@ -114,7 +115,7 @@ CodyMatch follows a three-tier containerized architecture:
 
 - **Containerization**: Docker, Docker Compose
 - **CI/CD**: GitHub Actions (configured)
-- **Code Quality**: ESLint, Prettier, Stylelint
+- **Code Quality**: Biome, Stylelint
 - **Git Hooks**: Husky with lint-staged
 - **Version Control**: Git, GitHub
 
@@ -147,8 +148,8 @@ Red-team/
 │   ├── tests/                 # Backend tests
 │   └── app.js                 # Express app entry point
 │
-├── frontend/                   # Next.js application
-│   ├── app/                   # Next.js app router pages
+├── frontend/                   # React SPA
+│   ├── app/                   # Route-level page components
 │   │   ├── challenges/
 │   │   ├── new-challenge/
 │   │   ├── student/
@@ -318,7 +319,8 @@ Junction entity linking students to challenges with join status.
    ./codymatch.sh bul
    ```
 
-   The application will be available at `http://localhost:3001`
+   The application UI will be available at `http://localhost:3000`  
+   Backend API/SSE will be available at `http://localhost:3001`
 
 For detailed setup instructions, see [SETUP.md](SETUP.md).
 
@@ -368,6 +370,33 @@ npm run lint:scss
 npm run format
 ```
 
+### Biome on VSCode
+
+1. Install the extension **Biome** (`biomejs.biome`) from the VSCode marketplace.
+2. Add these settings in `.vscode/settings.json` (workspace) or user settings:
+
+   ```json
+   {
+     "editor.formatOnSave": true,
+     "editor.defaultFormatter": "biomejs.biome",
+     "[javascript]": {
+       "editor.defaultFormatter": "biomejs.biome"
+     },
+     "[javascriptreact]": {
+       "editor.defaultFormatter": "biomejs.biome"
+     },
+     "[json]": {
+       "editor.defaultFormatter": "biomejs.biome"
+     },
+     "[jsonc]": {
+       "editor.defaultFormatter": "biomejs.biome"
+     }
+   }
+   ```
+
+3. If the extension does not pick up changes immediately, run `Biome: Restart
+   Language Server` from the command palette.
+
 ### Database Migrations
 
 **Create a new migration**:
@@ -397,7 +426,9 @@ Key environment variables (defined in `docker/.env`):
 DB_PASSWORD=your_db_password
 DB_PORT=5432
 CODE_RUNNER_IMAGE=judge0/compilers:latest
-SESSION_SECRET=your_session_secret
+SECRET=your_session_secret
+VITE_API_REST_BASE=http://localhost:3001/api/rest
+VITE_AUTH_API_BASE=http://localhost:3001
 ```
 
 ## Project Management

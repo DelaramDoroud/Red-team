@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '#root/app_initial.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import User from '#root/models/user.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 
 const { mockExecuteCodeTests } = vi.hoisted(() => ({
   mockExecuteCodeTests: vi.fn().mockImplementation(async ({ testCases }) => ({
@@ -48,6 +48,25 @@ const createUser = async (suffix) =>
     email: `student_${suffix}@mail.com`,
     role: 'student',
   });
+
+const createTeacher = async (suffix) =>
+  User.create({
+    username: `teacher_${suffix}`,
+    password: 'password123',
+    email: `teacher_${suffix}@mail.com`,
+    role: 'teacher',
+  });
+
+const createAuthenticatedAgent = async (user) => {
+  const agent = request.agent(app);
+  const response = await agent.post('/api/login').send({
+    email: user.email,
+    password: 'password123',
+  });
+  expect(response.status).toBe(200);
+  expect(response.body.success).toBe(true);
+  return agent;
+};
 
 const createMatchSetting = async (suffix) =>
   MatchSetting.create({
@@ -136,12 +155,13 @@ describe('Student challenge endpoints', () => {
     it('returns challenges with joined status', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-list`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
         status: ChallengeStatus.PUBLIC,
         suffix: `${suffix}-c1`,
       });
       const { challenge: otherChallenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
         suffix: `${suffix}-c2`,
       });
 
@@ -150,9 +170,7 @@ describe('Student challenge endpoints', () => {
         studentId: student.id,
       });
 
-      const res = await request(app).get(
-        `/api/rest/challenges/for-student?studentId=${student.id}`
-      );
+      const res = await studentAgent.get('/api/rest/challenges/for-student');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -164,8 +182,10 @@ describe('Student challenge endpoints', () => {
       expect(otherItem?.joined).toBe(false);
     });
 
-    it('returns 400 for invalid studentId', async () => {
-      const res = await request(app).get(
+    it('returns 400 for invalid studentId when requested by privileged user', async () => {
+      const teacher = await createTeacher(`${Date.now()}-for-student`);
+      const teacherAgent = await createAuthenticatedAgent(teacher);
+      const res = await teacherAgent.get(
         '/api/rest/challenges/for-student?studentId=invalid'
       );
 
@@ -178,8 +198,9 @@ describe('Student challenge endpoints', () => {
     it('runs custom tests during the coding phase', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
         suffix: `${suffix}-custom`,
       });
       await ChallengeParticipant.create({
@@ -202,10 +223,9 @@ describe('Student challenge endpoints', () => {
         errors: [],
       });
 
-      const res = await request(app)
+      const res = await studentAgent
         .post(`/api/rest/challenges/${challenge.id}/custom-tests/run`)
         .send({
-          studentId: student.id,
           code: 'int main() { return 0; }',
           tests: [{ input: '1', output: '1' }],
         });
@@ -218,8 +238,9 @@ describe('Student challenge endpoints', () => {
     it('rejects custom tests when challenge is not in the coding phase', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom2`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.ENDED_PHASE_ONE,
+        status: ChallengeStatus.ENDED_CODING_PHASE,
         suffix: `${suffix}-custom2`,
       });
       await ChallengeParticipant.create({
@@ -227,10 +248,9 @@ describe('Student challenge endpoints', () => {
         studentId: student.id,
       });
 
-      const res = await request(app)
+      const res = await studentAgent
         .post(`/api/rest/challenges/${challenge.id}/custom-tests/run`)
         .send({
-          studentId: student.id,
           code: 'int main() { return 0; }',
           tests: [{ input: '1', output: '1' }],
         });
@@ -242,8 +262,9 @@ describe('Student challenge endpoints', () => {
     it('rejects when no custom tests are provided', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom3`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
         suffix: `${suffix}-custom3`,
       });
       await ChallengeParticipant.create({
@@ -251,10 +272,9 @@ describe('Student challenge endpoints', () => {
         studentId: student.id,
       });
 
-      const res = await request(app)
+      const res = await studentAgent
         .post(`/api/rest/challenges/${challenge.id}/custom-tests/run`)
         .send({
-          studentId: student.id,
           code: 'int main() { return 0; }',
           tests: [],
         });
@@ -266,8 +286,9 @@ describe('Student challenge endpoints', () => {
     it('returns compile error details when compilation fails', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-custom4`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
         suffix: `${suffix}-custom4`,
       });
       await ChallengeParticipant.create({
@@ -283,10 +304,9 @@ describe('Student challenge endpoints', () => {
         errors: [{ error: 'Compilation failed.' }],
       });
 
-      const res = await request(app)
+      const res = await studentAgent
         .post(`/api/rest/challenges/${challenge.id}/custom-tests/run`)
         .send({
-          studentId: student.id,
           code: 'int main() { return 0; }',
           tests: [{ input: '1', output: '1' }],
         });
@@ -301,10 +321,11 @@ describe('Student challenge endpoints', () => {
     it('saves feedback tests for the reviewer', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-reviewer`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const author = await createUser(`${suffix}-author`);
       const { challenge, challengeMatchSetting } =
         await createChallengeWithSetting({
-          status: ChallengeStatus.STARTED_PHASE_TWO,
+          status: ChallengeStatus.STARTED_PEER_REVIEW,
           suffix: `${suffix}-review`,
         });
 
@@ -333,12 +354,11 @@ describe('Student challenge endpoints', () => {
         isExtra: false,
       });
 
-      const res = await request(app)
+      const res = await studentAgent
         .post(
           `/api/rest/challenges/${challenge.id}/peer-reviews/${assignment.id}/tests`
         )
         .send({
-          studentId: student.id,
           tests: [
             {
               input: '2 1',
@@ -358,9 +378,10 @@ describe('Student challenge endpoints', () => {
       const student = await createUser(`${suffix}-reviewer2`);
       const author = await createUser(`${suffix}-author2`);
       const outsider = await createUser(`${suffix}-outsider`);
+      const outsiderAgent = await createAuthenticatedAgent(outsider);
       const { challenge, challengeMatchSetting } =
         await createChallengeWithSetting({
-          status: ChallengeStatus.STARTED_PHASE_TWO,
+          status: ChallengeStatus.STARTED_PEER_REVIEW,
           suffix: `${suffix}-review2`,
         });
 
@@ -394,12 +415,11 @@ describe('Student challenge endpoints', () => {
         isExtra: false,
       });
 
-      const res = await request(app)
+      const res = await outsiderAgent
         .post(
           `/api/rest/challenges/${challenge.id}/peer-reviews/${assignment.id}/tests`
         )
         .send({
-          studentId: outsider.id,
           tests: [{ input: '1', expectedOutput: '1' }],
         });
 
@@ -412,14 +432,15 @@ describe('Student challenge endpoints', () => {
     it('returns results for ended challenges', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-result`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const reviewer = await createUser(`${suffix}-reviewer`);
       const { challenge, challengeMatchSetting } =
         await createChallengeWithSetting({
-          status: ChallengeStatus.ENDED_PHASE_TWO,
+          status: ChallengeStatus.ENDED_PEER_REVIEW,
           suffix: `${suffix}-result`,
         });
       await challenge.update({
-        endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000),
+        endPeerReviewDateTime: new Date(Date.now() - 60 * 1000),
       });
 
       const { participant: participant, match } =
@@ -472,8 +493,8 @@ describe('Student challenge endpoints', () => {
         ],
       });
 
-      const res = await request(app).get(
-        `/api/rest/challenges/${challenge.id}/results?studentId=${student.id}`
+      const res = await studentAgent.get(
+        `/api/rest/challenges/${challenge.id}/results`
       );
 
       expect(res.status).toBe(200);
@@ -486,12 +507,13 @@ describe('Student challenge endpoints', () => {
 
     it('hides other submissions until the challenge fully ends', async () => {
       const suffix = Date.now();
-      const student = await createUser(`${suffix}-result-phase-one`);
+      const student = await createUser(`${suffix}-result-coding-phase`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const reviewer = await createUser(`${suffix}-result-peer`);
       const { challenge, challengeMatchSetting } =
         await createChallengeWithSetting({
-          status: ChallengeStatus.ENDED_PHASE_ONE,
-          suffix: `${suffix}-result-phase-one`,
+          status: ChallengeStatus.ENDED_CODING_PHASE,
+          suffix: `${suffix}-result-coding-phase`,
         });
 
       const { participant, match } = await createParticipantWithMatch({
@@ -523,8 +545,8 @@ describe('Student challenge endpoints', () => {
         feedbackTests: [{ input: '1', expectedOutput: '1' }],
       });
 
-      const res = await request(app).get(
-        `/api/rest/challenges/${challenge.id}/results?studentId=${student.id}`
+      const res = await studentAgent.get(
+        `/api/rest/challenges/${challenge.id}/results`
       );
 
       expect(res.status).toBe(200);
@@ -537,8 +559,9 @@ describe('Student challenge endpoints', () => {
     it('rejects results when challenge has not ended', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-result2`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
         suffix: `${suffix}-result2`,
       });
       await ChallengeParticipant.create({
@@ -546,8 +569,8 @@ describe('Student challenge endpoints', () => {
         studentId: student.id,
       });
 
-      const res = await request(app).get(
-        `/api/rest/challenges/${challenge.id}/results?studentId=${student.id}`
+      const res = await studentAgent.get(
+        `/api/rest/challenges/${challenge.id}/results`
       );
 
       expect(res.status).toBe(409);
@@ -557,13 +580,14 @@ describe('Student challenge endpoints', () => {
     it('rejects results when student is not a participant', async () => {
       const suffix = Date.now();
       const student = await createUser(`${suffix}-result3`);
+      const studentAgent = await createAuthenticatedAgent(student);
       const { challenge } = await createChallengeWithSetting({
-        status: ChallengeStatus.ENDED_PHASE_ONE,
+        status: ChallengeStatus.ENDED_CODING_PHASE,
         suffix: `${suffix}-result3`,
       });
 
-      const res = await request(app).get(
-        `/api/rest/challenges/${challenge.id}/results?studentId=${student.id}`
+      const res = await studentAgent.get(
+        `/api/rest/challenges/${challenge.id}/results`
       );
 
       expect(res.status).toBe(403);

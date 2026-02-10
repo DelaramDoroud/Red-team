@@ -1,9 +1,10 @@
 import { Router } from 'express';
+import User from '#root/models/user.js';
 import { handleException } from '#root/services/error.js';
+import { evaluateTitleEligibility } from '#root/services/evaluateTitleEligibility.js';
 import getRules from '#root/services/rules.js';
 import studentProfile from '#root/services/student-profile.js';
-import { evaluateTitleEligibility } from '#root/services/evaluateTitleEligibility.js';
-import User from '#root/models/user.js';
+
 const router = Router();
 const getRequestUser = (req) => req.session?.user || req.user || null;
 router.get('/rules', async (_req, res) => {

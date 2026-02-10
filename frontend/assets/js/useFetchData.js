@@ -1,6 +1,6 @@
+import { useCallback, useMemo, useState } from 'react';
 import { useAppDispatch } from '#js/store/hooks';
 import { clearUser } from '#js/store/slices/auth';
-import { useCallback, useMemo, useState } from 'react';
 
 const useFetchData = () => {
   const dispatch = useAppDispatch();
@@ -42,7 +42,6 @@ const useFetchData = () => {
       return response.json();
     },
     // dispatch is stable from Redux and doesn't need to be in dependencies
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -59,7 +58,15 @@ const useFetchData = () => {
         return data;
       } catch (err) {
         setLoading(false);
-        if (err.name === 'AbortError') throw err;
+        if (err.name === 'AbortError') {
+          return {
+            success: false,
+            status: 0,
+            message: 'Request aborted',
+            error: 'Request aborted',
+            aborted: true,
+          };
+        }
         const message = err?.message || 'Request failed';
         return {
           success: false,

@@ -6,25 +6,25 @@ export async function up({ context: queryInterface }) {
   try {
     await queryInterface.addColumn(
       'challenge',
-      'startPhaseOneDateTime',
+      'startCodingPhaseDateTime',
       { type: DataTypes.DATE, allowNull: true },
       { transaction }
     );
     await queryInterface.addColumn(
       'challenge',
-      'endPhaseOneDateTime',
+      'endCodingPhaseDateTime',
       { type: DataTypes.DATE, allowNull: true },
       { transaction }
     );
     await queryInterface.addColumn(
       'challenge',
-      'startPhaseTwoDateTime',
+      'startPeerReviewDateTime',
       { type: DataTypes.DATE, allowNull: true },
       { transaction }
     );
     await queryInterface.addColumn(
       'challenge',
-      'endPhaseTwoDateTime',
+      'endPeerReviewDateTime',
       { type: DataTypes.DATE, allowNull: true },
       { transaction }
     );
@@ -40,16 +40,16 @@ export async function down({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();
 
   try {
-    await queryInterface.removeColumn('challenge', 'startPhaseOneDateTime', {
+    await queryInterface.removeColumn('challenge', 'startCodingPhaseDateTime', {
       transaction,
     });
-    await queryInterface.removeColumn('challenge', 'endPhaseOneDateTime', {
+    await queryInterface.removeColumn('challenge', 'endCodingPhaseDateTime', {
       transaction,
     });
-    await queryInterface.removeColumn('challenge', 'startPhaseTwoDateTime', {
+    await queryInterface.removeColumn('challenge', 'startPeerReviewDateTime', {
       transaction,
     });
-    await queryInterface.removeColumn('challenge', 'endPhaseTwoDateTime', {
+    await queryInterface.removeColumn('challenge', 'endPeerReviewDateTime', {
       transaction,
     });
 

@@ -10,10 +10,11 @@
  *   cd docker && ./codymatch.sh backend npm test -- tests/code-runner.test.js
  * - From host: Tests will work if Docker can access temp directories
  */
-import { describe, it, expect } from 'vitest';
+
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { runCode, getSupportedLanguages } from '#root/services/code-runner.js';
+import { describe, expect, it } from 'vitest';
+import { getSupportedLanguages, runCode } from '#root/services/code-runner.js';
 
 // Check if we're in Docker environment with volume mounted
 // If CODE_RUNNER_TEMP_DIR is set, we're likely in Docker with volume mounted

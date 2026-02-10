@@ -1,7 +1,7 @@
-import { registerWrapper } from './index.js';
 import { readdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { registerWrapper } from './index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  fireEvent,
   render,
   screen,
-  fireEvent,
   waitFor,
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import NewChallengePage from '../app/new-challenge/page';
 import { getMockedStoreWrapper } from './test-redux-provider';
@@ -38,7 +38,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => mockRouter,
   usePathname: () => '/new-challenge',
 }));

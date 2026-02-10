@@ -1,8 +1,8 @@
 import { DataTypes } from 'sequelize';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
+import { errorTypes } from '#root/services/error.js';
 import sequelize from '#root/services/sequelize.js';
 import getValidator from '#root/services/validator.js';
-import { errorTypes } from '#root/services/error.js';
-import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 export async function validateChallengeData(
   data,
@@ -75,29 +75,29 @@ const Challenge = sequelize.define(
       defaultValue: 'pending',
       field: 'scoring_status',
     },
-    startPhaseOneDateTime: {
+    startCodingPhaseDateTime: {
       type: DataTypes.DATE,
-      field: 'startPhaseOneDateTime',
+      field: 'startCodingPhaseDateTime',
       allowNull: true,
     },
-    endPhaseOneDateTime: {
+    endCodingPhaseDateTime: {
       type: DataTypes.DATE,
-      field: 'endPhaseOneDateTime',
+      field: 'endCodingPhaseDateTime',
       allowNull: true,
     },
-    startPhaseTwoDateTime: {
+    startPeerReviewDateTime: {
       type: DataTypes.DATE,
-      field: 'startPhaseTwoDateTime',
+      field: 'startPeerReviewDateTime',
       allowNull: true,
     },
-    endPhaseTwoDateTime: {
+    endPeerReviewDateTime: {
       type: DataTypes.DATE,
-      field: 'endPhaseTwoDateTime',
+      field: 'endPeerReviewDateTime',
       allowNull: true,
     },
-    phaseOneFinalizationCompletedAt: {
+    codingPhaseFinalizationCompletedAt: {
       type: DataTypes.DATE,
-      field: 'phase_one_finalization_completed_at',
+      field: 'coding_phase_finalization_completed_at',
       allowNull: true,
       defaultValue: null,
     },

@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback } from 'react';
 import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import addErrors from 'ajv-errors';
-import useFetchData from '#js/useFetchData';
+import addFormats from 'ajv-formats';
+import { useCallback } from 'react';
 import { API_REST_BASE } from '#js/constants';
+import useFetchData from '#js/useFetchData';
 
 const ajv = new Ajv({
   allErrors: true,
@@ -72,8 +72,8 @@ export default function useJsonSchema() {
         let fn = ajv.getSchema(id);
         if (!fn) {
           const schema = await fetchData(`${API_REST_BASE}/schemas/${id}`);
-          if (schema instanceof Error) {
-            throw schema;
+          if (!schema || schema.success === false || !schema.$id) {
+            return null;
           }
 
           if (!ajv.getSchema(schema.$id)) {
@@ -100,6 +100,13 @@ export default function useJsonSchema() {
 
       await loadSchema('shared-definitions');
       const validateFn = await loadSchema(schemaId);
+      if (!validateFn) {
+        return {
+          valid: false,
+          errors: ['Unable to load validation schema'],
+          fields: [],
+        };
+      }
 
       const toValidate = { ...data, kind };
       const valid = validateFn(toValidate);

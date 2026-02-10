@@ -1,15 +1,15 @@
-import sequelize from '#root/services/sequelize.js';
+import { Op } from 'sequelize';
 import Challenge from '#root/models/challenge.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import { ChallengeStatus, SubmissionStatus } from '#root/models/enum/enums.js';
-import { Op } from 'sequelize';
+import Match from '#root/models/match.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import Submission from '#root/models/submission.js';
 import {
   getInFlightSubmissionsCount,
-  maybeCompletePhaseOneFinalization,
-} from '#root/services/phase-one-finalization.js';
+  maybeCompleteCodingPhaseFinalization,
+} from '#root/services/coding-phase-finalization.js';
+import sequelize from '#root/services/sequelize.js';
 
 const shuffle = (array) => {
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -18,7 +18,6 @@ const shuffle = (array) => {
   }
   return array;
 };
-
 const buildTargetCounts = (submissions, baseReviews, extraReviews) => {
   const counts = new Map();
   submissions.forEach((submission) => {
@@ -33,7 +32,6 @@ const buildTargetCounts = (submissions, baseReviews, extraReviews) => {
   }
   return counts;
 };
-
 const markExtraAssignments = (assignments, baseReviewsPerSubmission) => {
   const grouped = new Map();
   assignments.forEach((assignment) => {
@@ -42,7 +40,6 @@ const markExtraAssignments = (assignments, baseReviewsPerSubmission) => {
     }
     grouped.get(assignment.submissionId).push(assignment);
   });
-
   const results = [];
   grouped.forEach((group) => {
     const extraCount = Math.max(0, group.length - baseReviewsPerSubmission);
@@ -54,10 +51,8 @@ const markExtraAssignments = (assignments, baseReviewsPerSubmission) => {
       });
     });
   });
-
   return results;
 };
-
 const buildAssignmentsWithMaxFlow = ({
   reviewers,
   submissions,
@@ -69,22 +64,18 @@ const buildAssignmentsWithMaxFlow = ({
   const submissionIndexById = new Map(
     submissionList.map((submission, index) => [submission.id, index])
   );
-
   const source = 0;
   const reviewerOffset = 1;
   const submissionOffset = reviewerOffset + reviewerIds.length;
   const sink = submissionOffset + submissionList.length;
   const nodeCount = sink + 1;
-
   const graph = Array.from({ length: nodeCount }, () => []);
-
   const addEdge = (from, to, cap) => {
     const forward = { to, rev: graph[to].length, cap };
     const backward = { to: from, rev: graph[from].length, cap: 0 };
     graph[from].push(forward);
     graph[to].push(backward);
   };
-
   reviewerIds.forEach((reviewerId, index) => {
     const reviewerNode = reviewerOffset + index;
     addEdge(source, reviewerNode, reviewsPerReviewer);
@@ -96,13 +87,11 @@ const buildAssignmentsWithMaxFlow = ({
       addEdge(reviewerNode, submissionNode, 1);
     });
   });
-
   submissionList.forEach((submission, index) => {
     const submissionNode = submissionOffset + index;
     const target = targetCounts.get(submission.id) || 0;
     if (target > 0) addEdge(submissionNode, sink, target);
   });
-
   const level = new Array(nodeCount).fill(-1);
   const queue = [];
   const bfs = () => {
@@ -121,7 +110,6 @@ const buildAssignmentsWithMaxFlow = ({
     }
     return level[sink] >= 0;
   };
-
   const iter = new Array(nodeCount).fill(0);
   const dfs = (v, flow) => {
     if (v === sink) return flow;
@@ -139,7 +127,6 @@ const buildAssignmentsWithMaxFlow = ({
     }
     return 0;
   };
-
   let flow = 0;
   const totalNeeded = reviewerIds.length * reviewsPerReviewer;
   const INF = Number.MAX_SAFE_INTEGER;
@@ -150,9 +137,7 @@ const buildAssignmentsWithMaxFlow = ({
       flow += f;
     }
   }
-
   if (flow !== totalNeeded) return null;
-
   const assignments = [];
   reviewerIds.forEach((reviewerId, index) => {
     const reviewerNode = reviewerOffset + index;
@@ -174,10 +159,8 @@ const buildAssignmentsWithMaxFlow = ({
       }
     });
   });
-
   return assignments;
 };
-
 const generateAssignments = ({ reviewers, submissions, expectedReviews }) => {
   if (reviewers.length === 0) return { error: 'no_reviewers' };
   const validSubmissions = submissions.length;
@@ -186,10 +169,8 @@ const generateAssignments = ({ reviewers, submissions, expectedReviews }) => {
     Math.ceil(totalDesired / reviewers.length),
     validSubmissions - 1
   );
-
   if (reviewsPerReviewer <= 0)
     return { error: 'insufficient_valid_submissions' };
-
   const totalAssigned = reviewsPerReviewer * reviewers.length;
   const baseReviewsPerSubmission =
     totalAssigned >= totalDesired
@@ -197,7 +178,6 @@ const generateAssignments = ({ reviewers, submissions, expectedReviews }) => {
       : Math.floor(totalAssigned / validSubmissions);
   const extraReviews =
     totalAssigned - baseReviewsPerSubmission * validSubmissions;
-
   const targetCounts = buildTargetCounts(
     submissions,
     baseReviewsPerSubmission,
@@ -209,9 +189,7 @@ const generateAssignments = ({ reviewers, submissions, expectedReviews }) => {
     targetCounts,
     reviewsPerReviewer,
   });
-
   if (!assignments) return { error: 'assignment_failed' };
-
   return {
     assignments: markExtraAssignments(assignments, baseReviewsPerSubmission),
     reviewsPerReviewer,
@@ -220,7 +198,6 @@ const generateAssignments = ({ reviewers, submissions, expectedReviews }) => {
     totalAssigned,
   };
 };
-
 export default async function assignPeerReviews({
   challengeId,
   expectedReviewsPerSubmission,
@@ -229,17 +206,14 @@ export default async function assignPeerReviews({
   if (!Number.isInteger(expectedReviews) || expectedReviews < 2) {
     return { status: 'invalid_expected_reviews' };
   }
-
   const challenge = await Challenge.findByPk(challengeId);
   if (!challenge) return { status: 'challenge_not_found' };
-
-  if (challenge.status !== ChallengeStatus.ENDED_PHASE_ONE) {
+  if (challenge.status !== ChallengeStatus.ENDED_CODING_PHASE) {
     return {
       status: 'invalid_status',
       challengeStatus: challenge.status,
     };
   }
-
   const inFlightSubmissionsCount = getInFlightSubmissionsCount(challengeId);
   if (inFlightSubmissionsCount > 0) {
     return {
@@ -247,19 +221,16 @@ export default async function assignPeerReviews({
       inFlightSubmissionsCount,
     };
   }
-
-  if (!challenge.phaseOneFinalizationCompletedAt) {
-    await maybeCompletePhaseOneFinalization({ challengeId });
+  if (!challenge.codingPhaseFinalizationCompletedAt) {
+    await maybeCompleteCodingPhaseFinalization({ challengeId });
     await challenge.reload();
   }
-
-  if (!challenge.phaseOneFinalizationCompletedAt) {
+  if (!challenge.codingPhaseFinalizationCompletedAt) {
     return {
       status: 'finalization_pending',
       inFlightSubmissionsCount: 0,
     };
   }
-
   const matches = await Match.findAll({
     attributes: ['id', 'challengeMatchSettingId', 'challengeParticipantId'],
     include: [
@@ -272,18 +243,14 @@ export default async function assignPeerReviews({
     ],
     order: [['id', 'ASC']],
   });
-
   if (!matches.length) return { status: 'no_matches' };
-
   if (challenge.allowedNumberOfReview !== expectedReviews) {
     await challenge.update({ allowedNumberOfReview: expectedReviews });
   }
-
   const matchIds = matches.map((matchRow) => matchRow.id);
   const matchSettingByMatchId = new Map(
     matches.map((matchRow) => [matchRow.id, matchRow.challengeMatchSettingId])
   );
-
   const groups = new Map();
   matches.forEach((matchRow) => {
     const cmsId = matchRow.challengeMatchSettingId;
@@ -299,7 +266,6 @@ export default async function assignPeerReviews({
     group.matchIds.push(matchRow.id);
     group.reviewerIds.add(matchRow.challengeParticipantId);
   });
-
   const validSubmissions = await Submission.findAll({
     attributes: ['id', 'matchId', 'challengeParticipantId'],
     where: {
@@ -314,7 +280,6 @@ export default async function assignPeerReviews({
     },
     raw: true,
   });
-
   validSubmissions.forEach((submission) => {
     const cmsId = matchSettingByMatchId.get(submission.matchId);
     if (!cmsId || !groups.has(cmsId)) return;
@@ -323,13 +288,11 @@ export default async function assignPeerReviews({
       authorId: submission.challengeParticipantId,
     });
   });
-
   const results = [];
   for (const group of groups.values()) {
     const reviewers = Array.from(group.reviewerIds);
     const submissions = group.submissions;
     const validCount = submissions.length;
-
     if (validCount <= 1) {
       results.push({
         challengeMatchSettingId: group.challengeMatchSettingId,
@@ -343,13 +306,11 @@ export default async function assignPeerReviews({
       });
       continue;
     }
-
     const assignmentResult = generateAssignments({
       reviewers,
       submissions,
       expectedReviews,
     });
-
     if (assignmentResult.error) {
       results.push({
         challengeMatchSettingId: group.challengeMatchSettingId,
@@ -361,11 +322,9 @@ export default async function assignPeerReviews({
       });
       continue;
     }
-
     const submissionIds = assignmentResult.assignments.map(
       (assignment) => assignment.submissionId
     );
-
     try {
       await sequelize.transaction(async (transaction) => {
         if (submissionIds.length > 0) {
@@ -378,10 +337,8 @@ export default async function assignPeerReviews({
           transaction,
         });
       });
-
       const reducedExpectation =
         assignmentResult.baseReviewsPerSubmission < expectedReviews;
-
       results.push({
         challengeMatchSettingId: group.challengeMatchSettingId,
         status: 'assigned',
@@ -409,7 +366,6 @@ export default async function assignPeerReviews({
       });
     }
   }
-
   return {
     status: 'ok',
     expectedReviewsPerSubmission: expectedReviews,

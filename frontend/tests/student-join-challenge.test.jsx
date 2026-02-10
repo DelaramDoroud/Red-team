@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
 import { ChallengeStatus } from '#js/constants';
 
 import StudentChallengesPage from '../app/student/challenges/page';
-import { given, when, andThen as then } from './bdd';
+import { given, andThen as then, when } from './bdd';
 
 const mockDispatch = vi.fn(() => Promise.resolve());
 
@@ -37,7 +37,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => mockRouter,
   usePathname: () => '/student/challenges',
 }));
@@ -98,7 +98,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     title: 'Current challenge',
     duration,
     startDatetime: visibleStart,
-    status: ChallengeStatus.STARTED_PHASE_ONE,
+    status: ChallengeStatus.STARTED_CODING_PHASE,
     joined: true,
   };
   const upcomingChallenge = {
@@ -113,7 +113,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     title: 'Completed challenge',
     duration,
     startDatetime: visibleStart,
-    status: ChallengeStatus.ENDED_PHASE_TWO,
+    status: ChallengeStatus.ENDED_PEER_REVIEW,
     joined: true,
   };
   const joinableChallenge = {
@@ -128,7 +128,7 @@ describe('Student joins challenge page – Acceptance criteria', () => {
     title: 'Started challenge',
     duration,
     startDatetime: visibleStart,
-    status: ChallengeStatus.STARTED_PHASE_ONE,
+    status: ChallengeStatus.STARTED_CODING_PHASE,
   };
   beforeEach(() => {
     vi.resetAllMocks();

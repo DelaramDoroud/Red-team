@@ -1,4 +1,3 @@
-import sequelize from '#root/services/sequelize.js';
 import Challenge from '#root/models/challenge.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
@@ -6,6 +5,7 @@ import Match from '#root/models/match.js';
 import MatchSetting from '#root/models/match-setting.js';
 import User from '#root/models/user.js';
 import { getChallengeParticipants } from '#root/services/challenge-participant.js';
+import sequelize from '#root/services/sequelize.js';
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {

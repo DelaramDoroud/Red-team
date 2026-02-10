@@ -1,5 +1,5 @@
-import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import { Router } from 'express';
 import User from '#root/models/user.js';
 import { getUserInfo } from '#root/services/session.js';
 

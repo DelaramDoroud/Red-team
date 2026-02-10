@@ -50,41 +50,47 @@ export async function startWorker() {
         const jobId = actualJob?.id;
         const startTime = Date.now();
 
-        try {
-          if (!code || !language) {
-            console.error('[WORKER] Missing code or language:', {
-              code: !!code,
-              language: !!language,
-            });
-            throw new Error('Code and language are required');
+        let executionError = null;
+        let result = null;
+
+        if (!code || !language) {
+          console.error('[WORKER] Missing code or language:', {
+            code: !!code,
+            language: !!language,
+          });
+          executionError = new Error('Code and language are required');
+        } else {
+          try {
+            result = await runCode(code, language, input || '');
+          } catch (error) {
+            executionError = error;
           }
+        }
 
-          const result = await runCode(code, language, input || '');
-
-          const executionTime = Date.now() - startTime;
-
-          return {
-            success: result.success,
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
-            executionTime,
-            timestamp: new Date().toISOString(),
-            userId,
-            submissionId,
-            matchId,
-          };
-        } catch (error) {
+        if (executionError) {
           const executionTime = Date.now() - startTime;
           console.error('[WORKER] Job failed:', {
             jobId,
-            error: error.message,
+            error: executionError.message,
             executionTime,
           });
           throw new Error(
-            `Code execution failed: ${error.message}. Execution time: ${executionTime}ms`
+            `Code execution failed: ${executionError.message}. Execution time: ${executionTime}ms`
           );
         }
+
+        const executionTime = Date.now() - startTime;
+        return {
+          success: result.success,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          executionTime,
+          timestamp: new Date().toISOString(),
+          userId,
+          submissionId,
+          matchId,
+        };
       }
     );
   } catch (error) {

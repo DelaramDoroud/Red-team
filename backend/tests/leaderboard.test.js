@@ -1,13 +1,13 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
 import request from 'supertest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 
 let app;
 let sequelize;
@@ -31,17 +31,20 @@ beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   const sequelizeModule = await import('#root/services/sequelize.js');
   const challengeModule = await import('#root/models/challenge.js');
-  const challengeParticipantModule =
-    await import('#root/models/challenge-participant.js');
+  const challengeParticipantModule = await import(
+    '#root/models/challenge-participant.js'
+  );
   const userModule = await import('#root/models/user.js');
   const submissionModule = await import('#root/models/submission.js');
-  const scoreBreakdownModule =
-    await import('#root/models/submission-score-breakdown.js');
+  const scoreBreakdownModule = await import(
+    '#root/models/submission-score-breakdown.js'
+  );
   const titleModule = await import('#root/models/title.js');
   const badgeModule = await import('#root/models/badge.js');
   const matchModule = await import('#root/models/match.js');
-  const challengeMatchSettingModule =
-    await import('#root/models/challenge-match-setting.js');
+  const challengeMatchSettingModule = await import(
+    '#root/models/challenge-match-setting.js'
+  );
   const matchSettingModule = await import('#root/models/match-setting.js');
 
   app = appModule.default;
@@ -106,7 +109,7 @@ const setupFinishedChallenge = async (
     startDatetime: new Date('2025-01-01T09:00:00Z'),
     endDatetime: new Date('2025-01-01T11:00:00Z'),
     durationPeerReview: 60,
-    status: 'ended_phase_two',
+    status: 'ended_peer_review',
     scoringStatus,
   });
   createdChallengeIds.push(challenge.id);
@@ -184,7 +187,7 @@ describe('Leaderboard API - RT-18 Acceptance Criteria', () => {
       startDatetime: new Date(),
       endDatetime: new Date(Date.now() + 3600000),
       durationPeerReview: 60,
-      status: 'started_phase_one',
+      status: 'started_coding_phase',
       scoringStatus: 'pending',
     });
     createdChallengeIds.push(challenge.id);

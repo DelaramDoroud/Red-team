@@ -1,20 +1,20 @@
-import { describe, it, expect } from 'vitest';
 import request from 'supertest';
+import { describe, expect, it } from 'vitest';
 import app from '#root/app_initial.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
-import User from '#root/models/user.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 
 const createReviewVotesScenario = async () => {
   const suffix = Date.now();
@@ -32,11 +32,11 @@ const createReviewVotesScenario = async () => {
     duration: 30,
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.ENDED_PHASE_TWO,
+    status: ChallengeStatus.ENDED_PEER_REVIEW,
     startDatetime: new Date(Date.now() - 2 * 60 * 60 * 1000),
     endDatetime: new Date(Date.now() - 30 * 60 * 1000),
-    startPhaseTwoDateTime: new Date(Date.now() - 90 * 60 * 1000),
-    endPhaseTwoDateTime: new Date(Date.now() - 30 * 60 * 1000),
+    startPeerReviewDateTime: new Date(Date.now() - 90 * 60 * 1000),
+    endPeerReviewDateTime: new Date(Date.now() - 30 * 60 * 1000),
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({

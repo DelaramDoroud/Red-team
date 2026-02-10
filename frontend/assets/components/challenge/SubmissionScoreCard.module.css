@@ -20,10 +20,7 @@
   flex-direction: column;
   gap: 1.5rem;
   width: 100%;
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 :global(.dark) .container {

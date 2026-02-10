@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import app from '#root/app_initial.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
-import User from '#root/models/user.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 
 const createExitTestScenario = async ({
   participantCount = 3,
@@ -39,8 +39,8 @@ const createExitTestScenario = async ({
     endDatetime: new Date(Date.now() + 60 * 60 * 1000),
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.STARTED_PHASE_TWO,
-    startPhaseTwoDateTime: new Date(Date.now() - 5 * 60 * 1000),
+    status: ChallengeStatus.STARTED_PEER_REVIEW,
+    startPeerReviewDateTime: new Date(Date.now() - 5 * 60 * 1000),
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({
@@ -86,6 +86,7 @@ const createExitTestScenario = async ({
   }
 
   const reviewer = participants[0];
+  const reviewerUser = users[0];
   const otherParticipants = participants.slice(1);
 
   for (let i = 0; i < assignmentsPerReviewer; i += 1) {
@@ -124,7 +125,23 @@ const createExitTestScenario = async ({
     submissions,
     assignments,
     reviewer,
+    reviewerUser,
   };
+};
+
+const loginAs = async (agent, user) => {
+  const response = await agent.post('/api/login').send({
+    email: user.email,
+    password: 'password123',
+  });
+  expect(response.status).toBe(200);
+  expect(response.body.success).toBe(true);
+};
+
+const createAuthenticatedAgent = async (user) => {
+  const agent = request.agent(app);
+  await loginAs(agent, user);
+  return agent;
 };
 
 describe('Peer Review Exit API', () => {
@@ -153,30 +170,41 @@ describe('Peer Review Exit API', () => {
   });
 
   describe('POST /api/rest/peer-review/exit', () => {
-    it('should reject request without challengeId', async () => {
+    it('should reject unauthenticated request', async () => {
       const res = await request(app).post('/api/rest/peer-review/exit').send({
-        studentId: 1,
+        challengeId: 1,
       });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Authentication required.');
+    });
+
+    it('should reject request without challengeId', async () => {
+      const user = await User.create({
+        username: `student_exit_${Date.now()}`,
+        password: 'password123',
+        email: `student_exit_${Date.now()}@mail.com`,
+        role: 'student',
+      });
+      const agent = await createAuthenticatedAgent(user);
+      const res = await agent.post('/api/rest/peer-review/exit').send({});
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
       expect(res.body.error).toBe('challengeId is required');
     });
 
-    it('should reject request without studentId', async () => {
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
-        challengeId: 1,
-      });
-
-      expect(res.status).toBe(400);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('studentId is required');
-    });
-
     it('should reject request for non-existent challenge', async () => {
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const user = await User.create({
+        username: `student_exit_${Date.now()}`,
+        password: 'password123',
+        email: `student_exit_${Date.now()}@mail.com`,
+        role: 'student',
+      });
+      const agent = await createAuthenticatedAgent(user);
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: 99999,
-        studentId: 1,
       });
 
       expect(res.status).toBe(404);
@@ -184,17 +212,38 @@ describe('Peer Review Exit API', () => {
       expect(res.body.error).toBe('Challenge not found');
     });
 
-    it('should reject request when challenge is not in STARTED_PHASE_TWO', async () => {
-      const { challenge, reviewer } = await createExitTestScenario({
+    it('should reject request when body studentId does not match session', async () => {
+      const {
+        challenge,
+        reviewerUser,
+        users: [, secondUser],
+      } = await createExitTestScenario({
         participantCount: 3,
         assignmentsPerReviewer: 2,
       });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
-      await challenge.update({ status: ChallengeStatus.ENDED_PHASE_TWO });
-
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
+        studentId: secondUser.id,
+      });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Not authorized');
+    });
+
+    it('should reject request when challenge is not in STARTED_PEER_REVIEW', async () => {
+      const { challenge, reviewerUser } = await createExitTestScenario({
+        participantCount: 3,
+        assignmentsPerReviewer: 2,
+      });
+      const agent = await createAuthenticatedAgent(reviewerUser);
+
+      await challenge.update({ status: ChallengeStatus.ENDED_PEER_REVIEW });
+
+      const res = await agent.post('/api/rest/peer-review/exit').send({
+        challengeId: challenge.id,
       });
 
       expect(res.status).toBe(400);
@@ -203,32 +252,32 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should reject request for non-existent participant', async () => {
-      const { challenge } = await createExitTestScenario({
+      const { challenge, reviewerUser } = await createExitTestScenario({
         participantCount: 3,
         assignmentsPerReviewer: 2,
       });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
         studentId: 99999,
       });
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Participant not found');
+      expect(res.body.error).toBe('Not authorized');
     });
 
     it('should create abstain votes for all unvoted assignments', async () => {
-      const { challenge, reviewer, assignments } = await createExitTestScenario(
-        {
+      const { challenge, assignments, reviewerUser } =
+        await createExitTestScenario({
           participantCount: 3,
           assignmentsPerReviewer: 2,
-        }
-      );
+        });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
       });
 
       expect(res.status).toBe(200);
@@ -251,11 +300,12 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should save votes from request and create abstain for unvoted', async () => {
-      const { challenge, reviewer, assignments, submissions } =
+      const { challenge, assignments, submissions, reviewerUser } =
         await createExitTestScenario({
           participantCount: 3,
           assignmentsPerReviewer: 2,
         });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
       const votesToSubmit = [
         {
@@ -264,9 +314,8 @@ describe('Peer Review Exit API', () => {
         },
       ];
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
         votes: votesToSubmit,
       });
 
@@ -303,7 +352,8 @@ describe('Peer Review Exit API', () => {
         assignmentsPerReviewer: 2,
       });
 
-      const { challenge, reviewer, assignments, submissions } = scenario;
+      const { challenge, assignments, submissions, reviewerUser } = scenario;
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
       const existingAssignment = assignments.find(
         (a) => a.submissionId === submissions[1].id
@@ -323,9 +373,8 @@ describe('Peer Review Exit API', () => {
         },
       ];
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
         votes: votesToSubmit,
       });
 
@@ -348,11 +397,12 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should handle multiple votes correctly', async () => {
-      const { challenge, reviewer, assignments, submissions } =
+      const { challenge, assignments, submissions, reviewerUser } =
         await createExitTestScenario({
           participantCount: 4,
           assignmentsPerReviewer: 3,
         });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
       const votesToSubmit = [
         {
@@ -371,9 +421,8 @@ describe('Peer Review Exit API', () => {
         },
       ];
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
         votes: votesToSubmit,
       });
 
@@ -421,11 +470,12 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should ignore votes for assignments not assigned to reviewer', async () => {
-      const { challenge, reviewer, assignments, submissions } =
+      const { challenge, assignments, submissions, reviewerUser } =
         await createExitTestScenario({
           participantCount: 3,
           assignmentsPerReviewer: 2,
         });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
       const votesToSubmit = [
         {
@@ -438,9 +488,8 @@ describe('Peer Review Exit API', () => {
         },
       ];
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
         votes: votesToSubmit,
       });
 
@@ -465,16 +514,15 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should handle empty votes array', async () => {
-      const { challenge, reviewer, assignments } = await createExitTestScenario(
-        {
+      const { challenge, assignments, reviewerUser } =
+        await createExitTestScenario({
           participantCount: 3,
           assignmentsPerReviewer: 2,
-        }
-      );
+        });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
         votes: [],
       });
 
@@ -485,16 +533,15 @@ describe('Peer Review Exit API', () => {
     });
 
     it('should handle missing votes field', async () => {
-      const { challenge, reviewer, assignments } = await createExitTestScenario(
-        {
+      const { challenge, assignments, reviewerUser } =
+        await createExitTestScenario({
           participantCount: 3,
           assignmentsPerReviewer: 2,
-        }
-      );
+        });
+      const agent = await createAuthenticatedAgent(reviewerUser);
 
-      const res = await request(app).post('/api/rest/peer-review/exit').send({
+      const res = await agent.post('/api/rest/peer-review/exit').send({
         challengeId: challenge.id,
-        studentId: reviewer.studentId,
       });
 
       expect(res.status).toBe(200);

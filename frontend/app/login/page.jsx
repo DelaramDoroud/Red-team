@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '#components/common/Button';
-import { Input } from '#components/common/Input';
 import {
   Card,
   CardContent,
@@ -11,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import { Input } from '#components/common/Input';
+import { useRouter } from '#js/router';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { fetchUserInfo, loginUser } from '#js/store/slices/auth';
 import styles from './page.module.css';

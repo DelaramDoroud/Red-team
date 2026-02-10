@@ -14,10 +14,10 @@ export async function up({ context: queryInterface }) {
         FROM pg_type t
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
-          AND e.enumlabel = 'started_phase_one'
+          AND e.enumlabel = 'started_coding_phase'
       ) THEN
         ALTER TYPE "enum_challenge_status"
-        RENAME VALUE 'started' TO 'started_phase_one';
+        RENAME VALUE 'started' TO 'started_coding_phase';
       END IF;
     END
     $$;
@@ -36,16 +36,16 @@ export async function up({ context: queryInterface }) {
         FROM pg_type t
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
-          AND e.enumlabel = 'ended_phase_one'
+          AND e.enumlabel = 'ended_coding_phase'
       ) THEN
         ALTER TYPE "enum_challenge_status"
-        RENAME VALUE 'ended' TO 'ended_phase_one';
+        RENAME VALUE 'ended' TO 'ended_coding_phase';
       END IF;
     END
     $$;
 
-    ALTER TYPE "enum_challenge_status" ADD VALUE IF NOT EXISTS 'started_phase_two';
-    ALTER TYPE "enum_challenge_status" ADD VALUE IF NOT EXISTS 'ended_phase_two';
+    ALTER TYPE "enum_challenge_status" ADD VALUE IF NOT EXISTS 'started_peer_review';
+    ALTER TYPE "enum_challenge_status" ADD VALUE IF NOT EXISTS 'ended_peer_review';
   `);
 }
 
@@ -58,7 +58,7 @@ export async function down({ context: queryInterface }) {
         FROM pg_type t
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
-          AND e.enumlabel = 'started_phase_one'
+          AND e.enumlabel = 'started_coding_phase'
       )
       AND NOT EXISTS (
         SELECT 1
@@ -68,7 +68,7 @@ export async function down({ context: queryInterface }) {
           AND e.enumlabel = 'started'
       ) THEN
         ALTER TYPE "enum_challenge_status"
-        RENAME VALUE 'started_phase_one' TO 'started';
+        RENAME VALUE 'started_coding_phase' TO 'started';
       END IF;
     END
     $$;
@@ -80,7 +80,7 @@ export async function down({ context: queryInterface }) {
         FROM pg_type t
         JOIN pg_enum e ON t.oid = e.enumtypid
         WHERE t.typname = 'enum_challenge_status'
-          AND e.enumlabel = 'ended_phase_one'
+          AND e.enumlabel = 'ended_coding_phase'
       )
       AND NOT EXISTS (
         SELECT 1
@@ -90,7 +90,7 @@ export async function down({ context: queryInterface }) {
           AND e.enumlabel = 'ended'
       ) THEN
         ALTER TYPE "enum_challenge_status"
-        RENAME VALUE 'ended_phase_one' TO 'ended';
+        RENAME VALUE 'ended_coding_phase' TO 'ended';
       END IF;
     END
     $$;

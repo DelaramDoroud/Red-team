@@ -13,17 +13,18 @@
     "#config/*": "./config/*"
   },
   "scripts": {
-    "start": "next start",
-    "debug": "next dev",
-    "build": "next build",
-    "lint": "eslint . --fix --ignore-path .lintignore && stylelint '**/*.css' --fix --ignore-path .lintignore && prettier --write . --ignore-path .lintignore && sh -c \"if find . \\( -path './node_modules' -o -path './.next' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print -quit | grep -q .; then markdownlint --fix --ignore-path .lintignore .; fi\"",
+    "start": "vite preview --host 0.0.0.0 --port 3000",
+    "debug": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "lint": "biome check . && stylelint '**/*.css' --fix --ignore-path .lintignore && sh -c \"if find . \\( -path './node_modules' -o -path './dist' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print -quit | grep -q .; then markdownlint --fix --ignore-path .lintignore .; fi\"",
     "lint:scss": "stylelint '**/*.scss' --fix",
-    "format": "prettier --write .",
+    "format": "biome format --write .",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
@@ -38,19 +39,19 @@
     "html-react-parser": "^5.2.16",
     "lodash": "^4.17.23",
     "lucide-react": "^0.563.0",
-    "next": "^16.1.6",
     "normalize.css": "^8.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "@monaco-editor/react": "^4.7.0",
     "react-hot-toast": "^2.6.0",
     "react-redux": "^9.2.0",
+    "react-router-dom": "^6.30.1",
     "redux-persist": "^6.0.0",
     "reset-css": "^5.0.2",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -60,21 +61,10 @@
     "@vitejs/plugin-react": "^5.1.3",
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.24",
-    "eslint": "^8.57.1",
-    "eslint-config-airbnb": "^19.0.4",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-alias": "^1.1.2",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-prettier": "^5.5.5",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^4.3.0",
-    "eslint-plugin-vitest": "^0.5.4",
     "jsdom": "^28.0.0",
     "lint-staged": "^16.2.7",
     "markdownlint-cli": "^0.47.0",
     "postcss": "^8.5.6",
-    "prettier": "^3.8.1",
     "stylelint": "^17.1.1",
     "stylelint-config-recommended": "^18.0.0",
     "tailwindcss": "^4.1.18",
@@ -82,12 +72,11 @@
   },
   "lint-staged": {
     "**/*.{js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "biome check --write --no-errors-on-unmatched"
     ],
     "**/*.css": [
       "stylelint --fix",
-      "prettier --write"
+      "biome format --write --no-errors-on-unmatched"
     ],
     "**/*.md": [
       "markdownlint --fix --ignore-path .lintignore"

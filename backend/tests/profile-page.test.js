@@ -1,27 +1,27 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import app from '#root/app_initial.js';
-import sequelize from '#root/services/sequelize.js';
-import studentProfile from '#root/services/student-profile.js';
-import User from '#root/models/user.js';
-import Title from '#root/models/title.js';
 import Badge from '#root/models/badge.js';
-import StudentBadge from '#root/models/student-badges.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
-import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
-import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import StudentBadge from '#root/models/student-badges.js';
+import Submission from '#root/models/submission.js';
+import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import Title from '#root/models/title.js';
+import User from '#root/models/user.js';
+import sequelize from '#root/services/sequelize.js';
+import studentProfile from '#root/services/student-profile.js';
 
 const PASSWORD = 'password123';
 
@@ -30,7 +30,7 @@ const buildChallengeTimes = () => {
   return {
     startDatetime: new Date(now - 4 * 60 * 60 * 1000),
     endDatetime: new Date(now - 3 * 60 * 60 * 1000),
-    endPhaseTwoDateTime: new Date(now - 60 * 60 * 1000),
+    endPeerReviewDateTime: new Date(now - 60 * 60 * 1000),
   };
 };
 
@@ -79,9 +79,9 @@ async function createCompletedChallengeForStudent({
     endDatetime: challengeTimes.endDatetime,
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.ENDED_PHASE_TWO,
+    status: ChallengeStatus.ENDED_PEER_REVIEW,
     scoringStatus: 'completed',
-    endPhaseTwoDateTime: challengeTimes.endPhaseTwoDateTime,
+    endPeerReviewDateTime: challengeTimes.endPeerReviewDateTime,
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({
@@ -159,9 +159,9 @@ async function createReviewVoteForStudent({
     endDatetime: challengeTimes.endDatetime,
     durationPeerReview: 20,
     allowedNumberOfReview: 2,
-    status: ChallengeStatus.ENDED_PHASE_TWO,
+    status: ChallengeStatus.ENDED_PEER_REVIEW,
     scoringStatus: 'completed',
-    endPhaseTwoDateTime: challengeTimes.endPhaseTwoDateTime,
+    endPeerReviewDateTime: challengeTimes.endPeerReviewDateTime,
   });
 
   const challengeMatchSetting = await ChallengeMatchSetting.create({

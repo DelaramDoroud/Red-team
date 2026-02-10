@@ -1,10 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import useRewards from '#js/useRewards';
-import Spinner from '#components/common/Spinner';
-import { Button } from '#components/common/Button';
 import { Badge } from '#components/common/Badge';
+import { Button } from '#components/common/Button';
 import {
   Card,
   CardContent,
@@ -12,6 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import Spinner from '#components/common/Spinner';
+import useRewards from '#js/useRewards';
 
 const CATEGORY_LABELS = {
   challenge_milestone: 'Challenge Milestones',

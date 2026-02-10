@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Badge } from '#components/common/Badge';
 import { Button } from '#components/common/Button';
+import Link from '#components/common/RouterLink';
 import Spinner from '#components/common/Spinner';
 import {
   Table,
@@ -13,10 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from '#components/common/Table';
+import { getApiErrorMessage } from '#js/apiError';
+import { MatchSettingStatus } from '#js/constants';
 import useMatchSettings from '#js/useMatchSetting';
 import useRoleGuard from '#js/useRoleGuard';
-import { MatchSettingStatus } from '#js/constants';
-import { getApiErrorMessage } from '#js/apiError';
 import styles from './page.module.css';
 
 const getStatusLabel = (status) => {

@@ -1,9 +1,9 @@
 import { Op } from 'sequelize';
 import Challenge from '#root/models/challenge.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
+import { VoteType } from '#root/models/enum/enums.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
-import { VoteType } from '#root/models/enum/enums.js';
 
 export default async function getPeerReviewSummary({ challengeId, studentId }) {
   const challenge = await Challenge.findByPk(challengeId);

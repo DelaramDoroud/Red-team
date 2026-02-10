@@ -1,6 +1,6 @@
-import { Model, DataTypes } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
+import { EvaluationStatus, VoteType } from '#root/models/enum/enums.js';
 import sequelize from '#root/services/sequelize.js';
-import { VoteType, EvaluationStatus } from '#root/models/enum/enums.js';
 
 class PeerReviewVote extends Model {}
 

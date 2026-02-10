@@ -1,19 +1,17 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import sequelize from '#root/services/sequelize.js';
-
-import User from '#root/models/user.js';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Badge from '#root/models/badge.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
+import { SubmissionStatus } from '#root/models/enum/enums.js';
 import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
 import Submission from '#root/models/submission.js';
 import SubmissionScoreBreakdown from '#root/models/submission-score-breakdown.js';
+import User from '#root/models/user.js';
 
 import { awardChallengeMilestoneBadges } from '#root/services/challenge-completed-badges.js';
-
-import { SubmissionStatus } from '#root/models/enum/enums.js';
+import sequelize from '#root/services/sequelize.js';
 
 /* ------------------------------------------------------------------ */
 /* Helper: create one completed challenge for a student */
@@ -35,7 +33,7 @@ async function createCompletedChallenge(student, suffix, codeReviewScore = 30) {
     startDatetime: new Date(now.getTime() - 2 * 60 * 60 * 1000),
     endDatetime: new Date(now.getTime() - 60 * 60 * 1000),
     durationPeerReview: 30,
-    status: 'ended_phase_one',
+    status: 'ended_coding_phase',
   });
 
   const cms = await ChallengeMatchSetting.create({

@@ -1,7 +1,6 @@
-/* eslint-disable import/no-extraneous-dependencies, no-console */
 import '@testing-library/jest-dom/vitest';
-import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 if (typeof window !== 'undefined') {
@@ -52,6 +51,33 @@ function MockEventSource() {
 }
 
 globalThis.EventSource = MockEventSource;
+
+const createCanvasContextMock = () => ({
+  clearRect: vi.fn(),
+  fillRect: vi.fn(),
+  beginPath: vi.fn(),
+  closePath: vi.fn(),
+  moveTo: vi.fn(),
+  lineTo: vi.fn(),
+  stroke: vi.fn(),
+  fill: vi.fn(),
+  arc: vi.fn(),
+  save: vi.fn(),
+  restore: vi.fn(),
+  translate: vi.fn(),
+  rotate: vi.fn(),
+  scale: vi.fn(),
+  fillText: vi.fn(),
+  measureText: vi.fn(() => ({ width: 0 })),
+  setTransform: vi.fn(),
+});
+
+if (typeof HTMLCanvasElement !== 'undefined') {
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: vi.fn(() => createCanvasContextMock()),
+  });
+}
 
 afterEach(() => {
   cleanup();

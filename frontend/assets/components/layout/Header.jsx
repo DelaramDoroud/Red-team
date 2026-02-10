@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
-import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Lightbulb, LightbulbOff } from 'lucide-react';
-import logo from '#img/logo.jpg';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '#components/common/Button';
+import Image from '#components/common/Image';
+import Link from '#components/common/RouterLink';
+import logo from '#img/logo.jpg';
+import { useRouter } from '#js/router';
 import { useAppDispatch, useAppSelector } from '#js/store/hooks';
 import { fetchUserInfo, logoutUser } from '#js/store/slices/auth';
 import { setTheme } from '#js/store/slices/ui';

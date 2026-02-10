@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { getApiErrorStatus } from '#js/apiError';
+import { useRouter } from '#js/router';
 
 const useApiErrorRedirect = () => {
   const router = useRouter();

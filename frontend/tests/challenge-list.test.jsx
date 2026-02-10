@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import ChallengeList from '#modules/challenge/list';
 
 const mockDispatch = vi.fn();
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),

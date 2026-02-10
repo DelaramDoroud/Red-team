@@ -107,7 +107,7 @@ export default function SnakeGame() {
     const nextDirection = nextDirectionRef.current;
     directionRef.current = nextDirection;
     const snake = snakeRef.current;
-    const head = snake[0];
+    const [head] = snake;
     const nextHead = {
       x: head.x + nextDirection.x,
       y: head.y + nextDirection.y,

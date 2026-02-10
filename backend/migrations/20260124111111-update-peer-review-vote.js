@@ -1,5 +1,5 @@
-import { EvaluationStatus } from '#root/models/enum/enums.js';
 import { DataTypes } from 'sequelize';
+import { EvaluationStatus } from '#root/models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   const transaction = await queryInterface.sequelize.transaction();

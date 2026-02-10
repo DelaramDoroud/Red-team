@@ -1,12 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChallengeStatus } from '#js/constants';
-import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
-import ProfilePage from '../app/student/page';
-import StudentLeaderboardPage from '../app/student/leaderboard/page';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
+import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
+import StudentLeaderboardPage from '../app/student/leaderboard/page';
+import ProfilePage from '../app/student/page';
 import { getMockedStore } from './test-redux-provider';
 
 const mockGetChallengeResults = vi.fn();
@@ -82,7 +82,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '88' }),
   useRouter: () => mockRouter,
   usePathname: () => '/student/challenges/88/result',
@@ -116,9 +116,9 @@ const buildResultResponse = () => ({
     challenge: {
       id: 88,
       title: 'Milestone Title Challenge',
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
       scoringStatus: 'completed',
-      endPhaseTwoDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
+      endPeerReviewDateTime: new Date(Date.now() - 60 * 1000).toISOString(),
     },
     finalization: {
       totalMatches: 1,
@@ -215,7 +215,7 @@ const buildLeaderboardData = (skillTitle) => ({
 const renderResultPage = (store) =>
   render(
     <Provider store={store}>
-      <DurationProvider value={{ status: ChallengeStatus.ENDED_PHASE_TWO }}>
+      <DurationProvider value={{ status: ChallengeStatus.ENDED_PEER_REVIEW }}>
         <ChallengeResultPage />
       </DurationProvider>
     </Provider>
@@ -232,7 +232,7 @@ describe('Skill title student journey (e2e-style)', () => {
         {
           id: 88,
           title: 'Milestone Title Challenge',
-          status: ChallengeStatus.ENDED_PHASE_TWO,
+          status: ChallengeStatus.ENDED_PEER_REVIEW,
           scoringStatus: 'completed',
         },
       ],
@@ -268,7 +268,12 @@ describe('Skill title student journey (e2e-style)', () => {
 
     const resultView = renderResultPage(store);
 
-    expect(await screen.findByText(/title unlocked!/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockEvaluateTitle).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      await screen.findByText(/title unlocked!/i, {}, { timeout: 5000 })
+    ).toBeInTheDocument();
     expect(screen.getByText('Expert')).toBeInTheDocument();
     expect(
       screen.getByText('Skilled coder with proven excellence')

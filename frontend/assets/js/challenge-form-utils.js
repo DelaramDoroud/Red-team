@@ -26,7 +26,7 @@ const isDateTimeInputWithinLimits = (value) => {
   if (!value) return true;
   const matches = [...value.matchAll(/\d+/g)];
   return matches.every((match) => {
-    const digits = match[0];
+    const [digits = ''] = match;
     const startIndex = match.index ?? 0;
     const endIndex = startIndex + digits.length;
     const prevChar = value[startIndex - 1];

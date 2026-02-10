@@ -1,13 +1,16 @@
-import sequelize from '#root/services/sequelize.js';
-import Badge from '#root/models/badge.js';
-import StudentBadge from '#root/models/student-badges.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
-import logger from '#root/services/logger.js';
 import { Op, QueryTypes } from 'sequelize';
-import { BadgeCategory, BadgeMetric } from '#root/models/enum/enums.js';
-import { VoteType } from '#root/models/enum/enums.js';
+import Badge from '#root/models/badge.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import {
+  BadgeCategory,
+  BadgeMetric,
+  VoteType,
+} from '#root/models/enum/enums.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import StudentBadge from '#root/models/student-badges.js';
+import logger from '#root/services/logger.js';
+import sequelize from '#root/services/sequelize.js';
 
 /**
  * Count the number of completed challenges for a student.

@@ -1,8 +1,8 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useAppSelector } from '#js/store/hooks';
 import { Card, CardContent } from '#components/common/card';
+import { useParams } from '#js/router';
+import { useAppSelector } from '#js/store/hooks';
 import MatchContainer from '../(components)/MatchContainer';
 
 export default function MatchPage() {

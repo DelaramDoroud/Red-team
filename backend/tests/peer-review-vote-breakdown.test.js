@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import app from '#root/app_initial.js';
-import User from '#root/models/user.js';
 import Challenge from '#root/models/challenge.js';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
-import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
-import PeerReviewVote from '#root/models/peer-review-vote.js';
-import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import MatchSetting from '#root/models/match-setting.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
 import {
   ChallengeStatus,
   SubmissionStatus,
   VoteType,
 } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
+import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
+import PeerReviewVote from '#root/models/peer-review-vote.js';
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 import sequelize from '#root/services/sequelize.js';
 
 describe('Peer Review Vote Breakdown API', () => {
@@ -60,7 +60,7 @@ describe('Peer Review Vote Breakdown API', () => {
       endDatetime: new Date(Date.now() + 30 * 60000),
       durationPeerReview: 30,
       allowedNumberOfReview: 1,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
     });
 
     participant = await ChallengeParticipant.create({

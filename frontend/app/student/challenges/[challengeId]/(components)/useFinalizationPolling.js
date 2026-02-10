@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect } from 'react';
-import { API_REST_BASE } from '#js/constants';
 import { getApiErrorMessage } from '#js/apiError';
+import useSseEvent from '#js/useSseEvent';
 import { resolveCodingPhaseMessage } from './matchHelpers';
 
 export default function useFinalizationPolling({
@@ -86,41 +86,17 @@ export default function useFinalizationPolling({
     studentId,
   ]);
 
-  useEffect(() => {
-    if (!isFinalizationPending) return undefined;
-    if (!challengeId || !studentId) return undefined;
-    if (typeof EventSource === 'undefined') return undefined;
-
-    const source = new EventSource(`${API_REST_BASE}/events`, {
-      withCredentials: true,
-    });
-
-    const handleUpdate = async (event) => {
-      if (!event?.data) {
-        await resolveFinalizationStatus();
-        return;
+  const handleFinalizationEvent = useCallback(
+    (payload) => {
+      if (!isFinalizationPending) return;
+      const payloadId = Number(payload?.challengeId);
+      if (!payloadId || payloadId === Number(challengeId)) {
+        resolveFinalizationStatus();
       }
-      try {
-        const payload = JSON.parse(event.data);
-        const payloadId = Number(payload?.challengeId);
-        if (payloadId !== Number(challengeId)) return;
-      } catch {
-        return;
-      }
+    },
+    [challengeId, isFinalizationPending, resolveFinalizationStatus]
+  );
 
-      await resolveFinalizationStatus();
-    };
-
-    source.addEventListener('finalization-updated', handleUpdate);
-    source.addEventListener('challenge-updated', handleUpdate);
-
-    return () => {
-      source.close();
-    };
-  }, [
-    challengeId,
-    isFinalizationPending,
-    resolveFinalizationStatus,
-    studentId,
-  ]);
+  useSseEvent('finalization-updated', handleFinalizationEvent);
+  useSseEvent('challenge-updated', handleFinalizationEvent);
 }

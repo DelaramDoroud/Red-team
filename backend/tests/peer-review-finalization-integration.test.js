@@ -1,14 +1,14 @@
+import request from 'supertest';
 import {
-  describe,
-  it,
-  expect,
-  beforeAll,
   afterAll,
-  beforeEach,
   afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
   vi,
 } from 'vitest';
-import request from 'supertest';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 let app;
@@ -31,15 +31,18 @@ beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   const sequelizeModule = await import('#root/services/sequelize.js');
   const challengeModule = await import('#root/models/challenge.js');
-  const participantModule =
-    await import('#root/models/challenge-participant.js');
-  const assignmentModule =
-    await import('#root/models/peer_review_assignment.js');
+  const participantModule = await import(
+    '#root/models/challenge-participant.js'
+  );
+  const assignmentModule = await import(
+    '#root/models/peer_review_assignment.js'
+  );
   const voteModule = await import('#root/models/peer-review-vote.js');
   const userModule = await import('#root/models/user.js');
   const matchSettingModule = await import('#root/models/match-setting.js');
-  const challengeMatchSettingModule =
-    await import('#root/models/challenge-match-setting.js');
+  const challengeMatchSettingModule = await import(
+    '#root/models/challenge-match-setting.js'
+  );
   const matchModule = await import('#root/models/match.js');
   const submissionModule = await import('#root/models/submission.js');
 
@@ -135,8 +138,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
       endDatetime: new Date(new Date().getTime() + 3600000),
       durationPeerReview: 10,
       allowedNumberOfReview: 2,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000), // Expired 10 minutes ago
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000), // Expired 10 minutes ago
     });
     createdChallenges.push(challenge.id);
 
@@ -210,12 +213,12 @@ describe('Peer Review Finalization - Integration Tests', () => {
       assignments.push(assignment);
     }
 
-    // 2. Verify initial state: no votes, challenge is STARTED_PHASE_TWO
+    // 2. Verify initial state: no votes, challenge is STARTED_PEER_REVIEW
     let votesBeforeFinalization = await PeerReviewVote.findAll();
     expect(votesBeforeFinalization).toHaveLength(0);
 
     let challengeBefore = await Challenge.findByPk(challenge.id);
-    expect(challengeBefore.status).toBe(ChallengeStatus.STARTED_PHASE_TWO);
+    expect(challengeBefore.status).toBe(ChallengeStatus.STARTED_PEER_REVIEW);
 
     // 3. Finalize peer review
     const finalizeRes = await request(app)
@@ -228,7 +231,7 @@ describe('Peer Review Finalization - Integration Tests', () => {
 
     // 4. Verify database records after finalization
     const challengeAfter = await Challenge.findByPk(challenge.id);
-    expect(challengeAfter.status).toBe(ChallengeStatus.ENDED_PHASE_TWO);
+    expect(challengeAfter.status).toBe(ChallengeStatus.ENDED_PEER_REVIEW);
 
     // 5. Verify abstain votes were created for unvoted assignments
     const votesAfterFinalization = await PeerReviewVote.findAll();
@@ -261,8 +264,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
       endDatetime: new Date(new Date().getTime() + 3600000),
       durationPeerReview: 10,
       allowedNumberOfReview: 2,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000),
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000),
     });
     createdChallenges.push(challenge.id);
 
@@ -385,8 +388,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
       endDatetime: new Date(new Date().getTime() + 3600000),
       durationPeerReview: 10,
       allowedNumberOfReview: 1,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000),
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000),
     });
     createdChallenges.push(challenge.id);
 
@@ -484,8 +487,8 @@ describe('Peer Review Finalization - Integration Tests', () => {
     const votesAfter3 = await PeerReviewVote.count();
     expect(votesAfter3).toBe(1);
 
-    // Challenge status should remain ENDED_PHASE_TWO
+    // Challenge status should remain ENDED_PEER_REVIEW
     const finalChallenge = await Challenge.findByPk(challenge.id);
-    expect(finalChallenge.status).toBe(ChallengeStatus.ENDED_PHASE_TWO);
+    expect(finalChallenge.status).toBe(ChallengeStatus.ENDED_PEER_REVIEW);
   });
 });

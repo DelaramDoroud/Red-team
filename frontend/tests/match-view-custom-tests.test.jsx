@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import MatchView from '../app/student/challenges/[challengeId]/(components)/MatchView';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
@@ -28,7 +28,7 @@ const renderMatchView = (props) =>
     <DurationProvider
       value={{
         duration: 30,
-        startPhaseOneDateTime: new Date().toISOString(),
+        startCodingPhaseDateTime: new Date().toISOString(),
         startDatetime: new Date().toISOString(),
       }}
     >

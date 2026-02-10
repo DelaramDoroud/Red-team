@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '#components/common/Button';
-import Timer from '#components/common/Timer';
 import {
   Card,
   CardContent,
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#components/common/card';
+import Timer from '#components/common/Timer';
 import PeerReviewSummaryDialog from '#components/peerReview/PeerReviewSummaryDialog';
 import ExitConfirmationModal from './ExitConfirmationModal';
 import PeerReviewAssessment from './PeerReviewAssessment';
@@ -69,7 +69,7 @@ export default function PeerReviewContent({
           <Timer
             duration={challengeInfo?.durationPeerReview}
             challengeId={`${challengeId}-peer-review`}
-            startTime={challengeInfo?.startPhaseTwoDateTime}
+            startTime={challengeInfo?.startPeerReviewDateTime}
             label='Time left'
           />
         </div>

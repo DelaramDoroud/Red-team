@@ -1,7 +1,21 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
+const readEnv = (key) => {
+  if (typeof import.meta !== 'undefined' && import.meta?.env?.[key]) {
+    return import.meta.env[key];
+  }
+
+  if (typeof process !== 'undefined' && process?.env?.[key]) {
+    return process.env[key];
+  }
+
+  return undefined;
+};
+
 const AUTH_API_BASE =
-  process.env.NEXT_PUBLIC_AUTH_API_BASE_URL || 'http://localhost:3001';
+  readEnv('VITE_AUTH_API_BASE') ||
+  (typeof window !== 'undefined' && window?.location?.origin) ||
+  'http://localhost:3001';
 const AUTH_API = `${AUTH_API_BASE}/api`;
 
 const initialState = {
@@ -60,7 +74,9 @@ export const logoutUser = createAsyncThunk(
         method: 'POST',
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Logout failed');
+      if (!response.ok) {
+        return rejectWithValue('Logout failed');
+      }
     } catch (error) {
       return rejectWithValue(error.message);
     }

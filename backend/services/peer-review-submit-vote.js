@@ -1,12 +1,12 @@
+import Challenge from '#root/models/challenge.js';
+import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
+import ChallengeParticipant from '#root/models/challenge-participant.js';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
+import Match from '#root/models/match.js';
+import MatchSetting from '#root/models/match-setting.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
-import ChallengeParticipant from '#root/models/challenge-participant.js';
 import Submission from '#root/models/submission.js';
-import Match from '#root/models/match.js';
-import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
-import MatchSetting from '#root/models/match-setting.js';
-import Challenge from '#root/models/challenge.js';
-import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { executeCodeTests } from '#root/services/execute-code-tests.js';
 
 export const submitVote = async (
@@ -75,7 +75,7 @@ export const submitVote = async (
     throw error;
   }
 
-  if (challenge.status !== ChallengeStatus.STARTED_PHASE_TWO) {
+  if (challenge.status !== ChallengeStatus.STARTED_PEER_REVIEW) {
     const error = new Error('Peer review phase has ended');
     error.code = 'FORBIDDEN';
     throw error;
@@ -147,6 +147,7 @@ export const submitVote = async (
     const submissionCode = assignment.submission?.code;
 
     if (submissionCode) {
+      let invalidTestCaseError = null;
       try {
         const testResults = await executeCodeTests({
           code: submissionCode,
@@ -164,30 +165,32 @@ export const submitVote = async (
         if (testResult) {
           // If the code passes the test case, the vote is invalid
           if (testResult.passed) {
-            const error = new Error(
+            invalidTestCaseError = new Error(
               'This test case actually passes with the provided expected output. The code is correct for this input, so you cannot vote "incorrect" with this test case.'
             );
-            error.code = 'INVALID_TEST_CASE';
-            throw error;
+            invalidTestCaseError.code = 'INVALID_TEST_CASE';
           }
 
           // Warning: if the actual output is empty or the code has compilation errors
-          if (testResult.exitCode !== 0 || !testResult.actualOutput?.trim()) {
-            const error = new Error(
+          if (
+            !invalidTestCaseError &&
+            (testResult.exitCode !== 0 || !testResult.actualOutput?.trim())
+          ) {
+            invalidTestCaseError = new Error(
               'The code failed to execute on this test case (compilation error or runtime error). This test case may not be valid.'
             );
-            error.code = 'INVALID_TEST_CASE';
-            throw error;
+            invalidTestCaseError.code = 'INVALID_TEST_CASE';
           }
         }
       } catch (error) {
-        // Re-throw validation errors as-is
-        if (error.code === 'INVALID_TEST_CASE') throw error;
-
         // For unexpected errors, log but allow the vote (code runner might be unavailable)
         // This prevents service disruption
         // Log the error object so callers can inspect stack/message
         console.error('Error validating test case', error);
+      }
+
+      if (invalidTestCaseError) {
+        throw invalidTestCaseError;
       }
     }
 

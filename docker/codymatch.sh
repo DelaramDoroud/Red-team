@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 USERID=$(id -u)
 GROUPID=$(id -g)
 export USERID GROUPID
 
 if [[ "$1" == "test" || ( "$1" == "backend" && "$2" == "test" ) || ( "$1" == "frontend" && "$2" == "test" ) ]]; then
-  source  "../backend/tests/.env.test"
+  source "${SCRIPT_DIR}/../backend/tests/.env.test"
 else
-  source ".env"
+  source "${SCRIPT_DIR}/.env"
 fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 WHITE='\033[0;37m'
+
+# Filter recurring Docker Compose noise that does not indicate a real issue.
+exec 2> >(grep -v 'level=warning msg="No services to build"' >&2)
 
 error_message () {
           echo -e "${RED}Command not found ..."
@@ -63,7 +67,7 @@ if [[ "$ENVIRONMENT" == "production" ]]; then
   COMPOSE_ENV_FILE="docker-compose-production.yml"
 fi
 
-DOCKER_COMPOSE=(docker compose --project-name "${PROJECT_NAME}" -f docker-compose.yml -f "${COMPOSE_ENV_FILE}")
+DOCKER_COMPOSE=(docker compose --project-name "${PROJECT_NAME}" -f "${SCRIPT_DIR}/docker-compose.yml" -f "${SCRIPT_DIR}/${COMPOSE_ENV_FILE}")
 
 case $1 in
 up)

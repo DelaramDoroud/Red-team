@@ -1,26 +1,23 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import modelsInit from '#root/models/init-models.js';
 import { Op } from 'sequelize';
-
-import User from '#root/models/user.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Badge from '#root/models/badge.js';
 import Challenge from '#root/models/challenge.js';
-import MatchSetting from '#root/models/match-setting.js';
 import ChallengeMatchSetting from '#root/models/challenge-match-setting.js';
 import ChallengeParticipant from '#root/models/challenge-participant.js';
+import { SubmissionStatus, VoteType } from '#root/models/enum/enums.js';
+import modelsInit from '#root/models/init-models.js';
 import Match from '#root/models/match.js';
-import Submission from '#root/models/submission.js';
+import MatchSetting from '#root/models/match-setting.js';
 import PeerReviewAssignment from '#root/models/peer_review_assignment.js';
 import PeerReviewVote from '#root/models/peer-review-vote.js';
 import StudentBadge from '#root/models/student-badges.js';
-
+import Submission from '#root/models/submission.js';
+import User from '#root/models/user.js';
 import {
   awardReviewMilestoneBadges,
   awardReviewQualityBadges,
   getReviewBadgesEarnedSince,
 } from '#root/services/challenge-completed-badges.js';
-
-import { SubmissionStatus, VoteType } from '#root/models/enum/enums.js';
 
 /* ------------------------------------------------------------------ */
 beforeAll(async () => {
@@ -131,7 +128,7 @@ async function createReviewVotesForStudent(
     startDatetime: new Date(now.getTime() - 2 * 60 * 60 * 1000),
     endDatetime: new Date(now.getTime() - 60 * 60 * 1000),
     durationPeerReview: 30,
-    status: 'ended_phase_one',
+    status: 'ended_coding_phase',
   });
 
   const cms = await ChallengeMatchSetting.create({

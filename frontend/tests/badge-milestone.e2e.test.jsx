@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChallengeStatus } from '#js/constants';
+import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
 import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import ProfilePage from '../app/student/page';
-import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
 import { getMockedStore } from './test-redux-provider';
 
 const mockGetChallengeResults = vi.fn();
@@ -42,7 +42,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '88' }),
   useRouter: () => mockRouter,
 }));
@@ -77,9 +77,9 @@ const buildResultResponse = () => ({
     challenge: {
       id: 88,
       title: 'Milestone Badge Challenge',
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
       scoringStatus: 'completed',
-      endPhaseTwoDateTime: pastDateIso,
+      endPeerReviewDateTime: pastDateIso,
     },
     matchSetting: {
       id: 9,
@@ -158,7 +158,7 @@ const buildProfileResponse = (totalChallenges) => ({
 const renderResultPage = (store) =>
   render(
     <Provider store={store}>
-      <DurationProvider value={{ status: ChallengeStatus.ENDED_PHASE_TWO }}>
+      <DurationProvider value={{ status: ChallengeStatus.ENDED_PEER_REVIEW }}>
         <ChallengeResultPage />
       </DurationProvider>
     </Provider>

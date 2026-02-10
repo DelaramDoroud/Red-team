@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
+import { Provider } from 'react-redux';
 
 import { ChallengeStatus } from '#js/constants';
 import PeerReviewPage from '../app/student/challenges/[challengeId]/peer-review/page';
 
-vi.mock('next/dynamic', () => ({
+vi.mock('#js/dynamic', () => ({
   default: () => {
     function FakeMonaco({ value }) {
       return <pre>{value}</pre>;
@@ -19,7 +19,7 @@ vi.mock('next/dynamic', () => ({
 
 const mockPush = vi.fn();
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
@@ -93,8 +93,8 @@ const createTestStore = () =>
 
 const baseChallenge = {
   id: 123,
-  status: ChallengeStatus.STARTED_PHASE_TWO,
-  startPhaseTwoDateTime: new Date(Date.now() - 1000 * 60).toISOString(),
+  status: ChallengeStatus.STARTED_PEER_REVIEW,
+  startPeerReviewDateTime: new Date(Date.now() - 1000 * 60).toISOString(),
   durationPeerReview: 30,
 };
 
@@ -135,7 +135,7 @@ describe('Peer Review – Student side acceptance criteria', () => {
       assignments: [],
       challenge: {
         ...baseChallenge,
-        status: ChallengeStatus.STARTED_PHASE_ONE,
+        status: ChallengeStatus.STARTED_CODING_PHASE,
       },
     });
 

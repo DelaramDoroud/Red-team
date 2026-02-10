@@ -1,14 +1,14 @@
-import {
-  describe,
-  it,
-  beforeAll,
-  expect,
-  vi,
-  afterAll,
-  beforeEach,
-  afterEach,
-} from 'vitest';
 import request from 'supertest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 let app;
@@ -31,15 +31,18 @@ beforeAll(async () => {
   const appModule = await import('#root/app_initial.js');
   const sequelizeModule = await import('#root/services/sequelize.js');
   const challengeModule = await import('#root/models/challenge.js');
-  const participantModule =
-    await import('#root/models/challenge-participant.js');
-  const assignmentModule =
-    await import('#root/models/peer_review_assignment.js');
+  const participantModule = await import(
+    '#root/models/challenge-participant.js'
+  );
+  const assignmentModule = await import(
+    '#root/models/peer_review_assignment.js'
+  );
   const voteModule = await import('#root/models/peer-review-vote.js');
   const userModule = await import('#root/models/user.js');
   const matchSettingModule = await import('#root/models/match-setting.js');
-  const challengeMatchSettingModule =
-    await import('#root/models/challenge-match-setting.js');
+  const challengeMatchSettingModule = await import(
+    '#root/models/challenge-match-setting.js'
+  );
   const matchModule = await import('#root/models/match.js');
   const submissionModule = await import('#root/models/submission.js');
 
@@ -144,7 +147,7 @@ afterAll(async () => {
 
 describe('Peer Review Finalization', () => {
   const createChallengeAndParticipants = async (
-    status = ChallengeStatus.STARTED_PHASE_TWO
+    status = ChallengeStatus.STARTED_PEER_REVIEW
   ) => {
     // 1. Create Challenge
     const challenge = await Challenge.create({
@@ -155,7 +158,7 @@ describe('Peer Review Finalization', () => {
       durationPeerReview: 10,
       allowedNumberOfReview: 2,
       status: status,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000), // Started 20 mins ago, duration is 10 mins, so it's expired
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000), // Started 20 mins ago, duration is 10 mins, so it's expired
     });
     createdChallenges.push(challenge.id);
 
@@ -246,7 +249,7 @@ describe('Peer Review Finalization', () => {
 
     // Update challenge to have started just now
     await challenge.update({
-      startPhaseTwoDateTime: new Date(),
+      startPeerReviewDateTime: new Date(),
       durationPeerReview: 60, // 60 minutes duration, so it hasn't expired
     });
 
@@ -271,7 +274,7 @@ describe('Peer Review Finalization', () => {
     expect(res.body.data.finalized).toBe(true);
 
     const updatedChallenge = await Challenge.findByPk(challenge.id);
-    expect(updatedChallenge.status).toBe(ChallengeStatus.ENDED_PHASE_TWO);
+    expect(updatedChallenge.status).toBe(ChallengeStatus.ENDED_PEER_REVIEW);
 
     // Verify unvoted assignments became abstain
     const vote = await PeerReviewVote.findOne({
@@ -348,7 +351,9 @@ describe('Peer Review Finalization', () => {
 
       // Verify challenge status was NOT updated (rollback occurred)
       const updatedChallenge = await Challenge.findByPk(challenge.id);
-      expect(updatedChallenge.status).not.toBe(ChallengeStatus.ENDED_PHASE_TWO);
+      expect(updatedChallenge.status).not.toBe(
+        ChallengeStatus.ENDED_PEER_REVIEW
+      );
     } finally {
       // Restore mock
       PeerReviewVote.bulkCreate = originalBulkCreate;
@@ -363,8 +368,8 @@ describe('Peer Review Finalization', () => {
       endDatetime: new Date(new Date().getTime() + 3600000),
       durationPeerReview: 10,
       allowedNumberOfReview: 3,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000),
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000),
     });
     createdChallenges.push(challenge.id);
 
@@ -517,8 +522,8 @@ describe('Peer Review Finalization', () => {
       endDatetime: new Date(new Date().getTime() + 3600000),
       durationPeerReview: 10,
       allowedNumberOfReview: 2,
-      status: ChallengeStatus.STARTED_PHASE_TWO,
-      startPhaseTwoDateTime: new Date(new Date().getTime() - 20 * 60000),
+      status: ChallengeStatus.STARTED_PEER_REVIEW,
+      startPeerReviewDateTime: new Date(new Date().getTime() - 20 * 60000),
     });
     createdChallenges.push(challenge.id);
 

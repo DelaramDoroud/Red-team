@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChallengeStatus } from '#js/constants';
-import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { DurationProvider } from '../app/student/challenges/[challengeId]/(context)/DurationContext';
+import ChallengeResultPage from '../app/student/challenges/[challengeId]/result/page';
 import { getMockedStore } from './test-redux-provider';
 
 const mockGetChallengeResults = vi.fn();
@@ -32,7 +32,7 @@ const mockRouter = {
   prefetch: vi.fn(),
 };
 
-vi.mock('next/navigation', () => ({
+vi.mock('#js/router', () => ({
   useParams: () => ({ challengeId: '42' }),
   useRouter: () => mockRouter,
 }));
@@ -67,9 +67,9 @@ const buildResultResponse = (newlyUnlocked) => ({
     challenge: {
       id: 42,
       title: 'Milestone Challenge',
-      status: ChallengeStatus.ENDED_PHASE_TWO,
+      status: ChallengeStatus.ENDED_PEER_REVIEW,
       scoringStatus: 'completed',
-      endPhaseTwoDateTime: pastDateIso,
+      endPeerReviewDateTime: pastDateIso,
     },
     matchSetting: {
       id: 11,
@@ -99,7 +99,7 @@ const buildResultResponse = (newlyUnlocked) => ({
 const renderResultPage = (store) =>
   render(
     <Provider store={store}>
-      <DurationProvider value={{ status: ChallengeStatus.ENDED_PHASE_TWO }}>
+      <DurationProvider value={{ status: ChallengeStatus.ENDED_PEER_REVIEW }}>
         <ChallengeResultPage />
       </DurationProvider>
     </Provider>

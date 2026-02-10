@@ -1,10 +1,10 @@
 import { DataTypes } from 'sequelize';
-import sequelize from '#root/services/sequelize.js';
 import {
   BadgeCategory,
   BadgeLevel,
   BadgeMetric,
 } from '#root/models/enum/enums.js';
+import sequelize from '#root/services/sequelize.js';
 
 const Badge = sequelize.define(
   'Badge',

@@ -1,8 +1,8 @@
 'use client';
 
+import { Star } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Star } from 'lucide-react';
 import { Button } from '#components/common/Button';
 
 const FIREWORK_COUNT = 12;

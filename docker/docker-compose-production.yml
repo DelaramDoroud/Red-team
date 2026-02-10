@@ -1,13 +1,30 @@
 services:
   backend:
     image: ${REGISTRY_URL}/${REGISTRY_IMAGE}:${REGISTRY_TAG}
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${PROJECT_NAME}.tls=true"
-      - "traefik.http.routers.${PROJECT_NAME}.rule=Host(`${URL}`)"
-      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${PROJECT_NAME}-api.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-api.rule=Host(`${URL}`) && (PathPrefix(`/api`) || PathPrefix(`/events`))"
+      - "traefik.http.routers.${PROJECT_NAME}-api.priority=100"
+      - "traefik.http.services.${PROJECT_NAME}-api.loadbalancer.server.port=3001"
   frontend:
     image: ${REGISTRY_URL}/${REGISTRY_FRONTEND_IMAGE}:${REGISTRY_FRONTEND_TAG}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-frontend.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-frontend.rule=Host(`${URL}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-frontend.priority=10"
+      - "traefik.http.services.${PROJECT_NAME}-frontend.loadbalancer.server.port=3000"
   db:
     volumes:
       - db_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

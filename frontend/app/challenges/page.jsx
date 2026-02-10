@@ -1,9 +1,9 @@
 'use client';
 
-import ChallengeList from '#modules/challenge/list';
-import useRoleGuard from '#js/useRoleGuard';
 import { Button } from '#components/common/Button';
-import Link from 'next/link';
+import Link from '#components/common/RouterLink';
+import useRoleGuard from '#js/useRoleGuard';
+import ChallengeList from '#modules/challenge/list';
 import styles from './page.module.css';
 
 export default function ChallengesPage() {

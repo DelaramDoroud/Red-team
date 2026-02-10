@@ -1,5 +1,5 @@
-import { ChallengeStatus } from '#root/models/enum/enums.js';
 import { Sequelize } from 'sequelize';
+import { ChallengeStatus } from '#root/models/enum/enums.js';
 
 export async function up({ context: queryInterface }) {
   await queryInterface.createTable('challenge', {
