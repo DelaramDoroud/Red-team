@@ -1,535 +1,197 @@
-# Red-Team Capstone Project - CodyMatch
+# CodyMatch
 
-![red-capstone](red-capstone.png)
+![CodyMatch](red-capstone.png)
 
-**CodyMatch** is an educational competitive coding platform designed for programming education. It enables teachers to create coding challenges where students compete in real-time matches, submit solutions, participate in peer review, and receive scores based on their performance.
+CodyMatch is a competitive programming platform for education. Teachers create timed challenges, students submit solutions, peer-review each other, and receive calculated scores plus rewards.
 
 **Project**: Red Team Capstone  
 **Product Owner**: @SepidehMot Sepideh Mottaghi
 **Scrum Master**: @DelaramDoroud Delaram Doroudgarian  
 **Jira Project**: [RT - Red](https://capstone-red-team.atlassian.net/jira/software/projects/RT)
 
-## Table of Contents
+## Quick Links
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Domain Model](#domain-model)
-- [Workflow](#workflow)
-- [Getting Started](#getting-started)
-- [Development](#development)
-- [Project Management](#project-management)
-- [Contributing](#contributing)
-- [Terminology](#terminology)
+- Developer handbook (deep technical guide): `docs/DEVELOPER_HANDBOOK.md`
+- Setup details: `SETUP.md`
+- Docker helper commands: `docker/README.md`
 
-## Overview
+## TL;DR (Run Locally)
 
-CodyMatch transforms traditional coding assignments into engaging competitive experiences. Teachers create challenges with coding problems, and students compete in timed matches. The platform includes:
-
-- **Real-time coding environment** with instant feedback
-- **Automated code execution** using Docker containers (Judge0)
-- **Three-phase workflow**: Coding → Peer Review → Scoring
-- **Fair match assignment** algorithms for balanced competition
-- **Comprehensive test validation** (public and private tests)
-
-## Key Features
-
-### For Teachers
-
-- Create and manage coding challenges with multiple problems
-- Define match settings with problem statements, test cases, and reference solutions
-- Schedule challenges with customizable durations
-- Monitor student participation and progress in real-time
-- Automatic student-to-match assignment
-- Peer review configuration and management
-- View comprehensive results and analytics
-
-### For Students
-
-- Join scheduled challenges
-- Compete in assigned matches with code editor
-- Write, test, and submit code solutions
-- Review peers' code and provide feedback
-- Vote on solution correctness with test case validation
-- Track personal progress and scores
-
-## Architecture
-
-CodyMatch follows a three-tier containerized architecture:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│                  Frontend (React SPA)               │
-│                Port 3000 (public UI)                │
-│  React 19, React Router, Redux Toolkit, Vite       │
-└─────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────┐
-│              Backend (Node.js/Express)              │
-│              Port 3001 (external)                   │
-│   REST API, Session Management, Code Runner         │
-└─────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────┐
-│              Database (PostgreSQL 16)               │
-│                   Port 5432                         │
-│   Sequelize ORM, Migration-based Schema             │
-└─────────────────────────────────────────────────────┘
+```bash
+./setup.sh
+cd docker
+./codymatch.sh bul
 ```
 
-### Architecture Highlights
+Default development URLs:
 
-- **Separated Services**: Frontend and backend are independent containers with path-based routing in production.
-- **Code Execution**: Isolated Docker containers using Judge0 compilers image
-- **State Management**: Redis for session storage, BullMQ for job queues
-- **Real-time Updates**: SSE (Server-Sent Events) only via `EventSource`
+- Frontend: `http://localhost:3002`
+- Backend API: `http://localhost:3001`
+- PostgreSQL (host): `localhost:5431`
 
-## Technology Stack
+## Demo Accounts
 
-### Frontend
+Seeded users include:
 
-- **Framework**: React 19 + Vite
-- **Routing**: React Router
-- **State Management**: Redux Toolkit with Redux Persist
-- **UI Components**: Radix UI, Tailwind CSS
-- **Code Editor**: Monaco Editor (VS Code engine)
-- **Testing**: Vitest, Testing Library
-- **Styling**: CSS Modules, Tailwind CSS
+- Teacher: `teacher1@codymatch.test` / `password123`
+- Student: `student1@codymatch.test` / `password123`
 
-### Backend
+(See `backend/models/user.js` for full seeded list.)
 
-- **Runtime**: Node.js 25.x
-- **Framework**: Express 5.2
-- **ORM**: Sequelize 6.37 with Umzug migrations
-- **Database**: PostgreSQL 16
-- **Session**: express-session with connect-pg-simple
-- **Job Queue**: BullMQ with Redis (IORedis)
-- **Code Execution**: Docker SDK, Judge0 compilers
-- **Validation**: AJV (JSON Schema)
-- **Testing**: Vitest, Supertest
-- **Logging**: Winston, Morgan
+## System Architecture
 
-### DevOps
+CodyMatch runs as containerized services:
 
-- **Containerization**: Docker, Docker Compose
-- **CI/CD**: GitHub Actions (configured)
-- **Code Quality**: Biome, Stylelint
-- **Git Hooks**: Husky with lint-staged
-- **Version Control**: Git, GitHub
+- Frontend: React 19 + React Router + Redux Toolkit (`frontend/`)
+- Backend: Node.js + Express 5 + Sequelize (`backend/`)
+- DB: PostgreSQL 16
+- Session store: Redis 7
+- Code execution: Dockerized compilers image (`judge0/compilers`), queued with PgBoss
 
-## Project Structure
+Realtime updates use SSE (`/api/rest/events`) and are consumed in frontend Redux (`frontend/assets/js/store/SseManager.jsx`).
+
+## Core Domain and Lifecycle
+
+Main entities:
+
+- Challenge
+- Match Setting
+- Match
+- Submission
+- Peer Review Assignment
+- Peer Review Vote
+- Submission Score Breakdown
+- Badge / Title
+
+Challenge status flow:
+
+`private -> public -> assigned -> started_coding_phase -> ended_coding_phase -> started_peer_review -> ended_peer_review`
+
+Scoring status flow (separate field):
+
+`pending -> computing -> completed`
+
+## Repository Structure
 
 ```text
-Red-team/
-├── backend/                    # Node.js/Express API server
-│   ├── config/                # Database and app configuration
-│   ├── migrations/            # Sequelize database migrations
-│   ├── models/                # Sequelize models
-│   │   ├── challenge.js
-│   │   ├── match.js
-│   │   ├── submission.js
-│   │   └── user.js
-│   ├── routes/
-│   │   ├── api/               # API endpoints for internal use
-│   │   └── rest/              # REST API controllers
-│   │       ├── challenge-controller.js
-│   │       ├── match-setting-controller.js
-│   │       ├── run-controller.js
-│   │       └── submission-controller.js
-│   ├── services/              # Business logic and utilities
-│   │   ├── assign-matches.js
-│   │   ├── code-runner.js
-│   │   ├── code-execution-queue.js
-│   │   ├── execute-code-tests.js
-│   │   └── start-challenge.js
-│   ├── schemas/               # JSON Schema validation
-│   ├── tests/                 # Backend tests
-│   └── app.js                 # Express app entry point
-│
-├── frontend/                   # React SPA
-│   ├── app/                   # Route-level page components
-│   │   ├── challenges/
-│   │   ├── new-challenge/
-│   │   ├── student/
-│   │   └── login/
-│   ├── assets/
-│   │   ├── components/        # Reusable React components
-│   │   ├── css/               # Global styles
-│   │   ├── js/                # Utilities and store
-│   │   └── modules/           # Feature modules
-│   ├── services/              # API client services
-│   └── tests/                 # Frontend tests
-│
-├── docker/                     # Docker configuration
-│   ├── docker-compose.yml
-│   ├── docker-compose-development.yml
-│   ├── docker-compose-production.yml
-│   ├── codymatch.sh           # Docker orchestration script
-│   └── example.env
-│
-├── setup.sh                    # Development environment setup
-├── SETUP.md                    # Setup instructions
-├── AGENTS.md                   # AI agent guidelines
-└── README.md                   # This file
+codymatch/
+├── backend/        # Express API, services, models, migrations, tests
+├── frontend/       # React app, Redux store, route pages, tests
+├── docker/         # Compose files and codymatch.sh helper
+├── docs/           # Extended project documentation
+├── setup.sh        # Environment bootstrap script
+├── SETUP.md        # Setup instructions
+└── README.md
 ```
 
-## Domain Model
+## Development Workflow
 
-### Core Entities
+1. Run bootstrap:
 
-#### Challenge
+```bash
+./setup.sh
+```
 
-A challenge is a timed competition containing multiple matches. Teachers create challenges and students join them.
-
-- **Status Flow**: `private` → `public` → `assigned` → `coding_phase` → `peer_review_phase` → `scoring_phase` → `completed`
-- **Key Fields**: title, duration, startDatetime, durationPeerReview, allowedNumberOfReview
-
-#### Match Setting
-
-A reusable template defining a coding problem with test cases and reference solution.
-
-- **Validation States**: `draft` → `ready`
-- **Contains**: problem statement, reference solution, public tests, private tests
-
-#### Match
-
-An instance of a match setting within a challenge, assigned to a group of students.
-
-- **Lifecycle**: Created during assignment → Active during coding phase → Evaluated → Completed
-- **Tracks**: student submissions, test results, timestamps
-
-#### Submission
-
-A student's code solution for a match.
-
-- **Metadata**: code content, language, submission timestamp
-- **Results**: compiler output, passed tests count, execution status
-
-#### User
-
-Represents students and teachers.
-
-- **Roles**: student, teacher
-- **Authentication**: bcrypt-hashed passwords, session-based
-
-#### Challenge Participant
-
-Junction entity linking students to challenges with join status.
-
-## Workflow
-
-### 1. Challenge Creation (Teacher)
-
-1. Teacher creates match settings with problems and test cases
-2. Teacher validates match settings (`draft` → `ready`)
-3. Teacher creates a challenge by selecting validated match settings
-4. System marks challenge as `public` when start datetime arrives
-
-### 2. Student Enrollment
-
-1. Students see available challenges matching current datetime
-2. Students click "Join" and wait for teacher to start
-3. Teacher reviews joined students list
-
-### 3. Match Assignment
-
-1. Teacher clicks "Assign" button
-2. System automatically distributes students into multiple simultaneous matches
-3. Each match setting gets at least one match instance
-4. Students are randomly assigned ensuring fair distribution
-5. No student is assigned to multiple matches
-
-### 4. Coding Phase
-
-1. Teacher starts the challenge (status → `coding_phase`)
-2. Students redirected to coding interface with countdown timer
-3. Students write code in Monaco editor
-4. Students click "Run" to test against public test cases
-5. Students click "Submit" when satisfied (multiple submissions allowed)
-6. System executes code against both public and private tests
-7. Phase ends when timer expires (auto-submit if code compiles)
-
-### 5. Peer Review Assignment
-
-1. After coding phase ends, system shows valid submissions count per match
-2. Teacher sets expected reviews per submission and clicks "Assign"
-3. System assigns peer review tasks ensuring:
-   - Only valid submissions (passed all public tests) are reviewed
-   - Fair distribution of review tasks among students
-   - No self-review
-   - Reviews restricted to same match participants
-
-### 6. Peer Review Phase
-
-1. Teacher starts peer review (status → `peer_review_phase`)
-2. Students see assigned solutions with countdown timer
-3. For each solution, students vote: Correct / Incorrect / Abstain
-4. "Incorrect" votes require providing a failing test case
-5. System validates test cases aren't duplicates of public tests
-6. Progress bar tracks completion
-7. Students can exit early or continue until timer expires
-8. Auto-finalization when timer reaches zero
-
-### 7. Scoring Phase
-
-1. System calculates scores based on:
-   - Private test cases passed
-   - Peer review accuracy
-   - Participation metrics
-2. Results displayed to students and teacher
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js**: 25.x
-- **npm**: 11.x
-- **Docker**: Engine 28.x or higher
-- **Docker Compose**: v2 (plugin)
-- **Git**: Latest version
-- **Shell**: bash (Linux/macOS), WSL2/Git Bash (Windows)
-
-### Installation
-
-1. **Clone the repository**:
-
-   ```bash
-   git clone https://github.com/DelaramDoroud/Red-team.git
-   cd Red-team
-   ```
-
-2. **Run setup script**:
-
-   ```bash
-   ./setup.sh
-   ```
-
-   This script will:
-   - Verify Node, npm, Docker, and Docker Compose versions
-   - Install Git hooks for code quality
-   - Create `.env` files from templates
-   - Set up development environment
-
-3. **Start the application**:
-
-   ```bash
-   cd docker
-   ./codymatch.sh bul
-   ```
-
-   The application UI will be available at `http://localhost:3000`  
-   Backend API/SSE will be available at `http://localhost:3001`
-
-For detailed setup instructions, see [SETUP.md](SETUP.md).
-
-## Development
-
-### Running in Development Mode
+2. Start development stack:
 
 ```bash
 cd docker
-./codymatch.sh bul  # Build, up, and attach logs
+./codymatch.sh bul
 ```
 
-### Running Tests
-
-**Backend tests**:
+3. Use Docker helper for package operations:
 
 ```bash
-cd backend
-npm test                  # Watch mode
-npm run test:run          # Single run
-npm run test:coverage     # With coverage
+./codymatch.sh backend npm install <package>
+./codymatch.sh frontend npm install <package>
 ```
 
-**Frontend tests**:
+## Testing
+
+From `docker/`:
 
 ```bash
-cd frontend
-npm test
-npm run test:coverage
+# Full suite (backend + frontend)
+./codymatch.sh test --stop
+
+# Backend only
+./codymatch.sh backend test --stop
+
+# Frontend only
+./codymatch.sh frontend test --stop
 ```
 
-### Code Quality
+## Linting and Formatting
 
-Linting and formatting are enforced via Git hooks (pre-commit).
-
-**Manual checks**:
+From `docker/`:
 
 ```bash
-# Backend
-cd backend
-npm run lint
-
-# Frontend
-cd frontend
-npm run lint
-npm run lint:scss
-npm run format
+./codymatch.sh lint
 ```
 
-### Biome on VSCode
+This runs backend and frontend lint pipelines (Biome, Stylelint, Markdownlint where configured).
 
-1. Install the extension **Biome** (`biomejs.biome`) from the VSCode marketplace.
-2. Add these settings in `.vscode/settings.json` (workspace) or user settings:
+## Database Migrations
 
-   ```json
-   {
-     "editor.formatOnSave": true,
-     "editor.defaultFormatter": "biomejs.biome",
-     "[javascript]": {
-       "editor.defaultFormatter": "biomejs.biome"
-     },
-     "[javascriptreact]": {
-       "editor.defaultFormatter": "biomejs.biome"
-     },
-     "[json]": {
-       "editor.defaultFormatter": "biomejs.biome"
-     },
-     "[jsonc]": {
-       "editor.defaultFormatter": "biomejs.biome"
-     }
-   }
-   ```
-
-3. If the extension does not pick up changes immediately, run `Biome: Restart
-   Language Server` from the command palette.
-
-### Database Migrations
-
-**Create a new migration**:
+From `docker/`:
 
 ```bash
-cd backend
-npm run migration:new
+./codymatch.sh migrate
+./codymatch.sh migrate-undo
+./codymatch.sh migrate-undo-all
+./codymatch.sh migration:new your_migration_name
 ```
 
-**Run migrations**:
+## Environment Variables
 
-```bash
-npm run migrate
-```
+Template:
 
-**Rollback**:
+- `docker/example.env`
 
-```bash
-npm run migrate-undo
-```
+Auto-generated on setup (if missing):
 
-### Environment Variables
+- `docker/.env`
+- `backend/tests/.env.test`
 
-Key environment variables (defined in `docker/.env`):
+Important variables include:
 
-```env
-DB_PASSWORD=your_db_password
-DB_PORT=5432
-CODE_RUNNER_IMAGE=judge0/compilers:latest
-SECRET=your_session_secret
-VITE_API_REST_BASE=http://localhost:3001/api/rest
-VITE_AUTH_API_BASE=http://localhost:3001
-```
+- `ENVIRONMENT`
+- `PROJECT_PORT`
+- `DB_PORT`, `DB_PASSWORD`
+- `SECRET`
+- `REDIS_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `VITE_API_REST_BASE`
+- `VITE_AUTH_API_BASE`
+- `CODE_RUNNER_IMAGE`
 
-## Project Management
+## Production Notes
 
-### Jira Workspace
+Production compose overlay:
 
-- **Project**: Red (RT)
-- **URL**: <https://capstone-red-team.atlassian.net>
-- **Issue Types**: Story, Epic, Subtask
+- `docker/docker-compose-production.yml`
 
-### Current Sprint (Sprint 3)
+Deployment helper:
 
-Key user stories in development:
+- `docker/deploy.sh`
 
-- **RT-118**: Exit Peer Review
-- **RT-122**: Finalize Peer Review on Timer Expiration
-- **RT-6**: Voting After Reviewing
-- **RT-123**: Navigate and Review Assigned Peer Review Solutions
-- **RT-116**: Start Peer Review
-- **RT-115**: Peer Review Assignment
-- **RT-125**: Refinements of previous sprint
+Production routing is configured with Traefik labels in compose files.
 
-### Epics
+## Exam and Handoff Guidance
 
-The project is organized into major epics:
+For technical discussion, architecture walkthroughs, and “change this feature” requests, use:
 
-- **RT-38**: Technical Setup
-- **RT-39**: User Authentication
-- **RT-26**: Challenge Management
-- **RT-27**: Student Challenge
-- **RT-30**: Student Challenge Enrollment
-- **RT-101**: Coding Phase
-- **RT-102**: Peer Review Phase
-- **RT-103**: Scoring Phase
-- **RT-104**: Rewards
-- **RT-29**: Shop
+- `docs/DEVELOPER_HANDBOOK.md`
 
-### Completed Stories
+It documents:
 
-Major completed features include:
+- backend/frontend runtime internals
+- route and service map
+- scoring/review algorithms
+- common modification playbooks
+- deployment handoff checklist
 
-- Project and database setup (RT-34, RT-35)
-- Challenge creation and management (RT-24)
-- Student enrollment (RT-2)
-- Match assignment algorithm (RT-25)
-- Challenge start workflow (RT-23)
-- Code editor and execution (RT-32)
-- Code submission logic (RT-4)
+## Maintainers
 
-## Contributing
+Capstone Red Team.
 
-### Development Guidelines
-
-- **Incremental progress** over big bangs
-- **Learn from existing code** before implementing
-- **Pragmatic** over dogmatic
-- **Clear intent** over clever code
-- **Single responsibility** per function/class
-- **Test-driven** when possible
-
-### Code Style
-
-- Follow existing conventions in the codebase
-- Use project's ESLint and Prettier configurations
-- Ensure all tests pass before committing
-- Never use `--no-verify` to bypass commit hooks
-- Text files must end with a newline
-
-### Pull Request Process
-
-1. Create a feature branch from `main`
-2. Implement changes following coding standards
-3. Ensure all tests pass
-4. Update documentation if needed
-5. Submit PR with clear description linking to Jira issue
-
-## Terminology
-
-For definitions of **Challenge**, **Match Setting**, and **Match**, see the [Domain Model](#domain-model) section above.
-
-### Public Test
-
-A test case that is visible to students. They can see both the input and the expected output.
-
-### Private Test
-
-A hidden test case, not visible to students. Only the teacher and the system know its input and expected output.
-
-### Peer Review
-
-The process in which students evaluate each other's submitted code solutions after the coding phase of a match. For each solution, they vote: Correct, Incorrect, or Abstain. If a student votes Incorrect, they must provide a failing test case.
-
-### Valid Submission
-
-A submission that passed all public test cases and is eligible for peer review.
-
-## License
-
-This project is part of an educational university program.
-
----
-
-**Maintained by**: Capstone's Red-Team
-**Last Updated**: December 2025
