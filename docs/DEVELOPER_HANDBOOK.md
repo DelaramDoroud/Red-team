@@ -2,7 +2,7 @@
 
 This handbook is the technical reference for:
 
-- Exam discussion with professors (architecture, code flows, and change points).
+- Understand architecture, code flows, and change points.
 - Future developers who will maintain and deploy CodyMatch on university infrastructure.
 
 Use this together with `README.md` (quick start) and the source code.
@@ -176,7 +176,7 @@ API groups:
 - Rewards/profile: `backend/routes/rest/reward-controller.js`, `backend/routes/rest/profile-controller.js`
 - Event stream: `backend/routes/rest/events-controller.js`
 
-High-value endpoints to know in exam discussion:
+High-value endpoints to now:
 
 - `POST /api/login`, `POST /api/logout`, `GET /api/userinfo`
 - `GET /api/rest/challenges`
@@ -655,9 +655,7 @@ Before university deployment:
 - image tag pinning
 - migration rollback plan
 
-## 18. Fast Exam Q&A Map
-
-If asked “where is X implemented?”:
+## 18. Fast Map
 
 - Login/session: `backend/routes/api/user-controller.js`, `backend/services/session.js`
 - Challenge state machine: `backend/models/enum/enums.js`, challenge route modules
