@@ -17,7 +17,7 @@ services:
       - "traefik.http.routers.${PROJECT_NAME}-frontend.tls=true"
       - "traefik.http.routers.${PROJECT_NAME}-frontend.rule=Host(`${URL}`)"
       - "traefik.http.routers.${PROJECT_NAME}-frontend.priority=10"
-      - "traefik.http.services.${PROJECT_NAME}-frontend.loadbalancer.server.port=3000"
+      - "traefik.http.services.${PROJECT_NAME}-frontend.loadbalancer.server.port=${PROJECT_PORT:-3002}"
   db:
     volumes:
       - db_data:/var/lib/postgresql/data

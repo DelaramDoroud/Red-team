@@ -5,6 +5,8 @@ import { defineConfig } from 'vite';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
+const parsedProjectPort = Number.parseInt(process.env.PROJECT_PORT || '', 10);
+const projectPort = Number.isNaN(parsedProjectPort) ? 3002 : parsedProjectPort;
 
 const resolvePath = (target) => path.join(dirname, target);
 
@@ -12,11 +14,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 3000,
+    port: projectPort,
   },
   preview: {
     host: '0.0.0.0',
-    port: 3000,
+    port: projectPort,
   },
   resolve: {
     alias: {

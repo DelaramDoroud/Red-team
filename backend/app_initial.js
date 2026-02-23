@@ -22,6 +22,7 @@ const isTestEnv =
   process.env.NODE_ENV === 'test' || process.env.ENVIRONMENT === 'test';
 const disableAccessLogs = isTestEnv || process.env.DISABLE_HTTP_LOGS === 'true';
 const isProductionEnv = process.env.NODE_ENV === 'production';
+const frontendPort = process.env.PROJECT_PORT || '3002';
 
 const app = express();
 
@@ -54,9 +55,12 @@ const parseAllowedOrigins = () => {
     .filter(Boolean);
   if (values.length > 0) return values;
 
-  if (isTestEnv) return ['http://localhost:3000'];
+  if (isTestEnv) return [`http://localhost:${frontendPort}`];
   if (!isProductionEnv) {
-    return ['http://localhost:3000', 'http://127.0.0.1:3000'];
+    return [
+      `http://localhost:${frontendPort}`,
+      `http://127.0.0.1:${frontendPort}`,
+    ];
   }
   return [];
 };

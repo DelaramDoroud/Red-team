@@ -15,7 +15,7 @@
     "migrate-undo": "node migrator.js db:migrate:undo",
     "migrate-undo-all": "node migrator.js db:migrate:undo:all",
     "migration:new": "node scripts/create-migration.js",
-    "lint": "biome check . && sh -c \"if find . \\( -path './node_modules' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print -quit | grep -q .; then markdownlint --fix --ignore-path .lintignore .; fi\"",
+    "lint": "biome check . && find . \\( -path './node_modules' -o -path './.idea' \\) -prune -o -type f -name '*.md' -print0 | xargs -0 -r markdownlint-cli2 --fix",
     "format": "biome format --write .",
     "test": "vitest",
     "test:run": "vitest run",
@@ -24,49 +24,43 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ajv": "^8.17.1",
+    "ajv": "^8.18.0",
     "ajv-errors": "^3.0.0",
     "ajv-formats": "^3.0.1",
-    "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
-    "bullmq": "^5.66.0",
     "connect-redis": "^9.0.0",
-    "cors": "^2.8.5",
-    "cron": "^4.4.0",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
-    "express-session": "^1.18.2",
+    "express-session": "^1.19.0",
     "helmet": "^8.1.0",
-    "ioredis": "^5.8.2",
-    "jsonwebtoken": "^9.0.3",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "morgan": "^1.10.1",
-    "node-cron": "^4.2.1",
-    "pg": "^8.16.3",
-    "pg-boss": "^12.5.2",
-    "redis": "^5.10.0",
-    "rotating-file-stream": "^3.2.7",
+    "pg": "^8.18.0",
+    "pg-boss": "^12.13.0",
+    "redis": "^5.11.0",
+    "rotating-file-stream": "^3.2.9",
     "sequelize": "^6.37.7",
-    "supertest": "^7.1.4",
     "umzug": "^3.8.2",
     "uuid": "^13.0.0",
     "winston": "^3.19.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.14",
-    "@types/supertest": "^6.0.3",
-    "@vitest/coverage-v8": "^4.0.15",
+    "@biomejs/biome": "^2.4.4",
+    "@vitest/coverage-v8": "^4.0.18",
     "lint-staged": "^16.2.7",
-    "markdownlint-cli": "^0.47.0",
-    "sequelize-auto": "^0.8.8",
-    "sequelize-cli": "^6.6.3",
-    "vitest": "^4.0.15"
+    "markdownlint-cli2": "^0.21.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
   },
   "lint-staged": {
     "**/*.js": [
       "biome check --write --no-errors-on-unmatched"
     ],
     "**/*.md": [
-      "markdownlint --fix --ignore-path .lintignore"
+      "markdownlint-cli2 --fix"
     ]
+  },
+  "overrides": {
+    "ajv": "^8.18.0"
   }
 }

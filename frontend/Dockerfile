@@ -25,11 +25,13 @@ FROM node:25-alpine
 WORKDIR /usr/app
 
 ENV NODE_ENV=production
+ARG PROJECT_PORT=3002
+ENV PROJECT_PORT=${PROJECT_PORT}
 
 COPY --from=builder /usr/app/package*.json ./
 COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/dist ./dist
 
-EXPOSE 3000
+EXPOSE ${PROJECT_PORT}
 
 CMD ["npm", "run", "start"]
